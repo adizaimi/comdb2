@@ -4200,6 +4200,10 @@ clipper_usage:
         pthread_mutex_lock(&testguard);
         bdb_locktest(thedb->bdb_env);
         pthread_mutex_unlock(&testguard);
+    } else if (tokcmp(tok, ltok, "deadlocktest") == 0) { //take db in deadlock
+        wrlock_schema_lk();
+        pthread_mutex_lock(&gbl_sc_lock);
+        pthread_mutex_lock(&gbl_sc_lock); // now no sql query can be processed
     } else if (tokcmp(tok, ltok, "berkdelay") == 0) {
         uint32_t commit_delay_ms = 0;
         tok = segtok(line, lline, &st, &ltok);

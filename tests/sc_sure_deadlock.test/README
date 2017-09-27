@@ -1,0 +1,5 @@
+This test sends a message trap to db to enter into a deadlock
+by write locking sclock. When that occurs no sql can go in and
+the db is unreachable. The testsuite should be able to detect
+this condition and kill the task after the timeout (rather than
+be hung and wait forever). 

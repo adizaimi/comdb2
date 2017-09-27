@@ -1,0 +1,22 @@
+#!/bin/bash
+bash -n "$0" | exit 1
+
+set -e
+set -x
+
+# Debug variable
+debug=0
+
+dbnm=$1
+
+if [ "x$dbnm" == "x" ] ; then
+    echo "need a DB name"
+    exit 1
+fi
+
+
+cdb2sql --tabs ${CDB2_OPTIONS} $dbnm default "exec procedure sys.cmd.send('deadlocktest')" &
+sleep 1
+cdb2sql --tabs ${CDB2_OPTIONS} $dbnm default "select 1" #this will wait forever
+
+echo "Success"
