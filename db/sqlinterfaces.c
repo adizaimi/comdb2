@@ -5753,56 +5753,22 @@ static int execute_verify_indexes(struct sqlthdstate *thd,
 
 
 
-//static send_one()
-
-
-static void sqlengine_work_appsock(void *thddata, void *work)
+static void send_one(struct sqlclntstate *clnt)
 {
-    struct sqlthdstate *thd = thddata;
-    struct sqlclntstate *clnt = work;
-    struct sql_thread *sqlthd = thd->sqlthd;
-    if (sqlthd) {
-        sqlthd->sqlclntstate = clnt;
-    } else {
-        abort();
-    }
-
-    if (0) {
-        CDB2SQLRESPONSE__Column *columns[1];
-        CDB2SQLRESPONSE__Column column;
-        columns[0] = &column;
-        cdb2__sqlresponse__column__init(columns[0]);
-        column.has_type = 1;
-        column.type = SQLITE_TEXT;
-        column.value.len = 6;
-        column.value.data = "hello";
-        CDB2SQLRESPONSE sql_response = CDB2__SQLRESPONSE__INIT;
-        int ncols = 1;
-
-        int rc = _push_row_new(clnt, RESPONSE_TYPE__COLUMN_NAMES, 
-                       &sql_response, columns, ncols, malloc, 0);
-
-
-
-        newsql_send_last_row(clnt, 0, __func__, __LINE__);
-        return;
-    }
-
-    if (1) { //gbl_test_no_exe_anything
-        static char *col_buf = NULL;
-        int rc;
-        SBUF2 *sb = clnt->sb;
-        if (col_buf == NULL) {
-          {
+    static char *col_buf = NULL;
+    int rc;
+    SBUF2 *sb = clnt->sb;
+    if (col_buf == NULL) {
+        {
             // COLUMN NAMES 
             CDB2SQLRESPONSE__Column *columns[1];
             CDB2SQLRESPONSE__Column column;
             columns[0] = &column;
             cdb2__sqlresponse__column__init(columns[0]);
             column.has_type = 1;
-            column.type = SQLITE_TEXT;
-            column.value.len = 6;
-            column.value.data = "hello";
+            column.type = SQLITE_INTEGER;
+            column.value.len = 2;
+            column.value.data = "1";
 
             CDB2SQLRESPONSE sql_response_cn = CDB2__SQLRESPONSE__INIT;
             sql_response_cn.response_type = RESPONSE_TYPE__COLUMN_NAMES;
@@ -5818,17 +5784,18 @@ static void sqlengine_work_appsock(void *thddata, void *work)
             hdr_cn.dummy = 0;
             hdr_cn.length = ntohl(len_cn);
 
-        rc = sbuf2write((char *)&hdr_cn, sizeof(struct newsqlheader), sb);
-        rc = sbuf2write(dta_cn, len_cn, sb);
-          }
-          { // ROW DATA
+            rc = sbuf2write((char *)&hdr_cn, sizeof(struct newsqlheader), sb);
+            rc = sbuf2write(dta_cn, len_cn, sb);
+        }
+        { // ROW DATA
             CDB2SQLRESPONSE__Column *columns[1];
             CDB2SQLRESPONSE__Column column;
             columns[0] = &column;
             cdb2__sqlresponse__column__init(columns[0]);
             column.has_type = 0;
-            column.value.len = 6;
-            column.value.data = "hello";
+            column.value.len = 4;
+            int one = 1;
+            column.value.data = &one;
 
             CDB2SQLRESPONSE sql_response_row = CDB2__SQLRESPONSE__INIT;
             sql_response_row.response_type = RESPONSE_TYPE__COLUMN_VALUES;
@@ -5844,10 +5811,10 @@ static void sqlengine_work_appsock(void *thddata, void *work)
             hdr_row.dummy = 0;
             hdr_row.length = ntohl(len_row);
 
-        rc = sbuf2write((char *)&hdr_row, sizeof(struct newsqlheader), sb);
-        rc = sbuf2write(dta_row, len_row, sb);
-          }
-          {
+            rc = sbuf2write((char *)&hdr_row, sizeof(struct newsqlheader), sb);
+            rc = sbuf2write(dta_row, len_row, sb);
+        }
+        {
             // LAST
             CDB2SQLRESPONSE sql_response_last = CDB2__SQLRESPONSE__INIT;
             sql_response_last.response_type = RESPONSE_TYPE__LAST_ROW;
@@ -5864,28 +5831,41 @@ static void sqlengine_work_appsock(void *thddata, void *work)
             hdr_last.length = ntohl(len_last);
 
             /*
-            rc = _push_row_new(clnt, RESPONSE_TYPE__COLUMN_NAMES, 
-                       &sql_response_cn, columns, 1, malloc, 0);
-            rc = newsql_write_response(clnt, RESPONSE_HEADER__SQL_RESPONSE,
-                                 &sql_response_cn, 0, malloc, 
-                                  __func__, __LINE__);
-                       */
+               rc = _push_row_new(clnt, RESPONSE_TYPE__COLUMN_NAMES, 
+               &sql_response_cn, columns, 1, malloc, 0);
+               rc = newsql_write_response(clnt, RESPONSE_HEADER__SQL_RESPONSE,
+               &sql_response_cn, 0, malloc, 
+               __func__, __LINE__);
+             */
 
 
-        rc = sbuf2write((char *)&hdr_last, sizeof(struct newsqlheader), sb);
-        rc = sbuf2write(dta_last, len_last, sb);
-          }
-            /*
-        */
-        clnt->osql.sent_column_data = 1;
+            rc = sbuf2write((char *)&hdr_last, sizeof(struct newsqlheader), sb);
+            rc = sbuf2write(dta_last, len_last, sb);
+        }
+        /*
+         */
+            clnt->osql.sent_column_data = 1;
 
             //newsql_send_last_row(clnt, 0, __func__, __LINE__);
-        }
-
-
-        sbuf2flush(sb);
-        return;
     }
+
+
+    sbuf2flush(sb);
+
+}
+
+
+static void sqlengine_work_appsock(void *thddata, void *work)
+{
+    struct sqlthdstate *thd = thddata;
+    struct sqlclntstate *clnt = work;
+    struct sql_thread *sqlthd = thd->sqlthd;
+    if (sqlthd) {
+        sqlthd->sqlclntstate = clnt;
+    } else {
+        abort();
+    }
+       
 
     thr_set_user(clnt->appsock_id);
 
@@ -5942,6 +5922,12 @@ static void sqlengine_work_appsock(void *thddata, void *work)
 
     osql_shadtbl_begin_query(thedb->bdb_env, clnt);
 
+    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY)) {
+        send_one(clnt);
+        goto noexecute;
+    }
+
+
     if (clnt->fdb_state.remote_sql_sb) {
         clnt->query_rc = execute_sql_query_offload(thd, clnt);
         /* execute sql query might have generated an overriding fdb error;
@@ -5954,6 +5940,7 @@ static void sqlengine_work_appsock(void *thddata, void *work)
         clnt->query_rc = execute_sql_query(thd, clnt);
     }
 
+noexecute:
     osql_shadtbl_done_query(thedb->bdb_env, clnt);
     thrman_setfd(thd->thr_self, -1);
     sql_reset_sqlthread(thd->sqldb, sqlthd);
