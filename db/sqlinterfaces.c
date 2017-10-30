@@ -5767,6 +5767,34 @@ static void sqlengine_work_appsock(void *thddata, void *work)
         abort();
     }
 
+    if (1) { //gbl_test_no_exe_anything
+        /*
+        static char *buf = NULL;
+        if (buf == NULL) {
+            CDB2SQLRESPONSE__Column columns[1];
+            cdb2__sqlresponse__column__init(columns[1]);
+            columns[i]->has_type = 0;
+            columns[i]->value.len = 5;
+            columns[i]->value.data = "hello";
+        }
+        CDB2SQLRESPONSE sql_response = CDB2__SQLRESPONSE__INIT;
+        sql_response.response_type = RESPONSE_TYPE__LAST_ROW;
+        sql_response.n_value = 1;
+        sql_response.value = columns;
+        */
+
+        SBUF2 *sb = clnt->sb;
+        struct newsqlheader hdr;
+        hdr.type = ntohl(RESPONSE_TYPE__LAST_ROW);
+        hdr.compression = 0;
+        hdr.dummy = 0;
+        hdr.length = 0;
+        int rc = sbuf2write((char *)&hdr, sizeof(struct newsqlheader), sb);
+        sbuf2flush(sb);
+
+        return;
+    }
+
     thr_set_user(clnt->appsock_id);
 
     clnt->osql.timings.query_dispatched = osql_log_time();
