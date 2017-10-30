@@ -891,8 +891,8 @@ int newsql_write_response(struct sqlclntstate *clnt, int type,
 
     if (dta) {
         rc = sbuf2write(dta, len, sb);
+        free(dta);
         if (rc != len) {
-
             if (gbl_dump_fsql_response) {
                 logmsg(LOGMSG_USER, "sbuf2write error for %s rc=%d\n", clnt->sql,
                         rc);
@@ -903,8 +903,6 @@ int newsql_write_response(struct sqlclntstate *clnt, int type,
                 logmsg(LOGMSG_FATAL, "couldnt get clnt->write_lock\n");
                 exit(1);
             }
-
-            free(dta);
             return -1;
         }
     }
@@ -918,9 +916,6 @@ int newsql_write_response(struct sqlclntstate *clnt, int type,
         logmsg(LOGMSG_FATAL, "couldnt get clnt->write_lock\n");
         exit(1);
     }
-
-    if (dta)
-        free(dta);
 
     return 0;
 }
@@ -4943,7 +4938,7 @@ static int send_row_new(struct sqlthdstate *thd, struct sqlclntstate *clnt,
                 cnonce, file, offset);
     }
 
-    sql_response.value = columns;
+    sql_response.value = columns; /* also done in pushnewrow */
     return _push_row_new(clnt, RESPONSE_TYPE__COLUMN_VALUES, &sql_response, 
                          columns, ncols, 
                          ((cdb2__sqlresponse__get_packed_size(&sql_response)+1)
@@ -5756,6 +5751,11 @@ static int execute_verify_indexes(struct sqlthdstate *thd,
     return rc;
 }
 
+
+
+//static send_one()
+
+
 static void sqlengine_work_appsock(void *thddata, void *work)
 {
     struct sqlthdstate *thd = thddata;
@@ -5767,31 +5767,122 @@ static void sqlengine_work_appsock(void *thddata, void *work)
         abort();
     }
 
-    if (1) { //gbl_test_no_exe_anything
-        /*
-        static char *buf = NULL;
-        if (buf == NULL) {
-            CDB2SQLRESPONSE__Column columns[1];
-            cdb2__sqlresponse__column__init(columns[1]);
-            columns[i]->has_type = 0;
-            columns[i]->value.len = 5;
-            columns[i]->value.data = "hello";
-        }
+    if (0) {
+        CDB2SQLRESPONSE__Column *columns[1];
+        CDB2SQLRESPONSE__Column column;
+        columns[0] = &column;
+        cdb2__sqlresponse__column__init(columns[0]);
+        column.has_type = 1;
+        column.type = SQLITE_TEXT;
+        column.value.len = 6;
+        column.value.data = "hello";
         CDB2SQLRESPONSE sql_response = CDB2__SQLRESPONSE__INIT;
-        sql_response.response_type = RESPONSE_TYPE__LAST_ROW;
-        sql_response.n_value = 1;
-        sql_response.value = columns;
-        */
+        int ncols = 1;
 
+        int rc = _push_row_new(clnt, RESPONSE_TYPE__COLUMN_NAMES, 
+                       &sql_response, columns, ncols, malloc, 0);
+
+
+
+        newsql_send_last_row(clnt, 0, __func__, __LINE__);
+        return;
+    }
+
+    if (1) { //gbl_test_no_exe_anything
+        static char *col_buf = NULL;
+        int rc;
         SBUF2 *sb = clnt->sb;
-        struct newsqlheader hdr;
-        hdr.type = ntohl(RESPONSE_TYPE__LAST_ROW);
-        hdr.compression = 0;
-        hdr.dummy = 0;
-        hdr.length = 0;
-        int rc = sbuf2write((char *)&hdr, sizeof(struct newsqlheader), sb);
-        sbuf2flush(sb);
+        if (col_buf == NULL) {
+          {
+            CDB2SQLRESPONSE__Column *columns[1];
+            CDB2SQLRESPONSE__Column column;
+            columns[0] = &column;
+            cdb2__sqlresponse__column__init(columns[0]);
+            column.has_type = 1;
+            column.type = SQLITE_TEXT;
+            column.value.len = 6;
+            column.value.data = "hello";
 
+            CDB2SQLRESPONSE sql_response_cn = CDB2__SQLRESPONSE__INIT;
+            sql_response_cn.response_type = RESPONSE_TYPE__COLUMN_NAMES;
+            sql_response_cn.n_value = 1;
+            sql_response_cn.value = columns;
+            int len_cn = cdb2__sqlresponse__get_packed_size(&sql_response_cn);
+            void *dta_cn = malloc(len_cn + 1);
+            cdb2__sqlresponse__pack(&sql_response_cn, dta_cn);
+
+            struct newsqlheader hdr_cn;
+            hdr_cn.type = ntohl(RESPONSE_HEADER__SQL_RESPONSE);
+            hdr_cn.compression = 0;
+            hdr_cn.dummy = 0;
+            hdr_cn.length = ntohl(len_cn);
+
+        rc = sbuf2write((char *)&hdr_cn, sizeof(struct newsqlheader), sb);
+        rc = sbuf2write(dta_cn, len_cn, sb);
+          }
+          {
+            CDB2SQLRESPONSE__Column *columns[1];
+            CDB2SQLRESPONSE__Column column;
+            columns[0] = &column;
+            cdb2__sqlresponse__column__init(columns[0]);
+            column.has_type = 1;
+            column.type = SQLITE_TEXT;
+            column.value.len = 6;
+            column.value.data = "hello";
+
+            CDB2SQLRESPONSE sql_response_cn = CDB2__SQLRESPONSE__INIT;
+            sql_response_cn.response_type = RESPONSE_TYPE__COLUMN_NAMES;
+            sql_response_cn.n_value = 1;
+            sql_response_cn.value = columns;
+            int len_cn = cdb2__sqlresponse__get_packed_size(&sql_response_cn);
+            void *dta_cn = malloc(len_cn + 1);
+            cdb2__sqlresponse__pack(&sql_response_cn, dta_cn);
+
+            struct newsqlheader hdr_cn;
+            hdr_cn.type = ntohl(RESPONSE_HEADER__SQL_RESPONSE);
+            hdr_cn.compression = 0;
+            hdr_cn.dummy = 0;
+            hdr_cn.length = ntohl(len_cn);
+
+        rc = sbuf2write((char *)&hdr_cn, sizeof(struct newsqlheader), sb);
+        rc = sbuf2write(dta_cn, len_cn, sb);
+          }
+          {
+            CDB2SQLRESPONSE sql_response_last = CDB2__SQLRESPONSE__INIT;
+            sql_response_last.response_type = RESPONSE_TYPE__LAST_ROW;
+            sql_response_last.n_value = 0;
+            sql_response_last.value = NULL;
+
+            int len_last = cdb2__sqlresponse__get_packed_size(&sql_response_last);
+            void *dta_last = malloc(len_last + 1);
+            cdb2__sqlresponse__pack(&sql_response_last, dta_last);
+            struct newsqlheader hdr_last;
+            hdr_last.type = ntohl(RESPONSE_TYPE__LAST_ROW);
+            hdr_last.compression = 0;
+            hdr_last.dummy = 0;
+            hdr_last.length = ntohl(len_last);
+
+            /*
+            rc = _push_row_new(clnt, RESPONSE_TYPE__COLUMN_NAMES, 
+                       &sql_response_cn, columns, 1, malloc, 0);
+            rc = newsql_write_response(clnt, RESPONSE_HEADER__SQL_RESPONSE,
+                                 &sql_response_cn, 0, malloc, 
+                                  __func__, __LINE__);
+                       */
+
+
+        rc = sbuf2write((char *)&hdr_last, sizeof(struct newsqlheader), sb);
+        rc = sbuf2write(dta_last, len_last, sb);
+          }
+            /*
+        */
+        clnt->osql.sent_column_data = 1;
+
+            //newsql_send_last_row(clnt, 0, __func__, __LINE__);
+        }
+
+
+        sbuf2flush(sb);
         return;
     }
 
