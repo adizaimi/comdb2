@@ -5794,6 +5794,7 @@ static void sqlengine_work_appsock(void *thddata, void *work)
         SBUF2 *sb = clnt->sb;
         if (col_buf == NULL) {
           {
+            // COLUMN NAMES 
             CDB2SQLRESPONSE__Column *columns[1];
             CDB2SQLRESPONSE__Column column;
             columns[0] = &column;
@@ -5820,34 +5821,34 @@ static void sqlengine_work_appsock(void *thddata, void *work)
         rc = sbuf2write((char *)&hdr_cn, sizeof(struct newsqlheader), sb);
         rc = sbuf2write(dta_cn, len_cn, sb);
           }
-          {
+          { // ROW DATA
             CDB2SQLRESPONSE__Column *columns[1];
             CDB2SQLRESPONSE__Column column;
             columns[0] = &column;
             cdb2__sqlresponse__column__init(columns[0]);
-            column.has_type = 1;
-            column.type = SQLITE_TEXT;
+            column.has_type = 0;
             column.value.len = 6;
             column.value.data = "hello";
 
-            CDB2SQLRESPONSE sql_response_cn = CDB2__SQLRESPONSE__INIT;
-            sql_response_cn.response_type = RESPONSE_TYPE__COLUMN_NAMES;
-            sql_response_cn.n_value = 1;
-            sql_response_cn.value = columns;
-            int len_cn = cdb2__sqlresponse__get_packed_size(&sql_response_cn);
-            void *dta_cn = malloc(len_cn + 1);
-            cdb2__sqlresponse__pack(&sql_response_cn, dta_cn);
+            CDB2SQLRESPONSE sql_response_row = CDB2__SQLRESPONSE__INIT;
+            sql_response_row.response_type = RESPONSE_TYPE__COLUMN_VALUES;
+            sql_response_row.n_value = 1;
+            sql_response_row.value = columns;
+            int len_row = cdb2__sqlresponse__get_packed_size(&sql_response_row);
+            void *dta_row = malloc(len_row + 1);
+            cdb2__sqlresponse__pack(&sql_response_row, dta_row);
 
-            struct newsqlheader hdr_cn;
-            hdr_cn.type = ntohl(RESPONSE_HEADER__SQL_RESPONSE);
-            hdr_cn.compression = 0;
-            hdr_cn.dummy = 0;
-            hdr_cn.length = ntohl(len_cn);
+            struct newsqlheader hdr_row;
+            hdr_row.type = ntohl(RESPONSE_HEADER__SQL_RESPONSE);
+            hdr_row.compression = 0;
+            hdr_row.dummy = 0;
+            hdr_row.length = ntohl(len_row);
 
-        rc = sbuf2write((char *)&hdr_cn, sizeof(struct newsqlheader), sb);
-        rc = sbuf2write(dta_cn, len_cn, sb);
+        rc = sbuf2write((char *)&hdr_row, sizeof(struct newsqlheader), sb);
+        rc = sbuf2write(dta_row, len_row, sb);
           }
           {
+            // LAST
             CDB2SQLRESPONSE sql_response_last = CDB2__SQLRESPONSE__INIT;
             sql_response_last.response_type = RESPONSE_TYPE__LAST_ROW;
             sql_response_last.n_value = 0;
