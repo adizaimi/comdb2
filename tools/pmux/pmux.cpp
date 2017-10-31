@@ -184,8 +184,9 @@ int client_func(int fd)
     if (strncasecmp(service, "reg", 3) == 0) {
         active_services_mutex.lock();
         if (active_services.find(cmd) == active_services.end()) {
-            syslog(LOG_WARNING, "reg request from %s, but not an active service?\n",
-                   cmd);
+            syslog(LOG_WARNING, "reg request from %s, "
+                   "but not an active service?\n", cmd);
+            active_services_mutex.unlock();
             close(fd);
             return -1;
         }
