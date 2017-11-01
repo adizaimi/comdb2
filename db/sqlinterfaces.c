@@ -5755,24 +5755,23 @@ static int execute_verify_indexes(struct sqlthdstate *thd,
 
 static void send_one(struct sqlclntstate *clnt)
 {
-    static struct newsqlheader hdr_cn;
-    static void *dta_cn;
-    static int len_cn;
+    static struct newsqlheader hdr_cn = {0};
+    static int len_cn = 0;
+    static void *dta_cn = NULL;
 
-    static struct newsqlheader hdr_row;
-    static int len_row;
-    static void *dta_row;
+    static struct newsqlheader hdr_row = {0};
+    static int len_row = 0;
+    static void *dta_row = NULL;
 
 
-    static struct newsqlheader hdr_last;
-    static int len_last;
-    static void *dta_last;
+    static struct newsqlheader hdr_last = {0};
+    static int len_last = 0;
+    static void *dta_last = NULL;
 
     int rc;
     SBUF2 *sb = clnt->sb;
     
-    //if (dta_cn == NULL) 
-    {
+    if(!dta_cn) {
         {
             // COLUMN NAMES 
             CDB2SQLRESPONSE__Column *columns[1];
@@ -5788,7 +5787,6 @@ static void send_one(struct sqlclntstate *clnt)
             sql_response_cn.response_type = RESPONSE_TYPE__COLUMN_NAMES;
             sql_response_cn.n_value = 1;
             sql_response_cn.value = columns;
-
             len_cn = cdb2__sqlresponse__get_packed_size(&sql_response_cn);
             dta_cn = malloc(len_cn + 1);
             cdb2__sqlresponse__pack(&sql_response_cn, dta_cn);
@@ -5813,7 +5811,6 @@ static void send_one(struct sqlclntstate *clnt)
             sql_response_row.response_type = RESPONSE_TYPE__COLUMN_VALUES;
             sql_response_row.n_value = 1;
             sql_response_row.value = columns;
-
             len_row = cdb2__sqlresponse__get_packed_size(&sql_response_row);
             dta_row = malloc(len_row + 1);
             cdb2__sqlresponse__pack(&sql_response_row, dta_row);
@@ -5831,8 +5828,8 @@ static void send_one(struct sqlclntstate *clnt)
             sql_response_last.n_value = 0;
             sql_response_last.value = NULL;
 
-            int len_last = cdb2__sqlresponse__get_packed_size(&sql_response_last);
-            void *dta_last = malloc(len_last + 1);
+            len_last = cdb2__sqlresponse__get_packed_size(&sql_response_last);
+            dta_last = malloc(len_last + 1);
             cdb2__sqlresponse__pack(&sql_response_last, dta_last);
 
             hdr_last.type = ntohl(RESPONSE_TYPE__LAST_ROW);
@@ -5843,16 +5840,16 @@ static void send_one(struct sqlclntstate *clnt)
         }
     }
 
-    rc = sbuf2write((char *)&hdr_cn, sizeof(struct newsqlheader), sb);
-    rc = sbuf2write(dta_cn, len_cn, sb);
-
-    rc = sbuf2write((char *)&hdr_row, sizeof(struct newsqlheader), sb);
-    rc = sbuf2write(dta_row, len_row, sb);
-
-    rc = sbuf2write((char *)&hdr_last, sizeof(struct newsqlheader), sb);
-    rc = sbuf2write(dta_last, len_last, sb);
+    sbuf2write((char *)&hdr_cn, sizeof(struct newsqlheader), sb);
+    sbuf2write(dta_cn, len_cn, sb);
+    sbuf2write((char *)&hdr_row, sizeof(struct newsqlheader), sb);
+    sbuf2write(dta_row, len_row, sb);
+    sbuf2write((char *)&hdr_last, sizeof(struct newsqlheader), sb);
+    sbuf2write(dta_last, len_last, sb);
+    clnt->osql.sent_column_data = 1;
 
     sbuf2flush(sb);
+
 }
 
 
