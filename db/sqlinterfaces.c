@@ -5920,11 +5920,6 @@ static void sqlengine_work_appsock(void *thddata, void *work)
 
     osql_shadtbl_begin_query(thedb->bdb_env, clnt);
 
-    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY)) {
-        send_one(clnt);
-        goto noexecute;
-    }
-
 
     if (clnt->fdb_state.remote_sql_sb) {
         clnt->query_rc = execute_sql_query_offload(thd, clnt);
@@ -7334,10 +7329,15 @@ retry_read:
         logmsg(LOGMSG_ERROR, "%s: Junk message  %d\n", __func__, bytes);
         return NULL;
     }
-    /*
-printf("got msg\n");
-    return &bytes;
-    */
+    static int a = 0;
+    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY)) {
+        if(a < 5)
+            a++;
+        else {
+            printf("got msg\n");
+            return &bytes;
+        }
+    }
 
     CDB2QUERY *query;
 
@@ -7895,9 +7895,19 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
         goto done;
     }
 
-    /*
-    while(read_newsql_query(&clnt, sb)) { }
-    */
+    static int a = 0;
+    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY)) {
+        if(a < 5)
+            a++;
+        else {
+            while(read_newsql_query(&clnt, sb)) { 
+                send_one(&clnt);
+            }
+            goto done;
+        }
+    }
+
+
 
     CDB2QUERY *query = read_newsql_query(&clnt, sb);
     if (query == NULL)
