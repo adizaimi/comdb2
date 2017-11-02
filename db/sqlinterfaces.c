@@ -5805,7 +5805,7 @@ static void send_one(struct sqlclntstate *clnt)
             column.has_type = 0;
             column.value.len = 4;
             int one = 1;
-            column.value.data = &one;
+            column.value.data = (void*)&one;
 
             CDB2SQLRESPONSE sql_response_row = CDB2__SQLRESPONSE__INIT;
             sql_response_row.response_type = RESPONSE_TYPE__COLUMN_VALUES;
@@ -7238,7 +7238,7 @@ static void send_dbinforesponse(SBUF2 *sb)
     cdb2__dbinforesponse__free_unpacked(dbinfo_response, &pb_alloc);
 }
 
-CDB2QUERY *read_newsql_query(struct sqlclntstate *clnt, SBUF2 *sb, int a)
+CDB2QUERY *read_newsql_query(struct sqlclntstate *clnt, SBUF2 *sb)
 {
     struct newsqlheader hdr;
     int rc;
@@ -7250,7 +7250,6 @@ retry_read:
     rc = sbuf2fread_timeout((char *)&hdr, sizeof(hdr), 1, sb, &was_timeout);
     if (rc != 1) {
         if (was_timeout) {
-printf("timeout\n");
             handle_failed_dispatch(clnt, "Socket read timeout.");
         }
         return NULL;
@@ -7370,22 +7369,12 @@ printf("timeout\n");
         return NULL;
     }
 
-    if (bytes) {
-        rc = sbuf2fread(p, bytes, 1, sb);
-        if (rc != 1) {
-            free(p);
-            return NULL;
-        }
+    rc = sbuf2fread(p, bytes, 1, sb);
+    if (rc != 1) {
+        return NULL;
     }
-
-    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY) && a) {
-        //printf("got msg\n");
-        return (CDB2QUERY*) 1;
-    }
-
 
     CDB2QUERY *query;
-
     while (1) {
         query = cdb2__query__unpack(&pb_alloc, bytes, p);
 
@@ -7409,7 +7398,6 @@ printf("timeout\n");
         clnt->ready_for_heartbeats = 0;
         pthread_mutex_unlock(&clnt->wait_mutex);
     }
-    //free(p);
 
     if (query && query->dbinfo) {
         if (query->dbinfo->has_want_effects &&
@@ -7899,7 +7887,7 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
     }
 
 
-    CDB2QUERY *query = read_newsql_query(&clnt, sb, 0);
+    CDB2QUERY *query = read_newsql_query(&clnt, sb);
     if (query == NULL)
         goto done;
     assert(query->sqlquery);
@@ -7951,7 +7939,9 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
         sqlthd->sqlclntstate->origin[0] = 0;
     }
 
+    int cnt = 0;
     while (query) {
+        cnt++;
         assert(query->sqlquery);
         sql_query = query->sqlquery;
         clnt.sql_query = sql_query;
@@ -8040,6 +8030,7 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
                 /* tell blobmem that I want my priority back
                    when the sql thread is done */
                 comdb2bma_pass_priority_back(blobmem);
+
                 rc = dispatch_sql_query(&clnt);
             } else {
                 /* Do Nothing */
@@ -8057,7 +8048,13 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
             /* tell blobmem that I want my priority back
                when the sql thread is done */
             comdb2bma_pass_priority_back(blobmem);
-            rc = dispatch_sql_query(&clnt);
+
+            if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY) && cnt > 1) {
+                //printf("sending one\n");
+                send_one(&clnt);
+            }
+            else
+                rc = dispatch_sql_query(&clnt);
         }
 
         if (clnt.osql.replay == OSQL_RETRY_DO) {
@@ -8091,17 +8088,8 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
         pthread_mutex_unlock(&clnt.wait_mutex);
 
 
-        if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY)) {
-            //printf("in new territory\n");
-            while((query = read_newsql_query(&clnt, sb, 1)) != NULL) { 
-                //printf("sending one\n");
-                send_one(&clnt);
-            }
-            //printf("query = %p\n", query);
-            goto done;
-        }
 
-        query = read_newsql_query(&clnt, sb, 1);
+        query = read_newsql_query(&clnt, sb);
     }
 
 done:
