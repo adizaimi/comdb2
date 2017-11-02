@@ -7238,7 +7238,7 @@ static void send_dbinforesponse(SBUF2 *sb)
     cdb2__dbinforesponse__free_unpacked(dbinfo_response, &pb_alloc);
 }
 
-CDB2QUERY *read_newsql_query(struct sqlclntstate *clnt, SBUF2 *sb)
+CDB2QUERY *read_newsql_query(struct sqlclntstate *clnt, SBUF2 *sb, int a)
 {
     struct newsqlheader hdr;
     int rc;
@@ -7250,6 +7250,7 @@ retry_read:
     rc = sbuf2fread_timeout((char *)&hdr, sizeof(hdr), 1, sb, &was_timeout);
     if (rc != 1) {
         if (was_timeout) {
+printf("timeout\n");
             handle_failed_dispatch(clnt, "Socket read timeout.");
         }
         return NULL;
@@ -7329,22 +7330,16 @@ retry_read:
         logmsg(LOGMSG_ERROR, "%s: Junk message  %d\n", __func__, bytes);
         return NULL;
     }
-    static int a = 0;
-    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY)) {
-        if(a < 5)
-            a++;
-        else {
-            printf("got msg\n");
-            return &bytes;
+
+    static char *p = NULL;
+    static int p_sz = 0;
+
+    if (bytes <= gbl_blob_sz_thresh_bytes) {
+        if(p_sz < bytes) {
+            p = realloc(p, bytes);
+            p_sz = bytes;
         }
     }
-
-    CDB2QUERY *query;
-
-    char *p;
-
-    if (bytes <= gbl_blob_sz_thresh_bytes)
-        p = malloc(bytes);
     else
         while (1) { // big buffer. most certainly it is a huge blob.
             p = comdb2_timedmalloc(blobmem, bytes, 1000);
@@ -7383,6 +7378,14 @@ retry_read:
         }
     }
 
+    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY) && a) {
+        //printf("got msg\n");
+        return (CDB2QUERY*) 1;
+    }
+
+
+    CDB2QUERY *query;
+
     while (1) {
         query = cdb2__query__unpack(&pb_alloc, bytes, p);
 
@@ -7406,7 +7409,7 @@ retry_read:
         clnt->ready_for_heartbeats = 0;
         pthread_mutex_unlock(&clnt->wait_mutex);
     }
-    free(p);
+    //free(p);
 
     if (query && query->dbinfo) {
         if (query->dbinfo->has_want_effects &&
@@ -7895,33 +7898,20 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
         goto done;
     }
 
-    static int a = 0;
-    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY)) {
-        if(a < 5)
-            a++;
-        else {
-            while(read_newsql_query(&clnt, sb)) { 
-                send_one(&clnt);
-            }
-            goto done;
-        }
-    }
 
-
-
-    CDB2QUERY *query = read_newsql_query(&clnt, sb);
+    CDB2QUERY *query = read_newsql_query(&clnt, sb, 0);
     if (query == NULL)
         goto done;
     assert(query->sqlquery);
     CDB2SQLQUERY *sql_query = query->sqlquery;
     clnt.query = query;
 
-    if (do_query_on_master_check(&clnt, sql_query))
-        goto done;
-
 #ifdef DEBUGQUERY
     printf("\n Query '%s'\n", sql_query->sql_query);
 #endif
+
+    if (do_query_on_master_check(&clnt, sql_query))
+        goto done;
 
     pthread_mutex_init(&clnt.wait_mutex, NULL);
     pthread_cond_init(&clnt.wait_cond, NULL);
@@ -7968,6 +7958,10 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
         clnt.sql = sql_query->sql_query;
         clnt.query = query;
         clnt.added_to_hist = 0;
+
+#ifdef DEBUGQUERY
+        printf("\n Query '%s'\n", sql_query->sql_query);
+#endif
 
         if (!clnt.in_client_trans) {
             bzero(&clnt.effects, sizeof(clnt.effects));
@@ -8096,7 +8090,18 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
         }
         pthread_mutex_unlock(&clnt.wait_mutex);
 
-        query = read_newsql_query(&clnt, sb);
+
+        if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY)) {
+            //printf("in new territory\n");
+            while((query = read_newsql_query(&clnt, sb, 1)) != NULL) { 
+                //printf("sending one\n");
+                send_one(&clnt);
+            }
+            //printf("query = %p\n", query);
+            goto done;
+        }
+
+        query = read_newsql_query(&clnt, sb, 1);
     }
 
 done:
