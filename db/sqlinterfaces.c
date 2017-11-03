@@ -5763,7 +5763,6 @@ static void send_one(struct sqlclntstate *clnt)
     static int len_row = 0;
     static void *dta_row = NULL;
 
-
     static struct newsqlheader hdr_last = {0};
     static int len_last = 0;
     static void *dta_last = NULL;
@@ -5792,8 +5791,6 @@ static void send_one(struct sqlclntstate *clnt)
             cdb2__sqlresponse__pack(&sql_response_cn, dta_cn);
 
             hdr_cn.type = ntohl(RESPONSE_HEADER__SQL_RESPONSE);
-            hdr_cn.compression = 0;
-            hdr_cn.dummy = 0;
             hdr_cn.length = ntohl(len_cn);
 
         }
@@ -5816,8 +5813,6 @@ static void send_one(struct sqlclntstate *clnt)
             cdb2__sqlresponse__pack(&sql_response_row, dta_row);
 
             hdr_row.type = ntohl(RESPONSE_HEADER__SQL_RESPONSE);
-            hdr_row.compression = 0;
-            hdr_row.dummy = 0;
             hdr_row.length = ntohl(len_row);
 
         }
@@ -5833,20 +5828,23 @@ static void send_one(struct sqlclntstate *clnt)
             cdb2__sqlresponse__pack(&sql_response_last, dta_last);
 
             hdr_last.type = ntohl(RESPONSE_TYPE__LAST_ROW);
-            hdr_last.compression = 0;
-            hdr_last.dummy = 0;
             hdr_last.length = ntohl(len_last);
 
         }
     }
 
+    //usleep(1);
+    pthread_mutex_lock(&clnt->write_lock);
     sbuf2write((char *)&hdr_cn, sizeof(struct newsqlheader), sb);
     sbuf2write(dta_cn, len_cn, sb);
     sbuf2write((char *)&hdr_row, sizeof(struct newsqlheader), sb);
     sbuf2write(dta_row, len_row, sb);
     sbuf2write((char *)&hdr_last, sizeof(struct newsqlheader), sb);
     sbuf2write(dta_last, len_last, sb);
+    pthread_mutex_unlock(&clnt->write_lock);
     clnt->osql.sent_column_data = 1;
+    //usleep(1);
+
     pthread_mutex_lock(&clnt->wait_mutex);
     clnt->done = 1;
     pthread_cond_signal(&clnt->wait_cond);
@@ -5868,8 +5866,8 @@ static void sqlengine_work_appsock(void *thddata, void *work)
         abort();
     }
        
-    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY) && clnt->req_cnt++ > 1) {
-        //printf("sending one\n");
+    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY) == 3
+            && clnt->req_cnt > 1) {
         send_one(clnt);
         return;
     }
@@ -5996,6 +5994,7 @@ static int send_heartbeat(struct sqlclntstate *clnt)
         return 0;
     }
 
+printf("AZ: heartbeat \n");
     if (clnt->is_newsql) {
         newsql_write_response(clnt, FSQL_HEARTBEAT, NULL, 1, malloc, __func__,
                               __LINE__);
@@ -7948,9 +7947,7 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
         sqlthd->sqlclntstate->origin[0] = 0;
     }
 
-    int cnt = 0;
     while (query) {
-        cnt++;
         assert(query->sqlquery);
         sql_query = query->sqlquery;
         clnt.sql_query = sql_query;
@@ -8057,7 +8054,11 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
             /* tell blobmem that I want my priority back
                when the sql thread is done */
             comdb2bma_pass_priority_back(blobmem);
-            rc = dispatch_sql_query(&clnt);
+            if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY) == 1
+             && clnt.req_cnt > 1)
+                send_one(&clnt);
+            else
+                rc = dispatch_sql_query(&clnt);
         }
 
         if (clnt.osql.replay == OSQL_RETRY_DO) {
@@ -8093,6 +8094,7 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
 
 
         query = read_newsql_query(&clnt, sb);
+        clnt.req_cnt++;
     }
 
 done:
