@@ -5927,6 +5927,11 @@ static void sqlengine_work_appsock(void *thddata, void *work)
 
     osql_shadtbl_begin_query(thedb->bdb_env, clnt);
 
+    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY) == 4
+            && clnt->req_cnt > 1) {
+        send_one(clnt);
+        goto noexecute;
+    }
 
     if (clnt->fdb_state.remote_sql_sb) {
         clnt->query_rc = execute_sql_query_offload(thd, clnt);
@@ -5940,6 +5945,7 @@ static void sqlengine_work_appsock(void *thddata, void *work)
         clnt->query_rc = execute_sql_query(thd, clnt);
     }
 
+noexecute:
     osql_shadtbl_done_query(thedb->bdb_env, clnt);
     thrman_setfd(thd->thr_self, -1);
     sql_reset_sqlthread(thd->sqldb, sqlthd);
