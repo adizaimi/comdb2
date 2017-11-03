@@ -5847,14 +5847,18 @@ static void send_one(struct sqlclntstate *clnt)
     sbuf2write((char *)&hdr_last, sizeof(struct newsqlheader), sb);
     sbuf2write(dta_last, len_last, sb);
     clnt->osql.sent_column_data = 1;
+    pthread_mutex_lock(&clnt->wait_mutex);
+    clnt->done = 1;
+    pthread_cond_signal(&clnt->wait_cond);
+    pthread_mutex_unlock(&clnt->wait_mutex);
 
     sbuf2flush(sb);
-
 }
 
 
 static void sqlengine_work_appsock(void *thddata, void *work)
 {
+
     struct sqlthdstate *thd = thddata;
     struct sqlclntstate *clnt = work;
     struct sql_thread *sqlthd = thd->sqlthd;
@@ -5864,6 +5868,11 @@ static void sqlengine_work_appsock(void *thddata, void *work)
         abort();
     }
        
+    if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY) && clnt->req_cnt++ > 1) {
+        //printf("sending one\n");
+        send_one(clnt);
+        return;
+    }
 
     thr_set_user(clnt->appsock_id);
 
@@ -5933,7 +5942,6 @@ static void sqlengine_work_appsock(void *thddata, void *work)
         clnt->query_rc = execute_sql_query(thd, clnt);
     }
 
-noexecute:
     osql_shadtbl_done_query(thedb->bdb_env, clnt);
     thrman_setfd(thd->thr_self, -1);
     sql_reset_sqlthread(thd->sqldb, sqlthd);
@@ -6125,6 +6133,7 @@ int dispatch_sql_query(struct sqlclntstate *clnt)
         thrman_where(self, "waiting for query");
 
     if (clnt->heartbeat) {
+printf("AZ: here %d\n", clnt->req_cnt);
         if ((clnt->osql.replay != OSQL_RETRY_NONE) ||
             (clnt->is_newsql && clnt->in_client_trans)) {
             send_heartbeat(clnt);
@@ -8048,13 +8057,7 @@ int handle_newsql_requests(struct thr_handle *thr_self, SBUF2 *sb)
             /* tell blobmem that I want my priority back
                when the sql thread is done */
             comdb2bma_pass_priority_back(blobmem);
-
-            if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY) && cnt > 1) {
-                //printf("sending one\n");
-                send_one(&clnt);
-            }
-            else
-                rc = dispatch_sql_query(&clnt);
+            rc = dispatch_sql_query(&clnt);
         }
 
         if (clnt.osql.replay == OSQL_RETRY_DO) {
