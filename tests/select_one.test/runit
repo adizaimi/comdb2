@@ -28,7 +28,7 @@ failexit()
 echo "create t1"
 cdb2sql ${CDB2_OPTIONS} $dbnm default "create table t1 (a int) "
 cdb2sql ${CDB2_OPTIONS} $dbnm default "exec procedure sys.cmd.send('scon') "
-cdb2sql ${CDB2_OPTIONS} $dbnm default "exec procedure sys.cmd.send('bdb setattr DONT_EXECUTE_ANY_QUERY 4') "
+cdb2sql ${CDB2_OPTIONS} $dbnm default "exec procedure sys.cmd.send('bdb setattr DONT_EXECUTE_ANY_QUERY 5') "
 
 MAX=50000
 if [[ ${DEBUGGER} == callgrind ]]; then 

@@ -119,6 +119,7 @@ extern int g_osql_max_trans;
 extern int gbl_fdb_track;
 extern int gbl_return_long_column_names;
 extern int gbl_stable_rootpages_test;
+static void send_one(struct sqlclntstate *clnt);
 
 /* Once and for all:
 
@@ -5438,7 +5439,7 @@ static int handle_sqlite_requests(struct sqlthdstate *thd,
                                   struct sqlclntstate *clnt,
                                   struct client_comm_if *comm)
 {
-    int rc;
+    int rc = 0;
     int fast_error;
     struct errstat err = {0};
     struct sql_state rec = {0};
@@ -5458,9 +5459,17 @@ static int handle_sqlite_requests(struct sqlthdstate *thd,
             goto errors;
         }
 
+
+
+
         /* run the engine */
         fast_error = 0;
-        rc = run_stmt(thd, clnt, &rec, &fast_error, &err, comm);
+        if (BDB_ATTR_GET(thedb->bdb_attr, DONT_EXECUTE_ANY_QUERY) == 5
+                && clnt->req_cnt > 1) {
+            send_one(clnt);
+        }
+        else
+            rc = run_stmt(thd, clnt, &rec, &fast_error, &err, comm);
         if (rc) {
             int irc = errstat_get_rc(&err);
             switch(irc) {
