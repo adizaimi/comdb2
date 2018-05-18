@@ -1066,6 +1066,26 @@ static void comdb2UserFunc(
                       SQLITE_STATIC);
 }
 
+extern void comdb2_genidinfo(uint64_t genid, char *info, int len);
+/*
+** Implementation of the genidinfo function
+*/
+static void comdb2GenidInfoFunc(
+  sqlite3_context *context,
+  int argc,
+  sqlite3_value **argv
+){
+  assert(argc==1);
+  if(sqlite3_value_type(argv[0]) != SQLITE_TEXT) {
+    return;
+  }
+
+  uint64_t genid = atoll(sqlite3_value_text(argv[0]));
+  const char info[100] = {0};
+
+  comdb2_genidinfo(genid, info, sizeof(info));
+  sqlite3_result_text(context, strdup(info), -1, free);
+}
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 
 /*
@@ -2724,6 +2744,7 @@ void sqlite3RegisterBuiltinFunctions(void){
     FUNCTION(comdb2_prevquerycost,  0, 0, 0, comdb2PrevquerycostFunc),
     FUNCTION(comdb2_starttime,      0, 0, 0, comdb2StartTimeFunc),
     FUNCTION(comdb2_user,           0, 0, 0, comdb2UserFunc),
+    FUNCTION(comdb2_genidinfo,  1, 0, 0, comdb2GenidInfoFunc),
 
     FUNCTION(checksum_md5,          1, 0, 0, md5Func),
 #if defined(SQLITE_BUILDING_FOR_COMDB2_DBGLOG)
