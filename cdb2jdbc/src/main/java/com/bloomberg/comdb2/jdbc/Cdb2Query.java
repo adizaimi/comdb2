@@ -59,6 +59,14 @@ public class Cdb2Query implements Serializable {
         boolean hasRetry = false;
         int retry;
         List<Integer> features;
+        boolean hasClientInfo = false;
+        int pid;
+        long thId;
+        int hostId;
+        String argv0;
+        String stack;
+        String context;
+        long timestampus;
 
         public Cdb2SqlQuery(String dbName, String sql) {
             String tz = System.getenv("COMDB2TZ");
