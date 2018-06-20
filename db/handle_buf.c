@@ -485,8 +485,7 @@ static void *thd_req(void *vthd)
                pthread_self());
         abort();
     }
-    thdinfo->ct_add_index =
-        (void *)create_constraint_index_table(&thdinfo->ct_id_key);
+    thdinfo->ct_add_index = (void *)create_constraint_index_table(NULL);
     if (thdinfo->ct_add_index == NULL) {
         logmsg(LOGMSG_FATAL,
                "**aborting: cannot allocate constraint add index table "
