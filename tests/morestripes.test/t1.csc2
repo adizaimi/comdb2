@@ -1,0 +1,6 @@
+schema
+{
+    short       i
+    int         j
+}
+
