@@ -33,7 +33,6 @@
 
 extern int g_osql_max_trans;
 extern int gbl_partial_indexes;
-extern int gbl_expressions_indexes;
 
 typedef struct blob_key {
     unsigned long long seq; /* tbl->seq identifying the owning row */
@@ -1216,7 +1215,7 @@ int osql_save_index(struct BtCursor *pCur, struct sql_thread *thd,
     struct temp_cursor *tmp_cur = NULL;
     unsigned char **index = NULL;
 
-    if (!gbl_expressions_indexes || !pCur->db->ix_expr)
+    if (!pCur->db->ix_expr)
         return SQLITE_OK;
 
 
@@ -1868,7 +1867,7 @@ static int process_local_shadtbl_index(struct sqlclntstate *clnt,
     struct temp_cursor *tmp_cur = NULL;
     unsigned long long dk = -1ULL;
 
-    if (!gbl_expressions_indexes || !tbl->ix_expr)
+    if (!tbl->ix_expr)
         return 0;
 
     if (is_delete) {
@@ -2160,7 +2159,7 @@ static int insert_record_indexes(BtCursor *pCur, struct sql_thread *thd,
             continue;
 
         snprintf(namebuf, sizeof(namebuf), ".ONDISK_IX_%d", ix);
-        if (gbl_expressions_indexes && pCur->db->ix_expr) {
+        if (pCur->db->ix_expr) {
             memcpy(key, thd->clnt->idxInsert[ix],
                    pCur->db->ix_keylen[ix]);
         } else {
@@ -2258,7 +2257,7 @@ static int delete_record_indexes(BtCursor *pCur, char *pdta, int dtasize,
             continue;
 
         snprintf(namebuf, sizeof(namebuf), ".ONDISK_IX_%d", ix);
-        if (gbl_expressions_indexes && db->ix_expr) {
+        if (db->ix_expr) {
             memcpy(key, thd->clnt->idxDelete[ix], db->ix_keylen[ix]);
         } else {
             rc = stag_to_stag_buf(db->tablename, ".ONDISK", dta, namebuf, key,

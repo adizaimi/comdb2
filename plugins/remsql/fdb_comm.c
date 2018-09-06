@@ -35,7 +35,6 @@ typedef struct VdbeSorter VdbeSorter;
 extern int gbl_fdb_track;
 extern int gbl_time_fdb;
 extern int gbl_notimeouts;
-extern int gbl_expressions_indexes;
 extern int gbl_fdb_track_times;
 
 /* matches fdb_svc_callback_t callbacks */
@@ -2522,20 +2521,18 @@ int fdb_bend_cursor_open(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
 
     arg->clnt = clnt;
 
-    if (gbl_expressions_indexes) {
-        if (clnt->idxInsert || clnt->idxDelete) {
-            free_cached_idx(clnt->idxInsert);
-            free_cached_idx(clnt->idxDelete);
-            free(clnt->idxInsert);
-            free(clnt->idxDelete);
-            clnt->idxInsert = clnt->idxDelete = NULL;
-        }
-        clnt->idxInsert = calloc(MAXINDEX, sizeof(uint8_t *));
-        clnt->idxDelete = calloc(MAXINDEX, sizeof(uint8_t *));
-        if (!clnt->idxInsert || !clnt->idxDelete) {
-            logmsg(LOGMSG_ERROR, "%s:%d malloc failed\n", __func__, __LINE__);
-            return -1;
-        }
+    if (clnt->idxInsert || clnt->idxDelete) {
+        free_cached_idx(clnt->idxInsert);
+        free_cached_idx(clnt->idxDelete);
+        free(clnt->idxInsert);
+        free(clnt->idxDelete);
+        clnt->idxInsert = clnt->idxDelete = NULL;
+    }
+    clnt->idxInsert = calloc(MAXINDEX, sizeof(uint8_t *));
+    clnt->idxDelete = calloc(MAXINDEX, sizeof(uint8_t *));
+    if (!clnt->idxInsert || !clnt->idxDelete) {
+        logmsg(LOGMSG_ERROR, "%s:%d malloc failed\n", __func__, __LINE__);
+        return -1;
     }
 
     if (!clnt->conninfo.pename[0]) {
@@ -2918,9 +2915,6 @@ int fdb_send_index(fdb_msg_t *msg, char *cid, int version, int rootpage,
 
     fdb_msg_clean_message(msg);
 
-    if (!gbl_expressions_indexes)
-        return 0;
-
     msg->hd.type = FDB_MSG_INDEX;
 
     if (isuuid)
@@ -2969,10 +2963,8 @@ int fdb_bend_insert(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
     rc = fdb_svc_cursor_insert(clnt, msg->in.tblname, rootpage, version, genid,
                                data, datalen, seq);
 
-    if (gbl_expressions_indexes) {
-        free_cached_idx(clnt->idxInsert);
-        free_cached_idx(clnt->idxDelete);
-    }
+    free_cached_idx(clnt->idxInsert);
+    free_cached_idx(clnt->idxDelete);
 
     return rc;
 }
@@ -2993,10 +2985,8 @@ int fdb_bend_delete(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
     rc = fdb_svc_cursor_delete(clnt, msg->de.tblname, rootpage, version, genid,
                                seq);
 
-    if (gbl_expressions_indexes) {
-        free_cached_idx(clnt->idxInsert);
-        free_cached_idx(clnt->idxDelete);
-    }
+    free_cached_idx(clnt->idxInsert);
+    free_cached_idx(clnt->idxDelete);
 
     return rc;
 }
@@ -3021,10 +3011,8 @@ int fdb_bend_update(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
     rc = fdb_svc_cursor_update(clnt, msg->up.tblname, rootpage, version,
                                oldgenid, genid, data, datalen, seq);
 
-    if (gbl_expressions_indexes) {
-        free_cached_idx(clnt->idxInsert);
-        free_cached_idx(clnt->idxDelete);
-    }
+    free_cached_idx(clnt->idxInsert);
+    free_cached_idx(clnt->idxDelete);
 
     return rc;
 }
@@ -3246,21 +3234,19 @@ int fdb_bend_trans_begin(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
     if (!rc) {
         arg->clnt = clnt;
         arg->flags = flags;
-        if (gbl_expressions_indexes) {
-            if (clnt->idxInsert || clnt->idxDelete) {
-                free_cached_idx(clnt->idxInsert);
-                free_cached_idx(clnt->idxDelete);
-                free(clnt->idxInsert);
-                free(clnt->idxDelete);
-                clnt->idxInsert = clnt->idxDelete = NULL;
-            }
-            clnt->idxInsert = calloc(MAXINDEX, sizeof(uint8_t *));
-            clnt->idxDelete = calloc(MAXINDEX, sizeof(uint8_t *));
-            if (!clnt->idxInsert || !clnt->idxDelete) {
-                logmsg(LOGMSG_ERROR, "%s:%d malloc failed\n", __func__,
-                       __LINE__);
-                return -1;
-            }
+        if (clnt->idxInsert || clnt->idxDelete) {
+            free_cached_idx(clnt->idxInsert);
+            free_cached_idx(clnt->idxDelete);
+            free(clnt->idxInsert);
+            free(clnt->idxDelete);
+            clnt->idxInsert = clnt->idxDelete = NULL;
+        }
+        clnt->idxInsert = calloc(MAXINDEX, sizeof(uint8_t *));
+        clnt->idxDelete = calloc(MAXINDEX, sizeof(uint8_t *));
+        if (!clnt->idxInsert || !clnt->idxDelete) {
+            logmsg(LOGMSG_ERROR, "%s:%d malloc failed\n", __func__,
+                   __LINE__);
+            return -1;
         }
     }
 
@@ -3285,10 +3271,8 @@ int fdb_bend_trans_commit(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
 
     rc = fdb_svc_trans_commit(tid, lvl, clnt, seq);
 
-    if (gbl_expressions_indexes) {
-        free_cached_idx(clnt->idxInsert);
-        free_cached_idx(clnt->idxDelete);
-    }
+    free_cached_idx(clnt->idxInsert);
+    free_cached_idx(clnt->idxDelete);
 
     /* xerr.errstr has only prefix for success case */
     if (clnt->osql.xerr.errval && clnt->osql.xerr.errstr[0]) {
@@ -3322,10 +3306,8 @@ int fdb_bend_trans_rollback(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
 
     rc = fdb_svc_trans_rollback(tid, lvl, clnt, seq);
 
-    if (gbl_expressions_indexes) {
-        free_cached_idx(clnt->idxInsert);
-        free_cached_idx(clnt->idxDelete);
-    }
+    free_cached_idx(clnt->idxInsert);
+    free_cached_idx(clnt->idxDelete);
 
     return rc;
 }
@@ -3613,11 +3595,9 @@ int handle_remtran_request(comdb2_appsock_arg_t *arg)
         }
     }
 
-    if (gbl_expressions_indexes) {
-        free(svc_cb_arg.clnt->idxInsert);
-        free(svc_cb_arg.clnt->idxDelete);
-        svc_cb_arg.clnt->idxInsert = svc_cb_arg.clnt->idxDelete = NULL;
-    }
+    free(svc_cb_arg.clnt->idxInsert);
+    free(svc_cb_arg.clnt->idxDelete);
+    svc_cb_arg.clnt->idxInsert = svc_cb_arg.clnt->idxDelete = NULL;
 
     reset_clnt(svc_cb_arg.clnt, NULL, 0);
 

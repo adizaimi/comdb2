@@ -426,9 +426,8 @@ int do_alter_table(struct ireq *iq, struct schema_change_type *s,
     }
 
     extern int gbl_partial_indexes;
-    extern int gbl_expressions_indexes;
     if ((gbl_partial_indexes && newdb->ix_partial) ||
-        (gbl_expressions_indexes && newdb->ix_expr)) {
+        newdb->ix_expr) {
         int ret = 0;
         ret = new_indexes_syntax_check(iq, newdb);
         if (ret) {

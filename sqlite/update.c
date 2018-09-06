@@ -82,7 +82,6 @@ void sqlite3ColumnDefault(Vdbe *v, Table *pTab, int i, int iReg){
 }
 
 extern int gbl_partial_indexes;
-extern int gbl_expressions_indexes;
 /*
 ** Process an UPDATE statement.
 **
@@ -303,7 +302,7 @@ void sqlite3Update(
     /* COMDB2 MODIFICATION */
     if( chngKey || hasFK ||
         (gbl_partial_indexes&&pTab->hasPartIdx) /*pIdx->pPartIdxWhere*/ ||
-        (gbl_expressions_indexes&&pTab->hasExprIdx) || pIdx==pPk ){
+        pTab->hasExprIdx || pIdx==pPk ){
       reg = ++pParse->nMem;
     }else{
       reg = 0;
@@ -705,8 +704,7 @@ void sqlite3Update(
 
   /* Close all tables */
   /* COMDB2 MODIFICATION */
-  if( (gbl_partial_indexes && pTab->hasPartIdx) ||
-      (gbl_expressions_indexes && pTab->hasExprIdx) ){
+  if( (gbl_partial_indexes && pTab->hasPartIdx) || pTab->hasExprIdx ){
     for(i=0, pIdx=pTab->pIndex; pIdx; pIdx=pIdx->pNext, i++){
       assert( aRegIdx );
       if( aToOpen[i+1] ){

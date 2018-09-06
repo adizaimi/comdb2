@@ -20,7 +20,6 @@
 int is_comdb2_index_unique(const char *tbl, char *idx);
 
 extern int gbl_partial_indexes;
-extern int gbl_expressions_indexes;
 
 /*
 ** Generate code that will 
@@ -1090,8 +1089,7 @@ void sqlite3Insert(
 
     /* COMDB2 MODIFICATION */
     if( (gbl_partial_indexes && pTab->hasPartIdx) ||
-        (gbl_expressions_indexes && pTab->hasExprIdx) ||
-        (pUpsert && pUpsert->oeFlag != OE_Ignore)){
+        pTab->hasExprIdx || (pUpsert && pUpsert->oeFlag != OE_Ignore)){
       for(idx=0, pIdx=pTab->pIndex; pIdx; pIdx=pIdx->pNext, idx++){
         sqlite3VdbeAddOp1(v, OP_Close, idx+iIdxCur);
       }
@@ -1349,7 +1347,7 @@ void sqlite3GenerateConstraintChecks(
 
   /* COMDB2 MODIFICATION */
   if( (!gbl_partial_indexes || !pTab->hasPartIdx) &&
-      (!gbl_expressions_indexes || !pTab->hasExprIdx) &&
+      !pTab->hasExprIdx &&
       (pUpsert == 0))
     return;
 
@@ -1666,7 +1664,7 @@ void sqlite3GenerateConstraintChecks(
      */
     if( pUpIdx && pUpIdx!=pIdx &&
         ((!gbl_partial_indexes || !pTab->hasPartIdx) &&
-         (!gbl_expressions_indexes || !pTab->hasExprIdx)) ) {
+         !pTab->hasExprIdx)) {
         continue;
     }
 
@@ -1926,7 +1924,7 @@ void sqlite3CompleteInsertion(
   assert( pTab->pSelect==0 );  /* This table is not a VIEW */
   /* COMDB2 MODIFICATION */
   if( (gbl_partial_indexes && pTab->hasPartIdx) ||
-      (gbl_expressions_indexes && pTab->hasExprIdx) ){
+      pTab->hasExprIdx){
     for(i=0, pIdx=pTab->pIndex; pIdx; pIdx=pIdx->pNext, i++){
       if( aRegIdx[i]==0 ) continue;
       bAffinityDone = 1;
@@ -2035,7 +2033,7 @@ int sqlite3OpenTableAndIndices(
   if( piIdxCur ) *piIdxCur = iBase;
   /* COMDB2 MODIFICATION */
   if( (gbl_partial_indexes && pTab->hasPartIdx) ||
-      (gbl_expressions_indexes && pTab->hasExprIdx) ||
+      pTab->hasExprIdx ||
       pUpsert){
     for(i=0, pIdx=pTab->pIndex; pIdx; pIdx=pIdx->pNext, i++){
       int iIdxCur = iBase++;

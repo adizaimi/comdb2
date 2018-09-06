@@ -274,7 +274,6 @@ static void printhex(SBUF2 *sb, int (*lua_callback)(void *, const char *),
                 hexbytes[(hex[i] & 0xf0) >> 4], hexbytes[hex[i] & 0xf]);
 }
 
-extern int gbl_expressions_indexes;
 int is_comdb2_index_expression(const char *dbname);
 /* TODO: handle deadlock, get rowlocks if db in rowlocks mode */
 static int bdb_verify_ll(
@@ -740,8 +739,7 @@ static int bdb_verify_ll(
             cdata->c_close(cdata);
 
             vtag_callback(callback_parm, dbt_dta_check_data.data, &keylen, ver);
-            if (gbl_expressions_indexes &&
-                is_comdb2_index_expression(bdb_state->name)) {
+            if (is_comdb2_index_expression(bdb_state->name)) {
                 /* indexes expressions may need blobs */
                 rc = get_blob_sizes_callback(callback_parm,
                                              dbt_dta_check_data.data, blobsizes,

@@ -15,7 +15,6 @@
 #include "sqliteInt.h"
 extern int gbl_update_delete_limit;
 extern int gbl_partial_indexes;
-extern int gbl_expressions_indexes;
 
 /*
 ** While a SrcList can in general represent multiple tables and subqueries
@@ -837,8 +836,7 @@ void sqlite3GenerateRowIndexDelete(
   Index *pPk;        /* PRIMARY KEY index, or NULL for rowid tables */
 
   /* COMDB2 MODIFICATION */
-  if ( (!gbl_partial_indexes || !pTab->hasPartIdx) &&
-       (!gbl_expressions_indexes || !pTab->hasExprIdx) )
+  if ( (!gbl_partial_indexes || !pTab->hasPartIdx) && !pTab->hasExprIdx)
       return;
 
   v = pParse->pVdbe;

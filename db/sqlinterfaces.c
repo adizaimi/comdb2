@@ -123,7 +123,6 @@ extern int gbl_fdb_track;
 extern int gbl_return_long_column_names;
 extern int gbl_stable_rootpages_test;
 
-extern int gbl_expressions_indexes;
 
 /* Once and for all:
 
@@ -4003,13 +4002,11 @@ void cleanup_clnt(struct sqlclntstate *clnt)
         clnt->query_stats = NULL;
     }
 
-    if (gbl_expressions_indexes) {
-        if (clnt->idxInsert)
-            free(clnt->idxInsert);
-        if (clnt->idxDelete)
-            free(clnt->idxDelete);
-        clnt->idxInsert = clnt->idxDelete = NULL;
-    }
+    if (clnt->idxInsert)
+        free(clnt->idxInsert);
+    if (clnt->idxDelete)
+        free(clnt->idxDelete);
+    clnt->idxInsert = clnt->idxDelete = NULL;
 
     destroy_hash(clnt->ddl_tables, free_it);
     destroy_hash(clnt->dml_tables, free_it);

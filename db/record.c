@@ -64,7 +64,6 @@
 #include "logmsg.h"
 
 extern int gbl_partial_indexes;
-extern int gbl_expressions_indexes;
 
 static int check_blob_buffers(struct ireq *iq, blob_buffer_t *blobs,
                               size_t maxblobs, const char *tblname,
@@ -247,7 +246,7 @@ int add_record(struct ireq *iq, void *trans, const uint8_t *p_buf_tag_name,
 
     if ((flags & RECFLAGS_NEW_SCHEMA) &&
         ((gbl_partial_indexes && iq->usedb->ix_partial) ||
-         (gbl_expressions_indexes && iq->usedb->ix_expr))) {
+         iq->usedb->ix_expr)) {
         int ixnum;
         int rebuild_keys = 0;
         if (!gbl_use_plan || !iq->usedb->plan)
@@ -2364,7 +2363,7 @@ int upd_new_record(struct ireq *iq, void *trans, unsigned long long oldgenid,
     }
 
     if ((gbl_partial_indexes && iq->usedb->ix_partial) ||
-         (gbl_expressions_indexes && iq->usedb->ix_expr)) {
+         iq->usedb->ix_expr) {
         int ixnum;
         int rebuild_keys = 0;
         if (!gbl_use_plan || !iq->usedb->plan)
@@ -2470,7 +2469,7 @@ int upd_new_record(struct ireq *iq, void *trans, unsigned long long oldgenid,
 
     if (iq->usedb->has_datacopy_ix ||
         (gbl_partial_indexes && iq->usedb->ix_partial && del_keys == -1ULL) ||
-        (gbl_expressions_indexes && iq->usedb->ix_expr && !iq->idxDelete)) {
+        iq->usedb->ix_expr && !iq->idxDelete) {
         /* save new blobs being deleted */
         sc_old = malloc(iq->usedb->lrl);
         if (sc_old == NULL) {
@@ -2747,7 +2746,7 @@ int del_new_record(struct ireq *iq, void *trans, unsigned long long genid,
     }
 
     if ((gbl_partial_indexes && iq->usedb->ix_partial) ||
-         (gbl_expressions_indexes && iq->usedb->ix_expr)) {
+         iq->usedb->ix_expr) {
         int ixnum;
         int rebuild_keys = 0;
         if (!gbl_use_plan || !iq->usedb->plan)
@@ -2779,7 +2778,7 @@ int del_new_record(struct ireq *iq, void *trans, unsigned long long genid,
 
     if (iq->usedb->has_datacopy_ix ||
         (gbl_partial_indexes && iq->usedb->ix_partial && del_keys == -1ULL) ||
-        (gbl_expressions_indexes && iq->usedb->ix_expr && !iq->idxDelete)) {
+        iq->usedb->ix_expr && !iq->idxDelete) {
         sc_old = malloc(iq->usedb->lrl);
         if (sc_old == NULL) {
             logmsg(LOGMSG_ERROR, "%s malloc failed\n", __func__);

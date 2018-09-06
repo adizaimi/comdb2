@@ -118,7 +118,6 @@ struct temptable {
 extern int gbl_partial_indexes;
 #define SQLITE3BTREE_KEY_SET_INS(IX) (clnt->ins_keys |= (1ULL << (IX)))
 #define SQLITE3BTREE_KEY_SET_DEL(IX) (clnt->del_keys |= (1ULL << (IX)))
-extern int gbl_expressions_indexes;
 void free_cached_idx(uint8_t **cached_idx)
 {
     int i;
@@ -1700,15 +1699,6 @@ static int create_sqlmaster_record(struct dbtable *tbl, void *tran)
             if (field > 0)
                 strbuf_append(sql, ", ");
             if (schema->member[field].isExpr) {
-                if (!gbl_expressions_indexes) {
-                    logmsg(LOGMSG_ERROR, "EXPRESSIONS INDEXES FOUND IN SCHEMA! PLEASE FIRST "
-                            "ENABLE THE EXPRESSIONS INDEXES FEATURE.\n");
-                    if (tbl->iq)
-                        reqerrstr(tbl->iq, ERR_SC,
-                                  "Please enable indexes on expressions.");
-                    strbuf_free(sql);
-                    return -1;
-                }
                 strbuf_appendf(sql, "(%s)", schema->member[field].name);
             } else {
                 strbuf_appendf(sql, "\"%s\"", schema->member[field].name);
@@ -3652,7 +3642,7 @@ int sqlite3BtreeDelete(BtCursor *pCur, int usage)
                 clnt->del_keys = -1ULL;
             }
 
-            if (gbl_expressions_indexes && pCur->ixnum != -1 &&
+            if (pCur->ixnum != -1 &&
                 pCur->db->ix_expr) {
                 int keysize = getkeysize(pCur->db, pCur->ixnum);
                 assert(clnt->idxDelete[pCur->ixnum] == NULL);
@@ -3693,7 +3683,7 @@ int sqlite3BtreeDelete(BtCursor *pCur, int usage)
                        __func__, __LINE__);
                 return SQLITE_INTERNAL;
             }
-            if (gbl_expressions_indexes && pCur->ixnum != -1 &&
+            if (pCur->ixnum != -1 &&
                 pCur->fdbc->tbl_has_expridx(pCur)) {
                 assert(clnt->idxDelete[pCur->ixnum] == NULL);
                 clnt->idxDelete[pCur->ixnum] =
@@ -3719,10 +3709,8 @@ int sqlite3BtreeDelete(BtCursor *pCur, int usage)
         }
         clnt->ins_keys = 0ULL;
         clnt->del_keys = 0ULL;
-        if (gbl_expressions_indexes) {
-            free_cached_idx(clnt->idxInsert);
-            free_cached_idx(clnt->idxDelete);
-        }
+        free_cached_idx(clnt->idxInsert);
+        free_cached_idx(clnt->idxDelete);
         if (rc == SQLITE_DDL_MISUSE)
             sqlite3VdbeError(pCur->vdbe,
                              "Transactional DDL Error: Overlapping Tables");
@@ -4548,10 +4536,8 @@ int sqlite3BtreeBeginTrans(Vdbe *vdbe, Btree *pBt, int wrflag)
     clnt->ins_keys = 0ULL;
     clnt->del_keys = 0ULL;
 
-    if (gbl_expressions_indexes) {
-        free_cached_idx(clnt->idxInsert);
-        free_cached_idx(clnt->idxDelete);
-    }
+    free_cached_idx(clnt->idxInsert);
+    free_cached_idx(clnt->idxDelete);
 
     if (clnt->arr) {
         currangearr_free(clnt->arr);
@@ -4797,10 +4783,8 @@ int sqlite3BtreeCommit(Btree *pBt)
     clnt->ins_keys = 0ULL;
     clnt->del_keys = 0ULL;
 
-    if (gbl_expressions_indexes) {
-        free_cached_idx(clnt->idxInsert);
-        free_cached_idx(clnt->idxDelete);
-    }
+    free_cached_idx(clnt->idxInsert);
+    free_cached_idx(clnt->idxDelete);
 
     if (clnt->arr) {
         currangearr_free(clnt->arr);
@@ -4910,10 +4894,8 @@ int sqlite3BtreeRollback(Btree *pBt, int dummy, int writeOnlyDummy)
     clnt->ins_keys = 0ULL;
     clnt->del_keys = 0ULL;
 
-    if (gbl_expressions_indexes) {
-        free_cached_idx(clnt->idxInsert);
-        free_cached_idx(clnt->idxDelete);
-    }
+    free_cached_idx(clnt->idxInsert);
+    free_cached_idx(clnt->idxDelete);
 
     if (clnt->arr) {
         currangearr_free(clnt->arr);
@@ -5469,7 +5451,7 @@ int sqlite3BtreeMovetoUnpacked(BtCursor *pCur, /* The cursor to be moved */
         /* hack for partial indexes */
         else if (bias == OP_IdxDelete && pCur->ixnum != -1) {
             /* hack for partial indexes and indexes on expressions */
-            if (gbl_expressions_indexes && pCur->fdbc->tbl_has_expridx(pCur)) {
+            if (pCur->fdbc->tbl_has_expridx(pCur)) {
                 Mem mem = {0};
                 sqlite3VdbeRecordPack(pIdxKey, &mem);
                 assert(clnt->idxDelete[pCur->ixnum] == NULL);
@@ -5686,7 +5668,7 @@ int sqlite3BtreeMovetoUnpacked(BtCursor *pCur, /* The cursor to be moved */
 
         /* hack for partial indexes and indexes on expressions */
         if (bias == OP_IdxDelete && pCur->ixnum != -1) {
-            if (gbl_expressions_indexes && pCur->db->ix_expr) {
+            if (pCur->db->ix_expr) {
                 assert(clnt->idxDelete[pCur->ixnum] == NULL);
                 clnt->idxDelete[pCur->ixnum] = malloc(ondisk_len);
                 if (clnt->idxDelete[pCur->ixnum] == NULL) {
@@ -7622,7 +7604,7 @@ sqlite3BtreeCursor_remote(Btree *pBt,      /* The btree */
     if (trans)
         pthread_mutex_unlock(&clnt->dtran_mtx);
 
-    if (gbl_expressions_indexes && !clnt->isselect &&
+    if (!clnt->isselect &&
         cur->fdbc->tbl_has_expridx(cur)) {
         if (!clnt->idxInsert)
             clnt->idxInsert = calloc(MAXINDEX, sizeof(uint8_t *));
@@ -7830,7 +7812,7 @@ sqlite3BtreeCursor_cursor(Btree *pBt,      /* The btree */
         return rc;
     }
 
-    if (gbl_expressions_indexes && !clnt->isselect && cur->db->ix_expr) {
+    if (!clnt->isselect && cur->db->ix_expr) {
         if (!clnt->idxInsert)
             clnt->idxInsert = calloc(MAXINDEX, sizeof(uint8_t *));
         if (!clnt->idxDelete)
@@ -8253,7 +8235,7 @@ int sqlite3BtreeInsert(
             rc = SQLITE_OK;
             if (likely(pCur->cursor_class != CURSORCLASS_STAT24) &&
                 likely(pCur->bt == NULL || pCur->bt->is_remote == 0) &&
-                gbl_expressions_indexes && pCur->db->ix_expr) {
+                pCur->db->ix_expr) {
                 rc = sqlite_to_ondisk(pCur->db->ixschema[pCur->ixnum], pKey,
                                       nKey, pCur->ondisk_key, clnt->tzname,
                                       blobs, MAXBLOBS,
@@ -8406,10 +8388,8 @@ int sqlite3BtreeInsert(
         }
         clnt->ins_keys = 0ULL;
         clnt->del_keys = 0ULL;
-        if (gbl_expressions_indexes) {
-            free_cached_idx(clnt->idxInsert);
-            free_cached_idx(clnt->idxDelete);
-        }
+        free_cached_idx(clnt->idxInsert);
+        free_cached_idx(clnt->idxDelete);
         if (rc == SQLITE_DDL_MISUSE)
             sqlite3VdbeError(pCur->vdbe,
                              "Transactional DDL Error: Overlapping Tables");

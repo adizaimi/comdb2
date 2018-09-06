@@ -56,7 +56,6 @@
    we need blockseq */
 
 extern int gbl_partial_indexes;
-extern int gbl_expressions_indexes;
 
 int gbl_survive_n_master_swings = 600;
 int gbl_master_retry_poll_ms = 100;
@@ -179,7 +178,7 @@ static int send_osql_delrec(struct BtCursor *pCur, struct sql_thread *thd)
     int rc = osql_send_usedb_logic(pCur, thd, NET_OSQL_SOCK_RPL);
     if (rc != SQLITE_OK) return rc;
 
-    if (gbl_expressions_indexes && pCur->db->ix_expr) {
+    if (pCur->db->ix_expr) {
         rc = osql_send_delidx_logic(pCur, thd, NET_OSQL_SOCK_RPL);
         if (rc != SQLITE_OK) {
             logmsg(LOGMSG_ERROR,
@@ -231,7 +230,7 @@ int osql_delrec(struct BtCursor *pCur, struct sql_thread *thd)
         } while (restarted && rc == 0);
     }
 
-    if (gbl_expressions_indexes && pCur->db->ix_expr) {
+    if (pCur->db->ix_expr) {
         rc = osql_save_index(pCur, thd, 0 /* isupd */, 1 /*isdel*/);
         if (rc != SQLITE_OK) return rc;
     }
@@ -263,7 +262,7 @@ static int send_osql_insrec(struct BtCursor *pCur, struct sql_thread *thd,
     int rc = osql_send_usedb_logic(pCur, thd, NET_OSQL_SOCK_RPL);
     if (rc != SQLITE_OK) return rc;
 
-    if (gbl_expressions_indexes && pCur->db->ix_expr) {
+    if (pCur->db->ix_expr) {
         rc = osql_send_insidx_logic(pCur, thd, NET_OSQL_SOCK_RPL);
         if (rc != SQLITE_OK) {
             logmsg(LOGMSG_ERROR,
@@ -325,7 +324,7 @@ int osql_insrec(struct BtCursor *pCur, struct sql_thread *thd, char *pData,
         } while (restarted && rc == 0);
     }
 
-    if (gbl_expressions_indexes && pCur->db->ix_expr) {
+    if (pCur->db->ix_expr) {
         rc = osql_save_index(pCur, thd, 0 /* isupd */, 0 /*isdel*/);
         if (rc != SQLITE_OK) return rc;
     }
@@ -347,7 +346,7 @@ static int send_osql_updrec(struct BtCursor *pCur, struct sql_thread *thd,
     int rc = osql_send_usedb_logic(pCur, thd, NET_OSQL_SOCK_RPL);
     if (rc != SQLITE_OK) return rc;
 
-    if (gbl_expressions_indexes && pCur->db->ix_expr) {
+    if (pCur->db->ix_expr) {
         rc = osql_send_delidx_logic(pCur, thd, NET_OSQL_SOCK_RPL);
         if (rc != SQLITE_OK) {
             logmsg(LOGMSG_ERROR,
@@ -433,7 +432,7 @@ int osql_updrec(struct BtCursor *pCur, struct sql_thread *thd, char *pData,
         } while (restarted && rc == 0);
     }
 
-    if (gbl_expressions_indexes && pCur->db->ix_expr) {
+    if (pCur->db->ix_expr) {
         rc = osql_save_index(pCur, thd, 1 /* isupd */, 1 /*isdel*/);
         if (rc != SQLITE_OK) return rc;
 

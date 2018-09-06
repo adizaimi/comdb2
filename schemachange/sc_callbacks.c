@@ -174,11 +174,9 @@ static unsigned long long revalidate_new_indexes(struct ireq *iq, struct dbtable
                                                  size_t maxblobs)
 {
     extern int gbl_partial_indexes;
-    extern int gbl_expressions_indexes;
     void free_cached_idx(uint8_t * *cached_idx);
     unsigned long long ins_keys = -1ULL;
-    if ((gbl_partial_indexes && db->ix_partial) ||
-        (gbl_expressions_indexes && db->ix_expr)) {
+    if ((gbl_partial_indexes && db->ix_partial) || db->ix_expr) {
         int ixnum;
         int rebuild_keys = 0;
         if (!gbl_use_plan || !db->plan)

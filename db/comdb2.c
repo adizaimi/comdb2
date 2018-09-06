@@ -521,7 +521,6 @@ int gbl_force_notnull_static_tag_blobs = 1;
 int gbl_key_updates = 1;
 
 int gbl_partial_indexes = 1;
-int gbl_expressions_indexes = 1;
 int gbl_new_indexes = 0;
 
 int gbl_optimize_truncate_repdb = 1;

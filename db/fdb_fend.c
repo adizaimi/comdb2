@@ -57,7 +57,6 @@ extern int gbl_fdb_resolve_local;
 extern int gbl_fdb_allow_cross_classes;
 
 extern int gbl_partial_indexes;
-extern int gbl_expressions_indexes;
 
 int gbl_fdb_track = 0;
 int gbl_fdb_track_times = 0;
@@ -1768,13 +1767,6 @@ static int insert_table_entry_from_packedsqlite(fdb_t *fdb, fdb_tbl_t *tbl,
     }
     if (strcasecmp(name, tbl_name) &&
         (strstr(sql, "((") || strstr(sql, "))") || strstr(sql, ", ("))) {
-        if (!gbl_expressions_indexes) {
-            logmsg(LOGMSG_ERROR, "Foreign table has expressions indexes but "
-                            "expressions indexes feature is disabled on this "
-                            "machine\n");
-            rc = FDB_ERR_EXPRIDX_DISABLED;
-            goto out;
-        }
         tbl->ix_expr = 1;
     }
     if (where)
@@ -3546,7 +3538,7 @@ static int fdb_cursor_insert(BtCursor *pCur, struct sqlclntstate *clnt,
         }
     }
 
-    if (gbl_expressions_indexes && pCur->fdbc->tbl_has_expridx(pCur)) {
+    if (pCur->fdbc->tbl_has_expridx(pCur)) {
         for (ixnum = 0; ixnum < fdbc->ent->tbl->nix; ixnum++) {
             if (gbl_partial_indexes && pCur->fdbc->tbl_has_partidx(pCur) &&
                 !(clnt->ins_keys & (1ULL << ixnum)))
@@ -3603,7 +3595,7 @@ static int fdb_cursor_delete(BtCursor *pCur, struct sqlclntstate *clnt,
         }
     }
 
-    if (gbl_expressions_indexes && pCur->fdbc->tbl_has_expridx(pCur)) {
+    if (pCur->fdbc->tbl_has_expridx(pCur)) {
         for (ixnum = 0; ixnum < fdbc->ent->tbl->nix; ixnum++) {
             if (gbl_partial_indexes && pCur->fdbc->tbl_has_partidx(pCur) &&
                 !(clnt->del_keys & (1ULL << ixnum)))
@@ -3660,7 +3652,7 @@ static int fdb_cursor_update(BtCursor *pCur, struct sqlclntstate *clnt,
         }
     }
 
-    if (gbl_expressions_indexes && pCur->fdbc->tbl_has_expridx(pCur)) {
+    if (pCur->fdbc->tbl_has_expridx(pCur)) {
         for (ixnum = 0; ixnum < fdbc->ent->tbl->nix; ixnum++) {
             if (gbl_partial_indexes && pCur->fdbc->tbl_has_partidx(pCur) &&
                 !(clnt->del_keys & (1ULL << ixnum)))

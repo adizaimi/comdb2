@@ -704,8 +704,7 @@ static int _fdb_svc_indexes_to_ondisk(unsigned char **pIndexes, struct dbtable *
     int rc = 0;
     unsigned char *ix = NULL;
 
-    extern int gbl_expressions_indexes;
-    if (!gbl_expressions_indexes || !db->ix_expr)
+    if (!db->ix_expr)
         return 0;
 
     for (i = 0; i < db->nix; i++) {
