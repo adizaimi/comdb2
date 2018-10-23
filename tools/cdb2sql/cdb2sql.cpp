@@ -570,6 +570,11 @@ static int process_escape(const char *cmdstr)
             fprintf(stderr, "need command to @send\n");
             return -1;
         }
+#ifdef DEBUG
+    } else if (strcasecmp(tok, "ping") == 0) {
+        int start_time_ms, run_time_ms;
+        run_statement("ping", 0, NULL, &start_time_ms, &run_time_ms);
+#endif
     } else if ((strcasecmp(tok, "desc") == 0) || (strcasecmp(tok, "describe") == 0)) {
         tok = strtok_r(NULL, delims, &lasts);
         if (!tok) {
