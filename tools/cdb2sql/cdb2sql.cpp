@@ -570,11 +570,6 @@ static int process_escape(const char *cmdstr)
             fprintf(stderr, "need command to @send\n");
             return -1;
         }
-#ifdef DEBUG
-    } else if (strcasecmp(tok, "ping") == 0) {
-        int start_time_ms, run_time_ms;
-        run_statement("ping", 0, NULL, &start_time_ms, &run_time_ms);
-#endif
     } else if ((strcasecmp(tok, "desc") == 0) || (strcasecmp(tok, "describe") == 0)) {
         tok = strtok_r(NULL, delims, &lasts);
         if (!tok) {
@@ -1462,6 +1457,46 @@ static void int_handler(int signum)
     send_cancel_cnonce(cdb2_cnonce(cdb2h));
 }
 
+#define DEBUG_PINGS 1
+
+#ifdef DEBUG_PINGS
+void send_pings(int num_pings)
+{
+    verbose_print("Sending %d pings\n", num_pings);
+    cdb2_hndl_tp *cdb2h_2 = NULL; // use a new db handle
+    int rc;
+    int flags = 0;
+    char *type = dbtype;
+
+    if (dbhostname) {
+        flags |= CDB2_DIRECT_CPU;
+        type = dbhostname;
+    }
+
+    if (isadmin)
+        flags |= CDB2_ADMIN;
+
+    rc = cdb2_open(&cdb2h_2, dbname, type, flags);
+    if (rc) {
+        if (debug_trace)
+            fprintf(stderr, "cdb2_open rc %d %s\n", rc, cdb2_errstr(cdb2h));
+        cdb2_close(cdb2h_2);
+        return;
+    }    
+    for(int i = 0; i < num_pings; i++) {
+        rc = cdb2_ping_server(cdb2h_2);
+        if (rc) {
+            fprintf(stderr, "failed to ping rc %d \n", rc);
+            return;
+        }
+    }
+    cdb2_close(cdb2h_2);
+}
+#endif
+
+
+
+
 int main(int argc, char *argv[])
 {
     static char *filename = NULL;
@@ -1474,6 +1509,9 @@ int main(int argc, char *argv[])
     int opt_indx = 0;
     int c;
     int printtostderr = 0;
+#ifdef DEBUG_PINGS
+    int num_pings = 0;
+#endif
 
     sighold(SIGPIPE);
 
@@ -1505,7 +1543,7 @@ int main(int argc, char *argv[])
         {"minretries", required_argument, NULL, 'R'},
         {0, 0, 0, 0}};
 
-    while ((c = bb_getopt_long(argc, argv, (char *) "hsvr:p:c:f:g:t:n:R:",
+    while ((c = bb_getopt_long(argc, argv, (char *) "hsvr:p:c:f:g:t:n:R:P:",
                                long_options, &opt_indx)) != -1) {
         switch (c) {
         case 0:
@@ -1530,6 +1568,11 @@ int main(int argc, char *argv[])
         case 'p':
             precision = atoi(optarg);
             break;
+#ifdef DEBUG_PINGS
+        case 'P':
+            num_pings = atoi(optarg);
+            break;
+#endif
         case 'c':
             cdb2_set_comdb2db_config(optarg);
             break;
@@ -1599,9 +1642,17 @@ int main(int argc, char *argv[])
     sprintf(main_prompt, "%s> ", dbname);
     optind++;
 
+#ifdef DEBUG_PINGS
+    if (num_pings > 0) {
+        send_pings(num_pings);
+        return EXIT_SUCCESS;
+    }
+#endif
+
     ntypes = argc - optind;
     if (ntypes > 0)
         types = process_typed_statement_args(ntypes, &argv[optind]);
+
     if (sql && *sql != '-') {
         scriptmode = 1;
         process_line(sql, ntypes, types);

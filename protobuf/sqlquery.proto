@@ -7,6 +7,7 @@ enum CDB2RequestType {
     CDB2QUERY = 1;
     SQLQUERY  = 2;
     DBINFO    = 3;
+    PING      = 4; //client ping the db, db responds with SQL_RESPONSE_PONG
     RESET     = 108;
     /* To tell the server to perform SSL_accept(). */
     SSLCONN   = 121;

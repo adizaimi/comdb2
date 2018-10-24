@@ -3394,22 +3394,6 @@ static int check_sql_access(struct sqlthdstate *thd, struct sqlclntstate *clnt)
     return rc;
 }
 
-#ifdef DEBUG
-static int handle_if_ping( struct sqlclntstate *clnt) 
-{
-    const char ping[] = "ping";
-    if (strncmp(clnt->sql, ping, sizeof(ping)) != 0)
-        return 0;
-
-    //send_pong();
-    
-    write_response(clnt, RESPONSE_TRACE, "pong", 0);
-    write_response(clnt, RESPONSE_ROW_LAST_DUMMY, NULL, 0);
-    write_response(clnt, RESPONSE_FLUSH, NULL, 0);
-    return 1;
-}
-#endif
-
 /**
  * Main driver of SQL processing, for both sqlite and non-sqlite requests
  */
@@ -3420,11 +3404,6 @@ static int execute_sql_query(struct sqlthdstate *thd, struct sqlclntstate *clnt)
 
 #ifdef DEBUG
     logmsg(LOGMSG_DEBUG, "execute_sql_query: '%.30s'\n", clnt->sql);
-#endif
-
-#ifdef DEBUG
-    if (handle_if_ping(clnt))
-        return 0;
 #endif
 
     /* access control */

@@ -5604,3 +5604,42 @@ int cdb2_clear_ack(cdb2_hndl_tp* hndl)
     }
     return 0;
 }
+
+int cdb2_ping_server(cdb2_hndl_tp *hndl)
+{
+    if (!hndl->sb) {
+        cdb2_connect_sqlhost(hndl);
+
+        if (!hndl->sb) {
+            printf("no sb available\n");
+            return -1;
+        }
+    }
+    SBUF2 * sb = hndl->sb;
+
+    debugprint("setting type to %d\n", CDB2_REQUEST_TYPE__PING);
+    struct newsqlheader hdr = {0};
+    hdr.type = ntohl(CDB2_REQUEST_TYPE__PING);
+
+    int rc = sbuf2write((void *)&hdr, sizeof(hdr), sb);
+    debugprint("write rc %d\n", rc);
+    rc = sbuf2flush(sb);
+    debugprint("flush rc %d\n", rc);
+
+    if (rc < 0) {
+        printf("flush err\n");
+        return rc;
+    }
+    rc = sbuf2getc(sb);
+    debugprint("sbuf2getc rc = %d\n", rc);
+    if (rc < 0) {
+        printf("READ response error\n");
+        return rc;
+    }
+
+    debugprint("got pong rc = %d\n", rc);
+
+    return 0;
+}
+#ifdef DEBUG
+#endif

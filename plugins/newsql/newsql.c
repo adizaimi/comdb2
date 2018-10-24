@@ -1814,6 +1814,15 @@ retry_read:
     hdr.compression = ntohl(hdr.compression);
     hdr.length = ntohl(hdr.length);
 
+#ifdef DEBUG
+    logmsg(LOGMSG_DEBUG, "Received type = %d\n", hdr.type);
+#endif
+    if (hdr.type == CDB2_REQUEST_TYPE__PING) {
+        if ((rc = sbuf2putc(sb, 1)) < 0 || (rc = sbuf2flush(sb)) < 0)
+            logmsg(LOGMSG_ERROR, "error sending pong rc=%d\n", rc);
+        goto retry_read;
+    }
+
     if (hdr.type == CDB2_REQUEST_TYPE__SSLCONN) {
 #if WITH_SSL
         /* If client requires SSL and we haven't done that,
