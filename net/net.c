@@ -870,7 +870,7 @@ void print_netdelay(void)
     const char *status = "no";
     if (d && delay <= net_delay_max)
         status = "yes";
-    logmsg(LOGMSG_USER, "netdelay=> delay:%.1fms delayed:%lu delaying:%s\n", delay,
+    logmsg(LOGMSG_USER, "netdelay=> delay:%.1fms delayed:%" PRIu64 " delaying:%s\n", delay,
            net_delayed, status);
 }
 
@@ -1653,7 +1653,7 @@ static void net_throttle_wait_loop(netinfo_type *netinfo_ptr,
 
         if (loops > 0) {
             logmsg(LOGMSG_ERROR, "%s thread %lu waiting for net count to drop"
-                                 " to %u enqueued buffers or %lu bytes (%d "
+                                 " to %u enqueued buffers or %" PRIu64 " bytes (%d "
                                  "loops)\n",
                    __func__, pthread_self(), queue_threshold, byte_threshold,
                    loops);
@@ -2556,7 +2556,7 @@ void print_all_udp_stat(netinfo_type *netinfo_ptr)
         printf("node:%s port:%5d recv:%7llu sent:%7lu %s\n", ptr->host, port,
                recv, sent, print_addr(&sin, buf1));
 #else
-        logmsg(LOGMSG_USER, "node:%s port:%5d sent:%7lu %s\n", ptr->host, port,
+        logmsg(LOGMSG_USER, "node:%s port:%5d sent:%7" PRIu64 " %s\n", ptr->host, port,
                sent, print_addr(&sin, buf1));
 #endif
     }
@@ -2586,7 +2586,7 @@ void print_node_udp_stat(char *prefix, netinfo_type *netinfo_ptr,
     struct in_addr addr = host_node_ptr->addr;
     Pthread_rwlock_unlock(&(netinfo_ptr->lock));
 
-    logmsg(LOGMSG_USER, "%snode:%s port:%5d recv:%7lu sent:%7lu [%s]\n", prefix,
+    logmsg(LOGMSG_USER, "%snode:%s port:%5d recv:%7" PRIu64 " sent:%7" PRIu64 " [%s]\n", prefix,
            host, port, recv, sent, inet_ntoa(addr));
 }
 
@@ -4654,23 +4654,23 @@ int net_check_bad_subnet_lk(int ii)
 
     if (!last_bad_subnet_time) {
         if (gbl_verbose_net)
-            logmsg(LOGMSG_USER, "%" PRIu64 " %s Not set %d %s\n",
-                   pthread_self(), __func__, ii, subnet_suffices[ii]);
+            logmsg(LOGMSG_USER, "%p %s Not set %d %s\n",
+                   (void *)pthread_self(), __func__, ii, subnet_suffices[ii]);
         goto out;
     }
 
     if (last_bad_subnet_time + subnet_blackout_timems < comdb2_time_epochms()) {
         if (gbl_verbose_net)
-            logmsg(LOGMSG_USER, "%" PRIu64 " %s Clearing out net %d %s\n",
-                   pthread_self(), __func__, ii, subnet_suffices[ii]);
+            logmsg(LOGMSG_USER, "%p %s Clearing out net %d %s\n",
+                   (void *)pthread_self(), __func__, ii, subnet_suffices[ii]);
         last_bad_subnet_time = 0;
         goto out;
     }
 
     if (ii == last_bad_subnet_idx) {
         if (gbl_verbose_net)
-            logmsg(LOGMSG_USER, "%" PRIu64 " %s Bad net %d %s\n",
-                   pthread_self(), __func__, ii, subnet_suffices[ii]);
+            logmsg(LOGMSG_USER, "%p %s Bad net %d %s\n",
+                   (void *)pthread_self(), __func__, ii, subnet_suffices[ii]);
         rc = 1;
     }
 out:
@@ -4701,9 +4701,8 @@ void net_set_bad_subnet(const char *subnet)
             last_bad_subnet_idx = i;
             if (gbl_verbose_net)
                 logmsg(LOGMSG_USER,
-                       "%" PRIu64 " %s Marking %s bad, idx %d time %" PRId64
-                       "\n",
-                       pthread_self(), __func__, subnet_suffices[i],
+                       "%p %s Marking %s bad, idx %d time %" PRId64 "\n",
+                       (void *)pthread_self(), __func__, subnet_suffices[i],
                        last_bad_subnet_idx, last_bad_subnet_time);
         }
     }
