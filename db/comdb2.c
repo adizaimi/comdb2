@@ -1368,6 +1368,10 @@ void clean_exit(void)
 {
     int alarmtime = (gbl_exit_alarm_sec > 0 ? gbl_exit_alarm_sec : 300);
 
+    //if ((rand() % 10) == 1){
+        abort();
+    //}
+
     /* this defaults to 5 minutes */
     alarm(alarmtime);
 
@@ -2410,6 +2414,13 @@ struct dbenv *newdbenv(char *dbname, char *lrlname)
         logmsg(LOGMSG_FATAL, "DB directory is not set in lrl\n");
         return NULL;
     } 
+
+    if (gbl_create_mode && (rand() % 10) == 1) {
+        abort();
+    }
+    else if ((rand() % 10) == 1){
+        abort();
+    }
 
     if (gbl_create_mode) {
         logmsg(LOGMSG_DEBUG, "gbl_create_mode is on, "

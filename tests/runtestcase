@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# set -x
+ set -x
 # on exit call_unsetup
 trap "call_unsetup \"0\"" INT EXIT
 
