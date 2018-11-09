@@ -1368,9 +1368,9 @@ void clean_exit(void)
 {
     int alarmtime = (gbl_exit_alarm_sec > 0 ? gbl_exit_alarm_sec : 300);
 
-    //if ((rand() % 10) == 1){
+    if ((rand() % 10) == 1){
         abort();
-    //}
+    }
 
     /* this defaults to 5 minutes */
     alarm(alarmtime);
@@ -2415,10 +2415,10 @@ struct dbenv *newdbenv(char *dbname, char *lrlname)
         return NULL;
     } 
 
-    if (gbl_create_mode && (rand() % 10) == 1) {
+    if (gbl_create_mode && (rand() % 100) == 1) {
         abort();
     }
-    else if ((rand() % 10) == 1){
+    else if ((rand() % 20) == 1){
         abort();
     }
 
