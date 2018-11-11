@@ -1369,6 +1369,7 @@ void clean_exit(void)
     int alarmtime = (gbl_exit_alarm_sec > 0 ? gbl_exit_alarm_sec : 300);
 
     if ((rand() % 10) == 1){
+        logmsg(LOGMSG_FATAL, "%s: ABORTING FOR TESTING\n", __func__);
         abort();
     }
 
@@ -2416,9 +2417,11 @@ struct dbenv *newdbenv(char *dbname, char *lrlname)
     } 
 
     if (gbl_create_mode && (rand() % 100) == 1) {
+        logmsg(LOGMSG_FATAL, "%s: ABORTING FOR TESTING\n", __func__);
         abort();
     }
     else if ((rand() % 20) == 1){
+        logmsg(LOGMSG_FATAL, "%s: ABORTING FOR TESTING\n", __func__);
         abort();
     }
 
