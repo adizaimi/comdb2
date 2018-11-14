@@ -1463,7 +1463,25 @@ typedef struct {
     size_t total_length;
 } blob_status_t;
 
-/* convert all records scan modes */
+/* convert_records scan modes. We support the following scan modes:
+ * - SCAN_STRIPES - DEPRECATED AND REMOVED:
+ *   read one record at a time from one of the
+ *   stripe files, in order.  This is primarily to support
+ *   live schema change.
+ * - SCAN_PARALLEL - start one thread for each stripe, the thread
+ *   reads all the records in its stripe in order
+ * - SCAN_PARALLEL - start one thread for each stripe, each thread
+ *   will read records in its stripe in page order
+ * - SCAN_DUMP - bulk dump the data file(s).  Fastest possible
+ *   scan mode.
+ * - SCAN_INDEX - use regular ix_ routines to scan the primary
+ *   key.  Dog slow because it causes the data file scan to be
+ *   in essentially random order so you get lots and lots of
+ *   cache misses.  However this is a good way to uncorrupt
+ *   databases that were hit by the "oops, dtastripe didn't delete
+ *   records" bug in the early days.
+ */
+
 enum convert_scan_mode {
     SCAN_INDEX = 0,   /* default for old style schema changes */
     SCAN_STRIPES = 1, /* requires dtastripe, required for live schema change */

@@ -601,7 +601,7 @@ int add_record(struct ireq *iq, void *trans, const uint8_t *p_buf_tag_name,
         }
     }
 
-    if ((flags & RECFLAGS_NO_CONSTRAINTS) /* if NOT no constraints */ ||
+    if ((flags & RECFLAGS_NO_CONSTRAINTS) /* if no constraints */ ||
         ((rec_flags & OSQL_IGNORE_FAILURE) != 0)) {
         int ixnum;
         od_dta_tail = NULL;

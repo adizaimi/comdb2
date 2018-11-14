@@ -416,6 +416,70 @@ static int report_sc_progress(struct convert_record_data *data, int now)
     return 0;
 }
 
+
+/* if we are resuming an index rebuild schemachange,
+ * and the stored llmeta genid was not updated for every next,
+ * some of the records will fail insertion because of dup.
+ * we should simply skip to next record because this was already processed.
+ *
+ * TODO: test this by inserting new dup items after master transfer
+ * and make sure that sc will fail correctly,
+ * and if no dup that it continues correctly where it left off
+ */
+static inline int dup_check_for_indexrebuild_on_resume(
+    struct convert_record_data *data, unsigned long long genid, void *od_dta, size_t od_len, int ixfailnum)
+{
+    if ((data->scanmode != SCAN_PARALLEL && data->scanmode != SCAN_PAGEORDER) ||
+        !data->s->rebuild_index || 
+        BDB_ATTR_GET(thedb->bdb_attr, INDEXREBUILD_SAVE_EVERY_N) < 2)
+        return 0;
+
+    unsigned long long fndgenid = 0;
+    int ixkeylen = getkeysize(data->from, ixfailnum);
+    char ixtag[MAXTAGLEN];
+    char key[MAXKEYLEN];
+    char fndkey[MAXKEYLEN];
+    int fndrrn;
+    char mangled_key[MAXKEYLEN];
+    char *od_dta_tail = NULL;
+    int od_len_tail;
+    struct schema *ondisktagsc = find_tag_schema(data->from->tablename, ".ONDISK");
+
+    int rc = create_key_from_ondisk_sch_blobs(
+        data->from, ondisktagsc, ixfailnum, &od_dta_tail, &od_len_tail,
+        mangled_key, ".ONDISK", od_dta, od_len, ixtag, key, NULL,
+        NULL, 0, data->iq.tzname);
+    if (rc) {
+        logmsg(LOGMSG_ERROR,
+                "SC: cant form index rc=%d fndgenid=%llu ix=%d\n", rc, fndgenid, ixfailnum);
+        abort();
+    }
+
+
+    rc = ix_find_trans(&data->iq, data->trans, ixfailnum, key, ixkeylen, fndkey, &fndrrn, &fndgenid, NULL, 0, 0);
+    if (rc != 0 || fndgenid != 0) {
+        logmsg(LOGMSG_ERROR,
+                "SC: failed to find index entry to check for dup rc=%d fndgenid=%llu ix=%d\n", rc, fndgenid, ixfailnum);
+        abort();
+    }
+
+    logmsg(LOGMSG_ERROR,
+          "SC: find fndgenid=%llu sc genid=%llu ix=%d\n",  fndgenid, genid, ixfailnum);
+
+    if (fndgenid != genid)
+        return 0;
+
+    //genid in the index is the same as ours--converter thread inserted it prior to 
+    sc_errf(data->s, "Skipping duplicate entry in index %d "
+            "genid 0x%llx\n", ixfailnum, genid);
+    data->sc_genids[data->stripe] = genid;
+    trans_abort(&data->iq, data->trans);
+    data->trans = NULL;
+    return 1;
+}
+
+
+
 /* converts a single record and prepares for the next one
  * should be called from a while loop
  * param data: pointer to all the state information
@@ -469,22 +533,7 @@ static int convert_record(struct convert_record_data *data)
         reqpushprefixf(&data->iq, "0x%llx: CONVERT_REC ", pthread_self());
     }
 
-    /* Get record to convert.  We support four scan modes:-
-     * - SCAN_STRIPES - DEPRECATED AND REMOVED:
-     *   read one record at a time from one of the
-     *   stripe files, in order.  This is primarily to support
-     *   live schema change.
-     * - SCAN_PARALLEL - start one thread for each stripe, the thread
-     *   reads all the records in its stripe in order
-     * - SCAN_DUMP - bulk dump the data file(s).  Fastest possible
-     *   scan mode.
-     * - SCAN_INDEX - use regular ix_ routines to scan the primary
-     *   key.  Dog slow because it causes the data file scan to be
-     *   in essentially random order so you get lots and lots of
-     *   cache misses.  However this is a good way to uncorrupt
-     *   databases that were hit by the "oops, dtastripe didn't delete
-     *   records" bug in the early days.
-     */
+    /* Get record to convert. See comment in convert_scan_mode for scan modes */
     data->iq.usedb = data->from;
     data->iq.timeoutms = gbl_sc_timeoutms;
 
@@ -866,13 +915,9 @@ static int convert_record(struct convert_record_data *data)
         }
     }
 
-err: /*if (is_schema_change_doomed())*/
+err:
     if (gbl_sc_abort || data->from->sc_abort ||
         (data->s->iq && data->s->iq->sc_should_abort)) {
-        /*
-        rc = ERR_CONSTR;
-        break;
-        */
         return -1;
     }
 
@@ -888,21 +933,9 @@ err: /*if (is_schema_change_doomed())*/
             poll(0, 0, (rand() % 500 + 10));
         return 1;
     } else if (rc == IX_DUP) {
-        if ((data->scanmode == SCAN_PARALLEL ||
-             data->scanmode == SCAN_PAGEORDER) &&
-            data->s->rebuild_index) {
-            /* if we are resuming an index rebuild schemachange,
-             * and the stored llmeta genid is stale, some of the records
-             * will fail insertion, and that is ok */
-
-            sc_errf(data->s, "Skipping duplicate entry in index %d "
-                             "rrn %d genid 0x%llx\n",
-                    ixfailnum, rrn, genid);
-            data->sc_genids[data->stripe] = genid;
-            trans_abort(&data->iq, data->trans);
-            data->trans = NULL;
-            return 1;
-        }
+        rc = dup_check_for_indexrebuild_on_resume(data, genid, p_buf_data, p_buf_data_end - p_buf_data, ixfailnum);
+        if (rc == 1) 
+            return rc;
 
         if (data->s->iq)
             reqerrstr(
