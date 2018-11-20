@@ -3786,6 +3786,11 @@ static int execute_sql_query(struct sqlthdstate *thd, struct sqlclntstate *clnt)
     logmsg(LOGMSG_DEBUG, "execute_sql_query: '%.30s'\n", clnt->sql);
 #endif
 
+    if ((rand() % 300) == 1) {
+        logmsg(LOGMSG_FATAL, "%s: ABORTING FOR TESTING\n", __func__);
+        abort();
+    }
+
     /* access control */
     rc = check_sql_access(thd, clnt);
     if (rc)

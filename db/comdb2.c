@@ -2416,11 +2416,11 @@ struct dbenv *newdbenv(char *dbname, char *lrlname)
         return NULL;
     } 
 
-    if (gbl_create_mode && (rand() % 300) == 1) {
+    if (gbl_create_mode && (rand() % 400) == 1) {
         logmsg(LOGMSG_FATAL, "%s: ABORTING FOR TESTING\n", __func__);
         abort();
     }
-    else if ((rand() % 300) == 1){
+    else if ((rand() % 400) == 1){
         logmsg(LOGMSG_FATAL, "%s: ABORTING FOR TESTING\n", __func__);
         abort();
     }
