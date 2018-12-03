@@ -39,6 +39,7 @@
 #include <str0.h>
 
 #include <plhash.h>
+#include <crc32c.h>
 #include "comdb2.h"
 #include "util.h" /* the .h file for this .c */
 
@@ -87,6 +88,13 @@ void perror_errnum(const char *s, int errnum)
 
     fflush(stderr);
 }
+
+
+int crc32c_wrap(char **str, int len)
+{
+    return crc32c((const uint8_t *)*str, strlen(*str));
+}
+
 
 /* case-insensitive compare */
 int strcmpfunc(char **a, char **b, int len)
