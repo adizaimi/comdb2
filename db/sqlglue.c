@@ -10823,7 +10823,6 @@ SBUF2 *connect_remote_db(const char *protocol, const char *dbname, const char *s
 {
     SBUF2 *sb;
     int port;
-    int retry;
     int sockfd;
 
     if (use_cache) {
@@ -10838,20 +10837,18 @@ SBUF2 *connect_remote_db(const char *protocol, const char *dbname, const char *s
         /*fprintf(stderr, "%s: no sockpool socket for %s.%s.%s\n",
             __func__, dbname, service, host);*/
 
-        retry = 0;
-retry:
-    /* this could fail due to load */
-    port = portmux_get(host, "comdb2", "replication", dbname);
-    if (port == -1) {
-        if (retry++ < 10) {
-            goto retry;
+        port = -1;
+        int retry = 0;
+        while(port == -1 && retry++ < 10) {
+            /* this could fail due to load */
+            port = portmux_get(host, "comdb2", "replication", dbname);
         }
-
-        logmsg(LOGMSG_ERROR, "%s: cannot get port number from portmux on node %s\n",
-                __func__, host);
-        return NULL;
+        if (port == -1) {
+            logmsg(LOGMSG_ERROR, "%s: cannot get port number from portmux on node %s\n",
+                   __func__, host);
+            return NULL;
+        }
     }
-
     sockfd = tcpconnecth_to(host, port, 0, 0);
     if (sockfd == -1) {
         logmsg(LOGMSG_ERROR, "%s: cannot connect to %s on machine %s port %d\n",
@@ -11654,7 +11651,7 @@ static int get_data_from_ondisk(struct schema *sc, uint8_t *in,
                                 Mem *m, uint8_t flip_orig, const char *tzname)
 {
     int null;
-    i64 ival;
+    i64 ival = 0;
     int outdtsz = 0;
     int rc = 0;
     struct field *f = &(sc->member[fnum]);
@@ -12172,7 +12169,7 @@ unsigned long long verify_indexes(struct dbtable *db, uint8_t *rec,
     struct schema *sc;
     strbuf *sql;
     char temp_newdb_name[MAXTABLELEN];
-    int i, ixnum, len, rc;
+    int i, ixnum, len, rc = 0;
 
     unsigned long long dirty_keys = 0ULL;
 
