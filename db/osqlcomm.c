@@ -2837,6 +2837,26 @@ osqlcomm_recgenid_uuid_rpl_type_get(osql_recgenid_uuid_rpl_t *p_recgenid,
     return p_buf;
 }
 
+
+/* one message to insert one row */
+typedef struct osql_ins_row {
+    osql_uuid_rpl_t hd;
+    osql_usedb_t usedb;
+    osql_ins_t row;
+    osql_startgen_t startgen;
+} osql_ins_row_t;
+
+static uint8_t *
+osqlcomm_ins_row_type_put(const osql_ins_row_t *p_osql_ins_row,
+                               uint8_t *p_buf, const uint8_t *p_buf_end)
+{
+    p_buf = osqlcomm_uuid_rpl_type_put(&(p_osql_ins_row->hd), p_buf, p_buf_end);
+    p_buf = osqlcomm_ins_type_put(&(p_osql_ins_row->dt), p_buf, p_buf_end, 0);
+    return p_buf;
+}
+
+
+
 static inline int osql_nettype_is_uuid(int type)
 {
     return type >= NET_OSQL_UUID_REQUEST_MIN &&
@@ -4208,6 +4228,82 @@ int osql_send_updstat(char *tohost, unsigned long long rqid, uuid_t uuid,
         uuidstr_t us;
         sbuf2printf(logsb, "[%llu %s] send OSQL_UPDSTATREC %llx (%lld)\n", rqid,
                     comdb2uuidstr(uuid, us), seq, seq);
+        sbuf2flush(logsb);
+    }
+
+    rc = (nData > sent) ? offload_net_send_tail(tohost, type, buf, msglen, 0,
+                                                pData + sent, nData - sent)
+                        : offload_net_send(tohost, type, buf, msglen, 0);
+
+    return rc;
+}
+
+int osql_send_insonerow(char *tohost, unsigned long long rqid, uuid_t uuid,
+                     unsigned long long genid, unsigned long long dirty_keys,
+                     char *pData, int nData, int type, SBUF2 *logsb,
+                     int upsert_flags)
+{
+    int msglen;
+    uint8_t buf[sizeof(osql_ins_row_t)]
+    int rc = 0;
+    int sent;
+    uint8_t *p_buf = buf;
+    uint8_t *p_buf_end = NULL;
+    int send_dk = 0;
+
+    if (check_master(tohost))
+        return OSQL_SEND_ERROR_WRONGMASTER;
+
+    int flags = 0;
+    osql_ins_row_t ins_row = {{0}};
+
+    ins_row.hd.type = OSQL_INSROW;
+    comdb2uuidcpy(ins_uuid_rpl.hd.uuid, uuid);
+    ins_uuid_rpl.dt.seq = genid;
+    if (upsert_flags) {
+        flags |= OSQL_INSERT_UPSERT;
+        ins_uuid_rpl.dt.upsert_flags = upsert_flags;
+    } else {
+        len -= sizeof(ins_uuid_rpl.dt.upsert_flags);
+    }
+    if (send_dk) {
+        flags |= OSQL_INSERT_SEND_DK;
+        ins_uuid_rpl.dt.dk = dirty_keys;
+    } else {
+        len -= sizeof(ins_uuid_rpl.dt.dk);
+    }
+    ins_uuid_rpl.dt.flags = flags;
+    ins_uuid_rpl.dt.nData = nData;
+
+    p_buf_end = p_buf + len;
+
+    if (!(p_buf = osqlcomm_ins_uuid_rpl_type_put(&ins_uuid_rpl, p_buf,
+                                                 p_buf_end))) {
+        logmsg(LOGMSG_ERROR, "%s:%s returns NULL\n", __func__,
+               "osqlcomm_ins_uuid_rpl_type_put");
+        return -1;
+    }
+    msglen = len;
+    sent = sizeof(ins_uuid_rpl.dt.pData);
+
+    /* p_buf is pointing at the beginning of the pData section of ins_rpl.
+     * Zero this for the case where the length is less than 8.  */
+    memset(p_buf, 0, sizeof(ins_uuid_rpl.dt.pData));
+    /* override message type */
+    type = osql_net_type_to_net_uuid_type(NET_OSQL_SOCK_RPL);
+
+    if (nData > 0) {
+        p_buf = buf_no_net_put(pData, nData < sent ? nData : sent, p_buf,
+                               p_buf_end);
+    }
+
+    if (logsb) {
+        unsigned long long lclgenid = bdb_genid_to_host_order(genid);
+        uuidstr_t us;
+        sbuf2printf(logsb, "[%llx %s] send %s %llx (%lld)\n", rqid,
+                    comdb2uuidstr(uuid, us),
+                    rqid == OSQL_RQID_USE_UUID ? "OSQL_INSERT" : "OSQL_INSREC",
+                    lclgenid, lclgenid);
         sbuf2flush(logsb);
     }
 
