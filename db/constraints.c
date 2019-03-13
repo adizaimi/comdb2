@@ -33,7 +33,7 @@
 #include "indices.h"
 #include "osqlsqlthr.h"
 
-#define DEBUG_REORDER 0
+#define DEBUG_REORDER 1
 
 
 static char *get_temp_ct_dbname(long long *);

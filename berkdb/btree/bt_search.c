@@ -393,7 +393,7 @@ try_again:
 	INTERNAL_PTR_CHECK(cp == dbc->internal);
 
 	pg = root_pgno == PGNO_INVALID ? cp->root : root_pgno;
-	stack = LF_ISSET(S_STACK) && F_ISSET(cp, C_RECNUM);
+	stack = (LF_ISSET(S_STACK) && F_ISSET(cp, C_RECNUM)) || LF_ISSET(S_WRITE); //AZ: expensive internal pages get writelock
 	lock_mode = stack ? DB_LOCK_WRITE : DB_LOCK_READ;
 
 	dbp->pg_hash_stat.n_bt_search++;

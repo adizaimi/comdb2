@@ -697,7 +697,7 @@ __lock_detect_int(dbenv, atype, abortp, can_retry)
 				 continue;
 
 			if (FLD_ISSET(dbenv->verbose, DB_VERB_DEADLOCK)) {
-				logmsg(LOGMSG_USER, "conflicting with other transaction %d\n", i);
+				logmsg(LOGMSG_USER, "conflicting with other transaction %d (%lx)\n", i, (u_long)idmap[i].id);
 				show_locker_info(dbenv, lt, region, idmap, i);
 			}
 			/* A 'killme' lockerid is participating in a deadlock */
@@ -856,6 +856,13 @@ dokill:
 
 			void log_deadlock_cycle(locker_info *idmap, u_int32_t *deadmap, u_int32_t nlockers, u_int32_t victim);
 			log_deadlock_cycle(idmap, *deadp, nlockers, killid);
+            /*void berkdb_dump_lockers_summary(DB_ENV *);
+              berkdb_dump_lockers_summary(dbenv);
+              */
+            char parm[2] = {0};
+            parm[0] = 'l';
+            __lock_dump_region(dbenv, parm, stdout);
+            abort();
 		}
 
 		/* Kill the locker with lockid idmap[killid]. */

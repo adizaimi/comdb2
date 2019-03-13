@@ -21,7 +21,7 @@
 #include "logmsg.h"
 #include "indices.h"
 
-#define DEBUG_REORDER 0
+#define DEBUG_REORDER 1
 
 extern int gbl_partial_indexes;
 extern int gbl_reorder_idx_writes;
@@ -538,11 +538,10 @@ int upd_record_indices(struct ireq *iq, void *trans, int *opfailcode,
     dtikey_t delditk = {0}; // will serve as the delete key obj
     dtikey_t ditk = {0};    // will serve as the add or upd key obj
     bool reorder = gbl_reorder_idx_writes && iq->usedb->sc_from != iq->usedb &&
-        (flags & RECFLAGS_NO_CONSTRAINTS) &&
         (flags & RECFLAGS_NO_REORDER_IDX) == 0;
 
 #if DEBUG_REORDER
-    logmsg(LOGMSG_DEBUG, "%s(): entering, reorder = %d\n", __func__, reorder);
+    logmsg(LOGMSG_DEBUG, "%s(): entering, reorder = %d, flags %x\n", __func__, reorder, flags);
 #endif
 
     if (reorder) {
