@@ -393,7 +393,7 @@ try_again:
 	INTERNAL_PTR_CHECK(cp == dbc->internal);
 
 	pg = root_pgno == PGNO_INVALID ? cp->root : root_pgno;
-	stack = (LF_ISSET(S_STACK) && F_ISSET(cp, C_RECNUM)) || LF_ISSET(S_WRITE); //AZ: expensive internal pages get writelock
+	stack = LF_ISSET(S_STACK) && F_ISSET(cp, C_RECNUM);
 	lock_mode = stack ? DB_LOCK_WRITE : DB_LOCK_READ;
 
 	dbp->pg_hash_stat.n_bt_search++;
@@ -550,8 +550,19 @@ hash_backup:
 	if (!stack &&
 	    ((LF_ISSET(S_PARENT) && (u_int8_t)(stop + 1) >= h->level) ||
 		(LF_ISSET(S_WRITE) && h->level == LEAFLEVEL))) {
+
+#if 0
+        int __get_lockerid_from_lock(DB_ENV *dbenv, u_int32_t locker);
+        int lockerid = __get_lockerid_from_lock(dbp->dbenv, lock.off);
+		logmsg(LOGMSG_ERROR, "dumping before releasing locker lock %x \n", lockerid);
+        __lock_dump_active_locks(dbp->dbenv, stderr);
+#endif
 		(void)__memp_fput(mpf, h, 0);
 		(void)__LPUT(dbc, lock);
+#if 0
+		logmsg(LOGMSG_ERROR, "dumping after releasing locker lock %x \n", lockerid);
+        __lock_dump_active_locks(dbp->dbenv, stderr);
+#endif
 		INTERNAL_PTR_CHECK(cp == dbc->internal);
 		lock_mode = DB_LOCK_WRITE;
 		if ((ret = __db_lget(dbc, 0, pg, lock_mode, 0, &lock)) != 0)
