@@ -123,8 +123,10 @@ int main(int argc, char *argv[])
     int hlarg = timediff("strhashfunc large");
 
     // for small strings strhash can be faster
-    if (clarg > hlarg || cmed > hmed)
+    if (clarg > hlarg || cmed > hmed || csmall > hsmall) {
+        printf("one of the hfunc is faster and should not be the case\n");
         return 1;
+    }
 
     return EXIT_SUCCESS;
 }
