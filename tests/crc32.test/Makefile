@@ -6,5 +6,5 @@ else
 endif
 
 tool:
-	make -skC $(TESTSROOTDIR)/tools crle
+	make -skC $(TESTSROOTDIR)/tools crc32
 

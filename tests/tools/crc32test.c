@@ -47,16 +47,18 @@ u_int strhashfunc(u_char **keyp, int len)
     return hash;
 }
 
-void timediff(const char * s) {
+int timediff(const char * s) {
     static struct timeval tv = {0};
     struct timeval tmp;
 
     gettimeofday(&tmp, NULL);
     int sec = (tmp.tv_sec - tv.tv_sec)*1000000;
     int msec = (tmp.tv_usec - tv.tv_usec);
+    int usecdiff = sec + msec;
     if (tv.tv_sec != 0)
-        printf("%20.20s diff = %12.dusec\n", s, sec + msec);
+        printf("%20.20s diff = %12.dusec\n", s, usecdiff);
     tv = tmp;
+    return usecdiff;
 }
 
 int crc32c_wrap(char **str, int len)
@@ -83,42 +85,46 @@ int main(int argc, char *argv[])
         k = crc32c_wrap(&small, 5);
         if (k != l) abort();
 	}
-    timediff("crc32 small");
+    int csmall = timediff("crc32 small");
 
     l = crc32c_wrap(&medium, 5);
 	for(int i = 0; i < N; i++) {
         k = crc32c_wrap(&medium, 5);
         if (k != l) abort();
 	}
-    timediff("crc32 medium");
+    int cmed = timediff("crc32 medium");
 
     l = crc32c_wrap(&large, 5);
 	for(int i = 0; i < N; i++) {
         k = crc32c_wrap(&large, 5);
         if (k != l) abort();
 	}
-    timediff("crc32 large");
+    int clarg = timediff("crc32 large");
 
     l = strhashfunc((u_char**)&small, 5);
 	for(int i = 0; i < N; i++) {
         k = strhashfunc((u_char**)&small, 5);
         if (k != l) abort();
 	}
-    timediff("strhashfunc small");
+    int hsmall = timediff("strhashfunc small");
 
     l = strhashfunc((u_char**)&medium, 5);
 	for(int i = 0; i < N; i++) {
         k = strhashfunc((u_char**)&medium, 5);
         if (k != l) abort();
 	}
-    timediff("strhashfunc medium");
+    int hmed = timediff("strhashfunc medium");
 
     l = strhashfunc((u_char**)&large, 5);
 	for(int i = 0; i < N; i++) {
         k = strhashfunc((u_char**)&large, 5);
         if (k != l) abort();
 	}
-    timediff("strhashfunc large");
+    int hlarg = timediff("strhashfunc large");
+
+    // for small strings strhash can be faster
+    if (clarg > hlarg || cmed > hmed)
+        return 1;
 
     return EXIT_SUCCESS;
 }
