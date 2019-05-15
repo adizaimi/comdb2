@@ -50,6 +50,7 @@ extern int gbl_disable_new_snapshot;
 extern int gbl_fingerprint_max_queries;
 
 int gbl_disable_access_controls;
+extern int gbl_diskless;
 
 extern char *gbl_recovery_options;
 extern const char *gbl_repoplrl_fname;
@@ -76,6 +77,7 @@ static struct option long_options[] = {
     {"tunable", required_argument, NULL, 0},
     {"version", no_argument, NULL, 'v'},
     {"insecure", no_argument, &gbl_disable_access_controls, 1},
+    {"diskless", no_argument, &gbl_diskless, 1},
     {NULL, 0, NULL, 0}};
 
 static const char *help_text =

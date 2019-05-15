@@ -95,6 +95,8 @@
 #include "db_access.h" /* gbl_check_access_controls */
 #include "txn_properties.h"
 
+extern int gbl_diskless;
+
 int (*comdb2_ipc_master_set)(char *host) = 0;
 
 /* ixrc != -1 is incorrect. Could be IX_PASTEOF or IX_EMPTY.
@@ -3987,9 +3989,11 @@ int backend_open_tran(struct dbenv *dbenv, tran_type *tran, uint32_t flags)
         dbenv->meta = bdb_open_more_lite(metadbname, dbenv->basedir, 0,
                                          sizeof(struct metahdr2), 0,
                                          dbenv->bdb_env, tran, flags, &bdberr);
+        if(!dbenv->meta)
+            printf("dbenv->meta not opened %s\n", metadbname);
     }
 
-    if (!dbenv->meta) {
+    if (!dbenv->meta && !gbl_diskless) {
         for (ii = 0; ii < dbenv->num_dbs; ii++) {
             rc = open_auxdbs(dbenv->dbs[ii], 0);
             /* We still have production comdb2s that don't have meta, so we

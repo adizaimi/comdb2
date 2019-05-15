@@ -50,6 +50,7 @@ typedef struct bdb_state_tag bdb_state_type;
 extern int gbl_prefault_udp;
 extern __thread int send_prefault_udp;
 extern __thread DB *prefault_dbp;
+extern int gbl_diskless;
 
 void udp_prefault_all(bdb_state_type * bdb_state, unsigned int fileid,
     unsigned int pgno);
@@ -796,13 +797,26 @@ alloc:		/*
 
 
 	if (F_ISSET(bhp, BH_TRASH)) {
-		// NC: If we are a physical replicant and this is a sql thread,
-		// then we should ask for the page from the cluster.
+      if(gbl_diskless && *pgnoaddr > 0 && (flags&(~0x80)) == 0) {
+        logmsg(LOGMSG_ERROR, "AZ: WOULD CALL __memp_pgnetread filename %s, page %d, flags %x, fileid %d\n", 
+                (char*)R_ADDR(dbmp->reginfo, mfp->path_off), *pgnoaddr, flags,
+                *(int*)R_ADDR(dbmp->reginfo, mfp->fileid_off));
+		//AZ:if ((ret = __memp_net_pgread(*(int*)R_ADDR(dbmp->reginfo, mfp->fileid_off), *pgnoaddr, &page);
+        //NOTE: issue is that we first open files then we talk to the other nodes in the cluster
+        //so we have to figure out how to get the file contents by contacting a random node
+        //even before attaching to the cluster. Obviously if gbl_diskless is on, we must have a cluster line
+		if ((ret = __memp_pgread(dbmfp, hp, bhp, 0, 0)) != 0)
+			 goto err;
+      } else {
+        logmsg(LOGMSG_ERROR, "AZ: NOT CALL __memp_pgnetread filename %s:%d, flags %x, fileid %d\n", 
+                (char*)R_ADDR(dbmp->reginfo, mfp->path_off), *pgnoaddr, flags,
+                *(int*)R_ADDR(dbmp->reginfo, mfp->fileid_off));
 		if ((ret = __memp_pgread(dbmfp,
 				hp, bhp,
 			    LF_ISSET(DB_MPOOL_CREATE) ? 1 : 0,
 			    is_recovery_page)) != 0)
 			 goto err;
+      }
 
 		if (state == SECOND_MISS) {
 			if (ISINTERNAL(bhp->buf))

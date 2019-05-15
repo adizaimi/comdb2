@@ -1052,7 +1052,6 @@ struct bdb_state_tag {
 };
 
 #include <net_types.h>
-
 void print(bdb_state_type *bdb_state, char *format, ...);
 
 typedef struct {

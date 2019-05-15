@@ -36,6 +36,9 @@ static const char revid[] = "$Id: db_open.c,v 11.236 2003/09/27 00:29:03 sue Exp
 #include "dbinc/trigger_subscription.h"
 
 #include <string.h>
+#include "logmsg.h"
+
+extern int gbl_diskless;
 
 #if defined (DEBUG_STACK_AT_DB_OPEN_CLOSE)
 #include <tohex.h>
@@ -80,6 +83,14 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 	dbenv = dbp->dbenv;
 	id = TXN_INVALID;
 
+	if (type == DB_DISKLESS_BTREE) {
+		F_SET(dbp, DB_AM_INMEM);
+		if (dbp->pgsize == 0)
+			dbp->pgsize = DB_DEF_IOSIZE;
+        logmsg(LOGMSG_ERROR, "AZ: have diskless in mem %s\n", fname);
+        type = DB_UNKNOWN;
+    }
+
 	DB_TEST_RECOVERY(dbp, DB_TEST_PREOPEN, ret, fname);
 
 	/*
@@ -118,7 +129,8 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 	 * recovery and limbo system, so we need to safeguard this
 	 * interface as well.
 	 */
-	if (fname == NULL) {
+
+    if (fname == NULL) {
 		F_SET(dbp, DB_AM_INMEM);
 
 		if (dbp->type == DB_UNKNOWN) {

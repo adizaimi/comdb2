@@ -113,6 +113,7 @@ extern int gbl_fullrecovery;
 extern char *gbl_myhostname;
 extern size_t gbl_blobmem_cap;
 extern int gbl_backup_logfiles;
+extern int gbl_diskless;
 
 #define FILENAMELEN 100
 
@@ -4284,6 +4285,7 @@ deadlock_again:
                  strnum >= 0; strnum--) {
                 DB *dbp;
 
+logmsg(LOGMSG_ERROR, "AZ: dtanum=%d, strnum=%d\n", dtanum, strnum);
                 form_datafile_name(bdb_state, tid, dtanum, strnum, tmpname,
                                    sizeof(tmpname));
 
@@ -4355,6 +4357,11 @@ deadlock_again:
                 // dbp is datafile
                 db_flags |= DB_DATAFILE;
                 int iter = 0;
+                if(gbl_diskless) {
+                    //dta_type = DB_DISKLESS_BTREE;
+                    fprintf(stderr, "AZ: skipping opening %s dta_type=%d\n", tmpname, dta_type);
+                }
+
                 do {
                     if (iter != 0)
                         poll(0, 0, 100);
@@ -4364,6 +4371,7 @@ deadlock_again:
                         db_flags |= DB_OLCOMPACT;
                     rc = dbp->open(dbp, tid, tmpname, NULL, dta_type, db_flags,
                                    db_mode);
+                    logmsg(LOGMSG_FATAL, "AZ: ERRR tmpname=%s diskless=%d, rc=%d\n", tmpname, gbl_diskless, rc);
                     logmsg(
                         LOGMSG_DEBUG,
                         "dbp->open %s type=%d dbp=%p txn=%p rc %d flags=0x%X\n",
@@ -4686,6 +4694,10 @@ deadlock_again:
                 && !bdb_state->ixrecnum[i]            /* not recnum */
                 && strncasecmp(bdb_state->name, "sqlite_stat1", 11) != 0)
                 db_flags |= DB_OLCOMPACT;
+            if(gbl_diskless && !(db_flags & (DB_CREATE | DB_TRUNCATE))) {
+                fprintf(stderr, "AZ: skipping opening %s\n", tmpname);
+            }
+
             rc = bdb_state->dbp_ix[i]->open(bdb_state->dbp_ix[i], tid, tmpname,
                                             NULL, DB_BTREE, db_flags, db_mode);
             if (rc != 0) {
@@ -4789,7 +4801,7 @@ deadlock_again:
     return 0;
 }
 
-static int open_dbs_flags(bdb_state_type *bdb_state, int iammaster, int upgrade,
+static inline int open_dbs_flags(bdb_state_type *bdb_state, int iammaster, int upgrade,
                           int create, DB_TXN *tid, uint32_t flags)
 {
     int rc = 0;
@@ -4797,7 +4809,7 @@ static int open_dbs_flags(bdb_state_type *bdb_state, int iammaster, int upgrade,
     return rc;
 }
 
-static int open_dbs(bdb_state_type *bdb_state, int iammaster, int upgrade,
+static inline int open_dbs(bdb_state_type *bdb_state, int iammaster, int upgrade,
                     int create, DB_TXN *tid, uint32_t flags)
 {
     return open_dbs_flags(bdb_state, iammaster, upgrade, create, tid, flags);

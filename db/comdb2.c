@@ -740,6 +740,7 @@ int gbl_allow_incoherent_sql = 0;
 char *gbl_dbdir = NULL;
 int gbl_backup_logfiles = 0;
 static int gbl_backend_opened = 0;
+int gbl_diskless;
 
 extern int gbl_verbose_net;
 

@@ -1217,8 +1217,9 @@ typedef enum {
 	DB_HASH=2,
 	DB_RECNO=3,
 	DB_QUEUE=4,
-	DB_UNKNOWN=5,			/* Figure it out on open. */
-	DB_TYPE_MAX=6
+	DB_DISKLESS_BTREE=5,
+	DB_UNKNOWN=6,			/* Figure it out on open. */
+	DB_TYPE_MAX=7
 } DBTYPE;
 
 #define	DB_RENAMEMAGIC	0x030800	/* File has been renamed. */
