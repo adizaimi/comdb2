@@ -41,6 +41,7 @@
 #include <iostream>
 #include <list>
 #include <string>
+#include <sstream>
 #include <vector>
 
 static char *dbname = NULL;
@@ -52,12 +53,13 @@ static unsigned char gbl_sent_cancel_cnonce = 0;
 
 /* display modes */
 enum {
-    DISP_CLASSIC = 1 << 0, /* default output */
-    DISP_TABS    = 1 << 1, /* separate columns by tabs */
-    DISP_BINARY  = 1 << 2, /* output binary */
-    DISP_GENSQL  = 1 << 3, /* generate insert statements */
-    DISP_TABULAR = 1 << 4, /* display result in tabular format */
-    DISP_STDERR  = 1 << 5, /* print to stderr */
+    DISP_CLASSIC  = 1 << 0, /* default output */
+    DISP_TABS     = 1 << 1, /* separate columns by tabs */
+    DISP_BINARY   = 1 << 2, /* output binary */
+    DISP_GENSQL   = 1 << 3, /* generate insert statements */
+    DISP_DUMPJSON = 1 << 4, /* generate insert statements */
+    DISP_TABULAR  = 1 << 5, /* display result in tabular format */
+    DISP_STDERR   = 1 << 6, /* print to stderr */
 };
 
 static int show_ports = 0;
@@ -132,6 +134,7 @@ static const char *usage_text =
     "     --cost          Log the cost of query in db trace files\n"
     "     --debugtrace    Set debug trace flag on api handle\n"
     " -f, --file FL       Read queries from the specified file FL\n"
+    "     --dumpjson TBL  Dump schema and content of table TBL as json\n"
     " -h, --help          Help on usage \n"
     " -n, --host HOST     Host to connect to and run query.\n"
     " -p, --precision #   Set precision for floation point outputs\n"
@@ -722,33 +725,27 @@ static void print_column(FILE *f, cdb2_hndl_tp *hndl, int col)
 
     assert((printmode & DISP_TABULAR) == 0);
 
+    if (printmode & DISP_CLASSIC)
+        fprintf(f, "%s=", cdb2_column_name(hndl, col));
+    else if (printmode & DISP_DUMPJSON)
+        fprintf(f, "\"%s\": ", cdb2_column_name(hndl, col));
+
     val = cdb2_column_value(hndl, col);
 
     if (val == NULL) {
-        if (printmode & DISP_CLASSIC) {
-            fprintf(f, "%s=NULL", cdb2_column_name(hndl, col));
-        } else {
-            fprintf(f, "NULL");
-        }
+        fprintf(f, "NULL");
         return;
     }
 
     switch (cdb2_column_type(hndl, col)) {
     case CDB2_INTEGER:
-        if (printmode & DISP_CLASSIC)
-            fprintf(f, "%s=%lld", cdb2_column_name(hndl, col),
-                    *(long long *)val);
-        else
-            fprintf(f, "%lld", *(long long *)val);
+        fprintf(f, "%lld", *(long long *)val);
         break;
     case CDB2_REAL:
-        if (printmode & DISP_CLASSIC)
-            fprintf(f, "%s=", cdb2_column_name(hndl, col));
         fprintf(f, doublefmt, *(double *)val);
         break;
     case CDB2_CSTRING:
         if (printmode & DISP_CLASSIC) {
-            fprintf(f, "%s=", cdb2_column_name(hndl, col));
             dumpstring(f, (char *)val, 1, 0);
         } else if (printmode & DISP_TABS)
             dumpstring(f, (char *)val, 0, 0);
@@ -756,22 +753,20 @@ static void print_column(FILE *f, cdb2_hndl_tp *hndl, int col)
             dumpstring(f, (char *)val, 1, 1);
         break;
     case CDB2_BLOB:
-        if (printmode & DISP_CLASSIC)
-            fprintf(f, "%s=", cdb2_column_name(hndl, col));
         if (string_blobs) {
             char *c = (char *) val;
             int len = cdb2_column_size(hndl, col);
-            fputc('\'', stdout);
+            fputc('\'', f);
             while (len > 0) {
                 if (isprint(*c) || *c == '\n' || *c == '\t') {
-                    fputc(*c, stdout);
+                    fputc(*c, f);
                 } else {
                     fprintf(f, "\\x%02x", (int)*c);
                 }
                 len--;
                 c++;
             }
-            fputc('\'', stdout);
+            fputc('\'', f);
         } else {
             if (printmode & DISP_BINARY) {
                 int rc = write(1, val, cdb2_column_size(hndl, col));
@@ -787,8 +782,6 @@ static void print_column(FILE *f, cdb2_hndl_tp *hndl, int col)
         break;
     case CDB2_DATETIME: {
         cdb2_client_datetime_t *cdt = (cdb2_client_datetime_t *)val;
-        if (printmode & DISP_CLASSIC)
-            fprintf(f, "%s=", cdb2_column_name(hndl, col));
         fprintf(f, "\"%4.4u-%2.2u-%2.2uT%2.2u%2.2u%2.2u.%3.3u %s\"",
                 cdt->tm.tm_year + 1900, cdt->tm.tm_mon + 1, cdt->tm.tm_mday,
                 cdt->tm.tm_hour, cdt->tm.tm_min, cdt->tm.tm_sec, cdt->msec,
@@ -797,8 +790,6 @@ static void print_column(FILE *f, cdb2_hndl_tp *hndl, int col)
     }
     case CDB2_DATETIMEUS: {
         cdb2_client_datetimeus_t *cdt = (cdb2_client_datetimeus_t *)val;
-        if (printmode & DISP_CLASSIC)
-            fprintf(f, "%s=", cdb2_column_name(hndl, col));
         fprintf(f, "\"%4.4u-%2.2u-%2.2uT%2.2u%2.2u%2.2u.%6.6u %s\"",
                 cdt->tm.tm_year + 1900, cdt->tm.tm_mon + 1, cdt->tm.tm_mday,
                 cdt->tm.tm_hour, cdt->tm.tm_min, cdt->tm.tm_sec, cdt->usec,
@@ -807,16 +798,12 @@ static void print_column(FILE *f, cdb2_hndl_tp *hndl, int col)
     }
     case CDB2_INTERVALYM: {
         cdb2_client_intv_ym_t *ym = (cdb2_client_intv_ym_t *)val;
-        if (printmode & DISP_CLASSIC)
-            fprintf(f, "%s=", cdb2_column_name(hndl, col));
         fprintf(f, "\"%s%u-%u\"", (ym->sign < 0) ? "- " : "", ym->years,
                 ym->months);
         break;
     }
     case CDB2_INTERVALDS: {
         cdb2_client_intv_ds_t *ds = (cdb2_client_intv_ds_t *)val;
-        if (printmode & DISP_CLASSIC)
-            fprintf(f, "%s=", cdb2_column_name(hndl, col));
         fprintf(f, "\"%s%u %2.2u:%2.2u:%2.2u.%3.3u\"",
                 (ds->sign < 0) ? "- " : "", ds->days, ds->hours, ds->mins,
                 ds->sec, ds->msec);
@@ -824,8 +811,6 @@ static void print_column(FILE *f, cdb2_hndl_tp *hndl, int col)
     }
     case CDB2_INTERVALDSUS: {
         cdb2_client_intv_dsus_t *ds = (cdb2_client_intv_dsus_t *)val;
-        if (printmode & DISP_CLASSIC)
-            fprintf(f, "%s=", cdb2_column_name(hndl, col));
         fprintf(f, "\"%s%u %2.2u:%2.2u:%2.2u.%6.6u\"",
                 (ds->sign < 0) ? "- " : "", ds->days, ds->hours, ds->mins,
                 ds->sec, ds->usec);
@@ -1228,13 +1213,15 @@ static int run_statement(const char *sql, int ntypes, int *types,
         if (printmode & DISP_CLASSIC) {
             fprintf(out, "(");
         } else if (printmode & DISP_GENSQL) {
-            printf("insert into %s (", gensql_tbl);
+            fprintf(out, "insert into %s (", gensql_tbl);
             for (col = 0; col < ncols; col++) {
-                printf("%s", cdb2_column_name(cdb2h, col));
+                fprintf(out, "%s", cdb2_column_name(cdb2h, col));
                 if (col != ncols - 1)
-                    printf(", ");
+                    fprintf(out, ", ");
             }
-            printf(") values (");
+            fprintf(out, ") values (");
+        } else if (printmode & DISP_DUMPJSON) {
+            fprintf(out, "{");
         } else if (printmode & DISP_TABULAR) {
             res.append_row(cdb2h);
         }
@@ -1265,6 +1252,8 @@ static int run_statement(const char *sql, int ntypes, int *types,
             fprintf(out, "\n");
         } else if (printmode & DISP_GENSQL) {
             fprintf(out, ");\n");
+        } else if (printmode & DISP_DUMPJSON) {
+            fprintf(out, "}\n");
         } else if (printmode & DISP_TABULAR) {
             /* Noop */
         }
@@ -1546,6 +1535,21 @@ static void int_handler(int signum)
     send_cancel_cnonce(cdb2_cnonce(cdb2h));
 }
 
+
+void dump_table_json(char *tbl)
+{
+    scriptmode = 1;
+    std::string nsql = "select sql from sqlite_master where type='table' and name='" + std::string(tbl) + "'";
+    process_line(strdup(nsql.c_str()), 0, NULL);
+
+    nsql = std::string("select * from ") + tbl;
+    process_line(strdup(nsql.c_str()), 0, NULL);
+    if (cdb2h) {
+        cdb2_close(cdb2h);
+    }
+    verbose_print("process_line error=%d\n", error);
+}
+
 int main(int argc, char *argv[])
 {
     static char *filename = NULL;
@@ -1584,6 +1588,7 @@ int main(int argc, char *argv[])
         {"cdb2cfg", required_argument, NULL, 'c'},
         {"file", required_argument, NULL, 'f'},
         {"gensql", required_argument, NULL, 'g'},
+        {"dumpjson", required_argument, NULL, 'd'},
         {"type", required_argument, NULL, 't'},
         {"host", required_argument, NULL, 'n'},
         {"minretries", required_argument, NULL, 'R'},
@@ -1620,8 +1625,17 @@ int main(int argc, char *argv[])
         case 'f':
             filename = optarg;
             break;
-        case 'g':
+        case 'g': 
+            /* Example usage if you want to rename table t1 to t2:
+             *   cdb2sql mydb --gensql t2 'select * from t1' 
+             * If you simply want to dump all content of t1 as inserts:
+             *   cdb2sql mydb --gensql t1 
+             */
             printmode = DISP_GENSQL;
+            gensql_tbl = optarg;
+            break;
+        case 'd':
+            printmode = DISP_DUMPJSON;
             gensql_tbl = optarg;
             break;
         case 't':
@@ -1685,13 +1699,27 @@ int main(int argc, char *argv[])
         dbtype = (char *) "local"; /* might want "default" here */
     }
 
-    sql = const_cast<char *>(optind < argc ? argv[optind] : "-");
+    if (printmode == DISP_DUMPJSON && gensql_tbl) {
+        dump_table_json(gensql_tbl);
+        return (error == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
+    if (printmode == DISP_GENSQL && gensql_tbl && optind >= argc) {
+        std::string nsql = std::string("select * from ") + gensql_tbl;
+        sql = strdup(nsql.c_str());
+    }
+    else
+        sql = const_cast<char *>(optind < argc ? argv[optind] : "-");
+
     sprintf(main_prompt, "%s> ", dbname);
     optind++;
 
     ntypes = argc - optind;
     if (ntypes > 0)
         types = process_typed_statement_args(ntypes, &argv[optind]);
+    else if (ntypes < 0) // --gensql t1 without the sql
+        ntypes = 0; 
+
     if (sql && *sql != '-') {
         scriptmode = 1;
         process_line(sql, ntypes, types);

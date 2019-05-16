@@ -2205,9 +2205,8 @@ static int handle_newsql_request(comdb2_appsock_arg_t *arg)
         logmsg(LOGMSG_DEBUG, "Query is NULL.\n");
         goto done;
     }
+        logmsg(LOGMSG_ERROR, "New Query: %s\n", query->sqlquery->sql_query);
 #if 0
-    else
-        logmsg(LOGMSG_DEBUG, "New Query: %s\n", query->sqlquery->sql_query);
 #endif
     if (query->sqlquery == NULL) {
         logmsg(LOGMSG_DEBUG, "Malformed SQL request.\n");
