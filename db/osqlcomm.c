@@ -5485,7 +5485,7 @@ static void net_osql_poked(void *hndl, void *uptr, char *fromhost, int usertype,
 
     comdb2uuid_clear(uuid);
 
-    if (thedb->exiting || thedb->stopped) {
+    if (db_is_stopped()) {
         /* don't do anything, we're going down */
         return;
     }
@@ -5539,7 +5539,7 @@ static void net_osql_poked_uuid(void *hndl, void *uptr, char *fromhost,
     bool found = false;
     int rc = 0;
 
-    if (thedb->exiting || thedb->stopped) {
+    if (db_is_stopped()) {
         /* don't do anything, we're going down */
         return;
     }
@@ -5598,7 +5598,7 @@ static void net_osql_master_check(void *hndl, void *uptr, char *fromhost,
 
     comdb2uuid_clear(uuid);
 
-    if (thedb->exiting || thedb->stopped) {
+    if (db_is_stopped()) {
         /* don't do anything, we're going down */
         return;
     }
@@ -5693,7 +5693,7 @@ static void net_osql_master_checked(void *hndl, void *uptr, char *fromhost,
 
     comdb2uuid_clear(uuid);
 
-    if (thedb->exiting || thedb->stopped) {
+    if (db_is_stopped()) {
         /* don't do anything, we're going down */
         return;
     }
@@ -8088,7 +8088,7 @@ int osql_log_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
         tablename =
             (const char *)osqlcomm_usedb_type_get(&dt, p_buf, p_buf_end);
 
-        sbuf2printf(logsb, "[%llx us] OSQL_USEDB %d \"%s\"\n", id, us, tablename);
+        sbuf2printf(logsb, "[%llx %s] OSQL_USEDB \"%s\"\n", id, us, tablename);
     } break;
     case OSQL_DELREC:
     case OSQL_DELETE: {

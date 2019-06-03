@@ -186,9 +186,9 @@ pthread_key_t comdb2_open_key;
 /*---GLOBAL SETTINGS---*/
 const char *const gbl_db_git_version_sha = QUOTE(GIT_VERSION_SHA=COMDB2_GIT_VERSION_SHA);
 
-const char gbl_db_release_name[] = QUOTE(COMDB2_RELEASE);
-const char gbl_db_build_name[] = QUOTE(COMDB2_BUILD);
+const char gbl_db_version[] = QUOTE(COMDB2_BUILD_VERSION);
 const char gbl_db_semver[] = QUOTE(COMDB2_SEMVER);
+const char gbl_db_codename[] = QUOTE(COMDB2_CODENAME);
 
 int gbl_enque_flush_interval;
 int gbl_enque_reorder_lookahead = 20;
@@ -915,12 +915,13 @@ int get_max_reclen(struct dbenv *dbenv)
 
     /* open file */
     file = open(fname, O_RDONLY);
-    free(fname);
     if (file == -1) {
         logmsg(LOGMSG_ERROR, "get_max_reclen: failed to open %s for writing\n",
                 fname);
+        free(fname);
         return -1;
     }
+    free(fname);
 
     sbfile = sbuf2open(file, 0);
     if (!sbfile) {
@@ -992,9 +993,10 @@ void no_new_requests(struct dbenv *dbenv)
     MEMORY_SYNC;
 }
 
-int db_is_stopped(void) { return (thedb->stopped || thedb->exiting); }
-
-int db_is_exiting(void) { return (thedb->exiting); }
+int db_is_stopped(void)
+{
+    return thedb->stopped;
+}
 
 void print_dbsize(void);
 
@@ -4649,7 +4651,7 @@ static void *memstat_cron_event(struct cron_event *_, struct errstat *err)
     void *rc;
 
     // cron jobs always write to ctrace
-    (void)comdb2ma_stats(NULL, 1, 0, COMDB2MA_TOTAL_DESC, COMDB2MA_GRP_NONE, 1);
+    (void)comdb2ma_stats(NULL, 0, 0, COMDB2MA_TOTAL_DESC, COMDB2MA_GRP_NONE, 1);
 
     if (gbl_memstat_freq > 0) {
         tm = comdb2_time_epoch() + gbl_memstat_freq;
