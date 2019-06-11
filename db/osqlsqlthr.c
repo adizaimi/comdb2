@@ -61,6 +61,7 @@ extern int gbl_reorder_socksql_no_deadlock;
 
 int gbl_survive_n_master_swings = 600;
 int gbl_master_retry_poll_ms = 100;
+int gbl_send_osql_at_commit = 0;
 
 static int osql_send_usedb_logic(struct BtCursor *pCur, struct sql_thread *thd,
                                  int nettype);
@@ -74,7 +75,7 @@ static int osql_send_qblobs_logic(struct BtCursor *pCur, osqlstate_t *osql,
 static int osql_send_recordgenid_logic(struct BtCursor *pCur,
                                        struct sql_thread *thd,
                                        unsigned long long genid, int nettype);
-int osql_send_updstat_logic(struct BtCursor *pCur, struct sql_thread *thd,
+static int osql_send_updstat_logic(struct BtCursor *pCur, struct sql_thread *thd,
                             char *pData, int nData, int nStat, int nettype);
 static int osql_send_commit_logic(struct sqlclntstate *clnt, int is_retry,
                                   int nettype);
@@ -207,7 +208,7 @@ static inline int osql_should_restart(struct sqlclntstate *clnt, int rc)
 int osql_sock_start_deferred(struct sqlclntstate *clnt)
 {
     int rc;
-    if (clnt->dbtran.mode == TRANLEVEL_SOSQL)
+    if (clnt->dbtran.mode == TRANLEVEL_SOSQL && !gbl_send_osql_at_commit)
         START_SOCKSQL;
     return 0;
 }
@@ -286,7 +287,7 @@ int osql_delrec(struct BtCursor *pCur, struct sql_thread *thd)
     if ((rc = check_osql_capacity(thd)))
         return rc;
 
-    if (clnt->dbtran.mode == TRANLEVEL_SOSQL) {
+    if (clnt->dbtran.mode == TRANLEVEL_SOSQL && !gbl_send_osql_at_commit) {
         START_SOCKSQL;
         do {
             rc = osql_send_del_logic(pCur, thd);
@@ -407,7 +408,7 @@ int osql_insrec(struct BtCursor *pCur, struct sql_thread *thd, char *pData,
     if ((rc = check_osql_capacity(thd)))
         return rc;
 
-    if (clnt->dbtran.mode == TRANLEVEL_SOSQL) {
+    if (clnt->dbtran.mode == TRANLEVEL_SOSQL && !gbl_send_osql_at_commit) {
         START_SOCKSQL;
         do {
             rc = osql_send_ins_logic(pCur, thd, pData, nData, blobs, maxblobs,
@@ -549,7 +550,7 @@ int osql_updrec(struct BtCursor *pCur, struct sql_thread *thd, char *pData,
     if ((rc = check_osql_capacity(thd)))
         return rc;
 
-    if (clnt->dbtran.mode == TRANLEVEL_SOSQL) {
+    if (clnt->dbtran.mode == TRANLEVEL_SOSQL && !gbl_send_osql_at_commit) {
         START_SOCKSQL;
         do {
             rc = osql_send_upd_logic(pCur, thd, pData, nData, updCols, blobs,
@@ -984,6 +985,15 @@ int osql_sock_commit(struct sqlclntstate *clnt, int type)
     int bdberr = 0;
     int timeout = 0;
 
+    if (clnt->dbtran.mode == TRANLEVEL_SOSQL && gbl_send_osql_at_commit) {
+        START_SOCKSQL;
+        rc = osql_sock_restart(clnt, 1, 1);
+        if (rc) {
+            logmsg(LOGMSG_ERROR,
+                    "%s: failed to restart socksql session rc=%d\n",
+                    __func__, rc);
+        }
+    }
     /* temp hook for sql transactions */
     /* is it distributed? */
     if (clnt->dbtran.mode == TRANLEVEL_SOSQL && clnt->dbtran.dtran)
@@ -1005,6 +1015,7 @@ int osql_sock_commit(struct sqlclntstate *clnt, int type)
 
     osql->timings.commit_start = osql_log_time();
 
+    /* if we have no ops to send, dont send empty commit */
     if (clnt->dbtran.mode == TRANLEVEL_SOSQL && !osql->sock_started) {
         goto done;
     }
@@ -1340,14 +1351,13 @@ static int osql_send_usedb_logic_int(char *tablename, struct sqlclntstate *clnt,
     return rc;
 }
 
-static int osql_send_usedb_logic(struct BtCursor *pCur, struct sql_thread *thd,
+static inline int osql_send_usedb_logic(struct BtCursor *pCur, struct sql_thread *thd,
                                  int nettype)
 {
-    return osql_send_usedb_logic_int(pCur->db->tablename, thd->clnt,
-                                     nettype);
+    return osql_send_usedb_logic_int(pCur->db->tablename, thd->clnt, nettype);
 }
 
-inline int osql_send_updstat_logic(struct BtCursor *pCur,
+static inline int osql_send_updstat_logic(struct BtCursor *pCur,
                                    struct sql_thread *thd, char *pData,
                                    int nData, int nStat, int nettype)
 {
@@ -1640,7 +1650,7 @@ int osql_record_genid(struct BtCursor *pCur, struct sql_thread *thd,
         return 0;
     }
 
-    if (thd->clnt->dbtran.mode == TRANLEVEL_SOSQL) {
+    if (thd->clnt->dbtran.mode == TRANLEVEL_SOSQL && !gbl_send_osql_at_commit) {
         int rc;
         START_SOCKSQL;
         rc = osql_send_recordgenid_logic(pCur, thd, genid, NET_OSQL_SOCK_RPL);
@@ -1656,27 +1666,27 @@ int osql_record_genid(struct BtCursor *pCur, struct sql_thread *thd,
     return osql_save_recordgenid(pCur, thd, genid);
 }
 
-static int osql_send_recordgenid_logic(struct BtCursor *pCur,
-                                       struct sql_thread *thd,
-                                       unsigned long long genid, int nettype)
+static inline int osql_send_recordgenid_logic(
+    struct BtCursor *pCur, struct sql_thread *thd,
+    unsigned long long genid, int nettype)
 {
     struct sqlclntstate *clnt = thd->clnt;
     osqlstate_t *osql = &clnt->osql;
     int restarted;
     int rc = 0;
 
+    if (osql->rqid == OSQL_RQID_USE_UUID)
+        nettype = NET_OSQL_SOCK_RPL_UUID;
+
+    rc = osql_send_usedb_logic(pCur, thd, nettype);
+    if (rc != SQLITE_OK)
+        return rc;
+
     do {
-        rc = osql_send_usedb_logic(pCur, thd, nettype);
-        if (rc == SQLITE_OK) {
-
-            if (osql->rqid == OSQL_RQID_USE_UUID)
-                nettype = NET_OSQL_SOCK_RPL_UUID;
-
-            rc = osql_send_recordgenid(osql->host, osql->rqid, osql->uuid,
-                                       genid, nettype, osql->logsb);
-            if (gbl_master_swing_sock_restart_sleep) {
-                usleep(gbl_master_swing_sock_restart_sleep * 1000);
-            }
+        rc = osql_send_recordgenid(osql->host, osql->rqid, osql->uuid,
+                                   genid, nettype, osql->logsb);
+        if (gbl_master_swing_sock_restart_sleep) {
+            usleep(gbl_master_swing_sock_restart_sleep * 1000);
         }
         RESTART_SOCKSQL;
     } while (restarted);
@@ -1703,7 +1713,7 @@ int osql_dbq_consume_logic(struct sqlclntstate *clnt, const char *spname,
     if ((rc = osql_save_dbq_consume(clnt, spname, genid)) != 0) {
         return rc;
     }
-    if (clnt->dbtran.mode == TRANLEVEL_SOSQL) {
+    if (clnt->dbtran.mode == TRANLEVEL_SOSQL && !gbl_send_osql_at_commit) {
         START_SOCKSQL;
         osqlstate_t *osql = &clnt->osql;
         rc = osql_dbq_consume(clnt, spname, genid);
@@ -1843,7 +1853,7 @@ int osql_schemachange_logic(struct schema_change_type *sc,
 
     sc->usedbtablevers = comdb2_table_version(sc->tablename);
 
-    if (thd->clnt->dbtran.mode == TRANLEVEL_SOSQL) {
+    if (thd->clnt->dbtran.mode == TRANLEVEL_SOSQL && !gbl_send_osql_at_commit) {
         if (usedb && getdbidxbyname(sc->tablename) < 0) { // view
             unsigned long long version = 0;
             char *viewname = timepart_newest_shard(sc->tablename, &version);
@@ -1895,7 +1905,7 @@ int osql_bpfunc_logic(struct sql_thread *thd, BpfuncArg *arg)
     int restarted;
     int rc;
 
-    if (thd->clnt->dbtran.mode == TRANLEVEL_SOSQL) {
+    if (thd->clnt->dbtran.mode == TRANLEVEL_SOSQL && !gbl_send_osql_at_commit) {
         START_SOCKSQL;
         do {
             rc = osql_send_bpfunc(osql->host, osql->rqid, thd->clnt->osql.uuid,

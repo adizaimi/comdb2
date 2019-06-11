@@ -1695,4 +1695,9 @@ REGISTER_TUNABLE("selectv_writelock",
                  TUNABLE_BOOLEAN, &gbl_selectv_writelock,
                  EXPERIMENTAL | INTERNAL, NULL, NULL, NULL, NULL);
 
+REGISTER_TUNABLE("send_osql_at_commit",
+                 "Send osql stream at commit time.  (Default: off)",
+                 TUNABLE_BOOLEAN, &gbl_send_osql_at_commit,
+                 EXPERIMENTAL | INTERNAL, NULL, NULL, NULL, NULL);
+
 #endif /* _DB_TUNABLES_H */

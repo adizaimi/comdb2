@@ -292,6 +292,7 @@ extern int gbl_abort_irregular_set_durable_lsn;
 extern int gbl_legacy_schema;
 extern int gbl_selectv_writelock_on_update;
 extern int gbl_selectv_writelock;
+extern int gbl_send_osql_at_commit;
 
 int gbl_debug_tmptbl_corrupt_mem;
 
