@@ -243,7 +243,6 @@ static inline void print_verify_progress(verify_common_t *par, int now)
 static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned int lid)
 {
     DBC *cdata = NULL;
-    DBC *ckey = NULL;
     DB *db;
     DBC *cblob = NULL;
     unsigned char databuf[17 * 1024];
@@ -279,7 +278,12 @@ static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned 
                          DB_FIRST);
     int atstart,now;
     atstart = now = comdb2_time_epochms();
-logmsg(LOGMSG_ERROR, "%lu:%s:%d Entering now\n", pthread_self(), __func__, __LINE__);
+    logmsg(LOGMSG_DEBUG, "%lu:%s:%d Entering stripe=%d\n", pthread_self(), __func__, __LINE__, dtastripe);
+    
+    //Keep a cursor for each index
+    size_t sz = bdb_state->numix * sizeof(DBC*);
+    DBC **cursors = alloca(sz);
+    memset(cursors, 0, sz);
 
     while (rc == 0 && !par->client_dropped_connection) {
         ATOMIC_ADD(par->records_processed, 1);
@@ -454,6 +458,7 @@ logmsg(LOGMSG_ERROR, "%lu:%s:%d Entering now\n", pthread_self(), __func__, __LIN
         has_keys = par->verify_indexes_callback(par->db_table, dbt_data.data,
                                            blob_buf);
         for (int ix = 0; ix < bdb_state->numix; ix++) {
+            DBC *ckey = cursors[ix];
             rc = bdb_state->dbp_ix[ix]->paired_cursor_from_lid(
                 bdb_state->dbp_ix[ix], lid, &ckey, 0);
             if (rc) {
@@ -531,8 +536,6 @@ logmsg(LOGMSG_ERROR, "%lu:%s:%d Entering now\n", pthread_self(), __func__, __LIN
                             genid_flipped, ix, verify_genid);
             }
 
-            ckey->c_close(ckey);
-            ckey = NULL;
         }
         par->free_blob_buffer_callback(blob_buf);
         sbuf2flush(par->sb);
@@ -558,11 +561,17 @@ logmsg(LOGMSG_ERROR, "%lu:%s:%d Entering now\n", pthread_self(), __func__, __LIN
 err:
     if (cblob)
         cblob->c_close(cblob);
-    if (ckey)
+
+    for (int ix = 0; ix < bdb_state->numix; ix++) {
+        DBC *ckey = cursors[ix];
+        if (!ckey)
+            break;
         ckey->c_close(ckey);
+    }
+
     if (cdata)
         cdata->c_close(cdata);
-logmsg(LOGMSG_ERROR, "%lu:%s:%d Exiting now %d\n", pthread_self(), __func__, __LINE__, now - atstart);
+    logmsg(LOGMSG_DEBUG, "%lu:%s:%d Exiting delta=%dms\n", pthread_self(), __func__, __LINE__, now - atstart);
     return rc;
 }
 
@@ -609,7 +618,7 @@ static int bdb_verify_key(verify_common_t *par, int ix, unsigned int lid)
 
     int atstart,now;
     atstart = now = comdb2_time_epochms();
-logmsg(LOGMSG_ERROR, "%lu:%s:%d Entering now\n", pthread_self(), __func__, __LINE__);
+    logmsg(LOGMSG_DEBUG, "%lu:%s:%d Entering ix=%d\n", pthread_self(), __func__, __LINE__, ix);
 
     rc = bdb_state->dbp_ix[ix]->paired_cursor_from_lid(
         bdb_state->dbp_ix[ix], lid, &ckey, 0);
@@ -932,7 +941,7 @@ logmsg(LOGMSG_ERROR, "%lu:%s:%d Entering now\n", pthread_self(), __func__, __LIN
                     rc);
     }
 
-logmsg(LOGMSG_ERROR, "%lu:%s:%d Exiting delta=%ds\n", pthread_self(), __func__, __LINE__, now - atstart);
+    logmsg(LOGMSG_DEBUG, "%lu:%s:%d Exiting delta=%dms\n", pthread_self(), __func__, __LINE__, now - atstart);
     return 0;
 }
 
@@ -990,7 +999,8 @@ static void bdb_verify_blob(verify_common_t *par, int blobno, int dtastripe, uns
 
     int atstart,now;
     atstart = now = comdb2_time_epochms();
-logmsg(LOGMSG_ERROR, "%lu:%s:%d Entering now\n", pthread_self(), __func__, __LINE__);
+    logmsg(LOGMSG_DEBUG, "%lu:%s:%d Entering blobno=%d, stripe=%d\n", pthread_self(), __func__, __LINE__, blobno, dtastripe);
+
     rc = cblob->c_get(cblob, &dbt_key, &dbt_data, DB_FIRST);
     while (rc == 0 && !par->client_dropped_connection) {
         ATOMIC_ADD(par->records_processed, 1);
@@ -1050,7 +1060,7 @@ logmsg(LOGMSG_ERROR, "%lu:%s:%d Entering now\n", pthread_self(), __func__, __LIN
         logmsg(LOGMSG_ERROR, "fetch blob rc %d\n", rc);
 
     cblob->c_close(cblob);
-logmsg(LOGMSG_ERROR, "%lu:%s:%d Exiting now %d\n", pthread_self(), __func__, __LINE__, now - atstart);
+    logmsg(LOGMSG_DEBUG, "%lu:%s:%d Exiting delta=%dms\n", pthread_self(), __func__, __LINE__, now - atstart);
 }
 
 /* sequential processing of the stripes, keys, blobs
