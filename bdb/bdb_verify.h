@@ -42,7 +42,8 @@ typedef struct {
                                                   void *blob_parm);
     int (*lua_callback)(void *, const char *);
     void *lua_params;
-    unsigned long long records_processed; // atomic inc: for progres report
+    unsigned long long records_processed; // atomic inc: for progres report, record counter
+    unsigned long long accumulated_time; // atomic inc: for progres report, in ms
     int nrecs_progress; //progress done in this time window
     int last_reported;  //last reported time
     int progress_report_seconds;
@@ -68,6 +69,7 @@ typedef struct td_processing_info {
 int bdb_verify(verify_common_t *par);
 int bdb_verify_enqueue(td_processing_info_t *info, thdpool *verify_thdpool);
 int bdb_dropped_connection(SBUF2 *sb);
+void print_verify_final_progress(verify_common_t *par);
 
 
 #endif

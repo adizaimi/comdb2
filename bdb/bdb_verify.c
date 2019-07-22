@@ -239,10 +239,19 @@ static inline void print_verify_progress(verify_common_t *par, int now)
     sbuf2flush(par->sb);
 }
 
+void print_verify_final_progress(verify_common_t *par)
+{
+    locprint(par->sb, par->lua_callback, par->lua_params, "!verify: finished processing %lld records in %lldms, %.2f per second\n",
+            par->records_processed, par->accumulated_time,
+            (par->accumulated_time > 0) ? (((float)par->records_processed * 1000)/par->accumulated_time): 0);
+    sbuf2flush(par->sb);
+}
+
 /* TODO: handle deadlock, get rowlocks if db in rowlocks mode */
 static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned int lid)
 {
     DBC *cdata = NULL;
+    DBC *ckey = NULL;
     DB *db;
     DBC *cblob = NULL;
     unsigned char databuf[17 * 1024];
@@ -276,14 +285,9 @@ static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned 
     uint8_t ver;
     rc = bdb_cget_unpack(bdb_state, cdata, &dbt_key, &dbt_data, &ver,
                          DB_FIRST);
-    int atstart,now;
-    atstart = now = comdb2_time_epochms();
+    int atstart = comdb2_time_epochms();
+    int now = atstart;
     logmsg(LOGMSG_DEBUG, "%lu:%s:%d Entering stripe=%d\n", pthread_self(), __func__, __LINE__, dtastripe);
-    
-    //Keep a cursor for each index
-    size_t sz = bdb_state->numix * sizeof(DBC*);
-    DBC **cursors = alloca(sz);
-    memset(cursors, 0, sz);
 
     while (rc == 0 && !par->client_dropped_connection) {
         ATOMIC_ADD(par->records_processed, 1);
@@ -458,7 +462,6 @@ static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned 
         has_keys = par->verify_indexes_callback(par->db_table, dbt_data.data,
                                            blob_buf);
         for (int ix = 0; ix < bdb_state->numix; ix++) {
-            DBC *ckey = cursors[ix];
             rc = bdb_state->dbp_ix[ix]->paired_cursor_from_lid(
                 bdb_state->dbp_ix[ix], lid, &ckey, 0);
             if (rc) {
@@ -536,6 +539,8 @@ static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned 
                             genid_flipped, ix, verify_genid);
             }
 
+            ckey->c_close(ckey);
+            ckey = NULL;
         }
         par->free_blob_buffer_callback(blob_buf);
         sbuf2flush(par->sb);
@@ -561,17 +566,12 @@ static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned 
 err:
     if (cblob)
         cblob->c_close(cblob);
-
-    for (int ix = 0; ix < bdb_state->numix; ix++) {
-        DBC *ckey = cursors[ix];
-        if (!ckey)
-            break;
+    if (ckey)
         ckey->c_close(ckey);
-    }
-
     if (cdata)
         cdata->c_close(cdata);
     logmsg(LOGMSG_DEBUG, "%lu:%s:%d Exiting delta=%dms\n", pthread_self(), __func__, __LINE__, now - atstart);
+    ATOMIC_ADD(par->accumulated_time, now - atstart);
     return rc;
 }
 
@@ -616,8 +616,8 @@ static int bdb_verify_key(verify_common_t *par, int ix, unsigned int lid)
     dbt_dta_check_data.ulen = sizeof(verify_keybuf);
     dbt_dta_check_data.flags = DB_DBT_USERMEM;
 
-    int atstart,now;
-    atstart = now = comdb2_time_epochms();
+    int atstart = comdb2_time_epochms();
+    int now = atstart;
     logmsg(LOGMSG_DEBUG, "%lu:%s:%d Entering ix=%d\n", pthread_self(), __func__, __LINE__, ix);
 
     rc = bdb_state->dbp_ix[ix]->paired_cursor_from_lid(
@@ -942,6 +942,7 @@ static int bdb_verify_key(verify_common_t *par, int ix, unsigned int lid)
     }
 
     logmsg(LOGMSG_DEBUG, "%lu:%s:%d Exiting delta=%dms\n", pthread_self(), __func__, __LINE__, now - atstart);
+    ATOMIC_ADD(par->accumulated_time, now - atstart);
     return 0;
 }
 
@@ -997,8 +998,8 @@ static void bdb_verify_blob(verify_common_t *par, int blobno, int dtastripe, uns
     dbt_dta_check_data.dlen = 0;
     dbt_dta_check_data.flags = DB_DBT_USERMEM | DB_DBT_PARTIAL;
 
-    int atstart,now;
-    atstart = now = comdb2_time_epochms();
+    int atstart = comdb2_time_epochms();
+    int now = atstart;
     logmsg(LOGMSG_DEBUG, "%lu:%s:%d Entering blobno=%d, stripe=%d\n", pthread_self(), __func__, __LINE__, blobno, dtastripe);
 
     rc = cblob->c_get(cblob, &dbt_key, &dbt_data, DB_FIRST);
@@ -1061,6 +1062,7 @@ static void bdb_verify_blob(verify_common_t *par, int blobno, int dtastripe, uns
 
     cblob->c_close(cblob);
     logmsg(LOGMSG_DEBUG, "%lu:%s:%d Exiting delta=%dms\n", pthread_self(), __func__, __LINE__, now - atstart);
+    ATOMIC_ADD(par->accumulated_time, now - atstart);
 }
 
 /* sequential processing of the stripes, keys, blobs
@@ -1210,7 +1212,6 @@ int bdb_verify_enqueue(td_processing_info_t *info, thdpool *verify_thdpool)
             }
         }
     }
-
     return par->verify_status;
 }
 
@@ -1218,11 +1219,11 @@ int bdb_verify_enqueue(td_processing_info_t *info, thdpool *verify_thdpool)
  */
 int bdb_verify(verify_common_t *par)
 {
-    { // for having default mode behave like parallel mode for testing
+    /*{ // for having default mode behave like parallel mode for testing
         td_processing_info_t info = { .common_params = par };
         par->verify_mode = VERIFY_PARALLEL; 
         return bdb_verify_enqueue(&info, NULL); //passing null will force sequential
-    }
+    }*/
 
     int rc;
     unsigned int lid;
@@ -1247,6 +1248,5 @@ int bdb_verify(verify_common_t *par)
     bdb_state->dbenv->lock_id_free(bdb_state->dbenv, lid);
 
     BDB_RELLOCK();
-
     return rc;
 }

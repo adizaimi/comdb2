@@ -343,12 +343,14 @@ done:
     if (tran)
         bdb_tran_abort(thedb->bdb_env, tran, &bdberr);
 
+    print_verify_final_progress(&par);
     if (rc) {
         logmsg(LOGMSG_INFO, "verify rc %d\n", rc);
         if (sb)
             sbuf2printf(sb, "FAILED\n");
-    } else if (sb)
+    } else if (sb) {
         sbuf2printf(sb, "SUCCESS\n");
+    }
 
     sbuf2flush(sb);
     return rc;
@@ -422,7 +424,6 @@ static void verify_thd_start(struct thdpool *pool, void *thddata)
     state->thr_self = thrman_register(THRTYPE_VERIFY);
 }
 
-
 static int parallel_verify_table(const char *table, SBUF2 *sb,
                     int progress_report_seconds, int attempt_fix,
                     int (*lua_callback)(void *, const char *),
@@ -456,7 +457,7 @@ static int parallel_verify_table(const char *table, SBUF2 *sb,
         thdpool_set_init_fn(gbl_verify_thdpool, verify_thd_start);
         thdpool_set_minthds(gbl_verify_thdpool, 0);
         thdpool_set_maxthds(gbl_verify_thdpool, bdb_attr_get(thedb->bdb_attr, BDB_ATTR_VERIFY_POOL_MAXT));
-        thdpool_set_linger(gbl_verify_thdpool, 1);
+        thdpool_set_linger(gbl_verify_thdpool, 0);
         thdpool_set_longwaitms(gbl_verify_thdpool, 1000000);
         thdpool_set_maxqueue(gbl_verify_thdpool, 100);
         thdpool_set_mem_size(gbl_verify_thdpool, 4 * 1024);
@@ -502,12 +503,14 @@ done:
     if (tran)
         bdb_tran_abort(thedb->bdb_env, tran, &bdberr);
 
+    print_verify_final_progress(&par);
     if (rc) {
         logmsg(LOGMSG_INFO, "verify rc %d\n", rc);
         if (sb)
             sbuf2printf(sb, "FAILED\n");
-    } else if (sb)
+    } else if (sb) {
         sbuf2printf(sb, "SUCCESS\n");
+    }
 
     sbuf2flush(sb);
 
