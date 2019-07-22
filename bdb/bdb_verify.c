@@ -239,14 +239,6 @@ static inline void print_verify_progress(verify_common_t *par, int now)
     sbuf2flush(par->sb);
 }
 
-void print_verify_final_progress(verify_common_t *par)
-{
-    locprint(par->sb, par->lua_callback, par->lua_params, "!verify: finished processing %lld records in %lldms, %.2f per second\n",
-            par->records_processed, par->accumulated_time,
-            (par->accumulated_time > 0) ? (((float)par->records_processed * 1000)/par->accumulated_time): 0);
-    sbuf2flush(par->sb);
-}
-
 /* TODO: handle deadlock, get rowlocks if db in rowlocks mode */
 static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned int lid)
 {
@@ -571,7 +563,6 @@ err:
     if (cdata)
         cdata->c_close(cdata);
     logmsg(LOGMSG_DEBUG, "%lu:%s:%d Exiting delta=%dms\n", pthread_self(), __func__, __LINE__, now - atstart);
-    ATOMIC_ADD(par->accumulated_time, now - atstart);
     return rc;
 }
 
@@ -942,7 +933,6 @@ static int bdb_verify_key(verify_common_t *par, int ix, unsigned int lid)
     }
 
     logmsg(LOGMSG_DEBUG, "%lu:%s:%d Exiting delta=%dms\n", pthread_self(), __func__, __LINE__, now - atstart);
-    ATOMIC_ADD(par->accumulated_time, now - atstart);
     return 0;
 }
 
@@ -1062,7 +1052,6 @@ static void bdb_verify_blob(verify_common_t *par, int blobno, int dtastripe, uns
 
     cblob->c_close(cblob);
     logmsg(LOGMSG_DEBUG, "%lu:%s:%d Exiting delta=%dms\n", pthread_self(), __func__, __LINE__, now - atstart);
-    ATOMIC_ADD(par->accumulated_time, now - atstart);
 }
 
 /* sequential processing of the stripes, keys, blobs

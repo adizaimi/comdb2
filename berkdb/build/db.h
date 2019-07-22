@@ -1381,6 +1381,8 @@ struct __db {
 	DB_MPOOLFILE *mpf;		/* Backing buffer pool. */
 
 	DB_MUTEX *mutexp;		/* Synchronization for free threading */
+	DB_MUTEX *active_mutexp;		/* Synchronization for free threading */
+	DB_MUTEX *free_mutexp;		/* Synchronization for free threading */
 
 	char *fname, *dname;		/* File/database passed to DB->open. */
 	u_int32_t open_flags;		/* Flags passed to DB->open. */

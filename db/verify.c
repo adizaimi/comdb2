@@ -343,7 +343,6 @@ done:
     if (tran)
         bdb_tran_abort(thedb->bdb_env, tran, &bdberr);
 
-    print_verify_final_progress(&par);
     if (rc) {
         logmsg(LOGMSG_INFO, "verify rc %d\n", rc);
         if (sb)
@@ -503,7 +502,6 @@ done:
     if (tran)
         bdb_tran_abort(thedb->bdb_env, tran, &bdberr);
 
-    print_verify_final_progress(&par);
     if (rc) {
         logmsg(LOGMSG_INFO, "verify rc %d\n", rc);
         if (sb)
