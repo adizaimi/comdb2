@@ -282,8 +282,21 @@ static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned 
     
     //Keep a cursor for each index
     size_t sz = bdb_state->numix * sizeof(DBC*);
-    DBC **cursors = alloca(sz);
-    memset(cursors, 0, sz);
+    DBC **key_cursors = alloca(sz);
+    memset(key_cursors, 0, sz);
+    for (int ix = 0; ix < bdb_state->numix; ix++) {
+        DBC **ckeyp = &key_cursors[ix];
+        rc = bdb_state->dbp_ix[ix]->paired_cursor_from_lid(
+            bdb_state->dbp_ix[ix], lid, ckeyp, 0);
+        if (rc) {
+            par->verify_status = 1;
+            par->free_blob_buffer_callback(blob_buf);
+            logmsg(LOGMSG_ERROR, "unexpected rc opening cursor for ix %d: %d\n", ix,
+                   rc);
+            goto err;
+        }
+    }
+
 
     while (rc == 0 && !par->client_dropped_connection) {
         ATOMIC_ADD(par->records_processed, 1);
@@ -458,17 +471,7 @@ static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned 
         has_keys = par->verify_indexes_callback(par->db_table, dbt_data.data,
                                            blob_buf);
         for (int ix = 0; ix < bdb_state->numix; ix++) {
-            DBC *ckey = cursors[ix];
-            rc = bdb_state->dbp_ix[ix]->paired_cursor_from_lid(
-                bdb_state->dbp_ix[ix], lid, &ckey, 0);
-            if (rc) {
-                par->verify_status = 1;
-                par->free_blob_buffer_callback(blob_buf);
-                logmsg(LOGMSG_ERROR, "unexpected rc opening cursor for ix %d: %d\n", ix,
-                       rc);
-                goto err;
-            }
-
+            DBC *ckey = key_cursors[ix];
             int keylen;
             rc = par->formkey_callback(par->db_table, databuf, blob_buf,
                                   ix, expected_keybuf, &keylen);
@@ -477,8 +480,6 @@ static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned 
                 locprint(par->sb, par->lua_callback, par->lua_params,
                          "!%016llx ix %d formkey rc %d\n", genid_flipped,
                          ix, rc);
-                ckey->c_close(ckey);
-                ckey = NULL;
                 rc = 0;
                 goto next_record; /* ? */
             }
@@ -535,7 +536,6 @@ static int bdb_verify_data_stripe(verify_common_t *par, int dtastripe, unsigned 
                 locprint(par->sb, par->lua_callback, par->lua_params, "!%016llx ix %d genid mismatch %016llx\n",
                             genid_flipped, ix, verify_genid);
             }
-
         }
         par->free_blob_buffer_callback(blob_buf);
         sbuf2flush(par->sb);
@@ -563,7 +563,7 @@ err:
         cblob->c_close(cblob);
 
     for (int ix = 0; ix < bdb_state->numix; ix++) {
-        DBC *ckey = cursors[ix];
+        DBC *ckey = key_cursors[ix];
         if (!ckey)
             break;
         ckey->c_close(ckey);
@@ -1218,11 +1218,11 @@ int bdb_verify_enqueue(td_processing_info_t *info, thdpool *verify_thdpool)
  */
 int bdb_verify(verify_common_t *par)
 {
-    { // for having default mode behave like parallel mode for testing
+    /* { // for having default mode behave like parallel mode for testing
         td_processing_info_t info = { .common_params = par };
         par->verify_mode = VERIFY_PARALLEL; 
         return bdb_verify_enqueue(&info, NULL); //passing null will force sequential
-    }
+    } */
 
     int rc;
     unsigned int lid;
