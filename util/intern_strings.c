@@ -28,7 +28,7 @@
 #include "locks_wrap.h"
 
 static pthread_once_t once = PTHREAD_ONCE_INIT;
-static pthread_mutex_t intern_lk = PTHREAD_MUTEX_INITIALIZER;
+static pthread_rwlock_t intern_lk;
 static hash_t *interned_strings = NULL;
 
 struct interned_string {
@@ -43,32 +43,50 @@ static void init_interned_strings(void)
         logmsg(LOGMSG_FATAL, "can't create hash table for hostname strings\n");
         abort();
     }
+    Pthread_rwlock_init(&intern_lk, NULL);
 }
 
 /* Store a copy of parameter str in a hash tbl */
 char *intern(const char *str)
 {
-    struct interned_string *s;
-
+    struct interned_string *z = NULL;
     pthread_once(&once, init_interned_strings);
-    Pthread_mutex_lock(&intern_lk);
-    s = hash_find_readonly(interned_strings, &str);
+
+    Pthread_rwlock_rdlock(&intern_lk);
+    struct interned_string *s = hash_find_readonly(interned_strings, &str);
     if (s == NULL) {
+        /* if we did not find the entry, unlock so other threads can access hash
+         * then allocate the new entry and then get the lock in write mode */
+        Pthread_rwlock_unlock(&intern_lk);
         s = malloc(sizeof(struct interned_string));
         if (s == NULL) {
-            Pthread_mutex_unlock(&intern_lk);
             return NULL;
         }
         s->str = strdup(str);
         if (s->str == NULL) {
             free(s);
-            Pthread_mutex_unlock(&intern_lk);
             return NULL;
         }
-        hash_add(interned_strings, s);
+        Pthread_rwlock_wrlock(&intern_lk);
+
+        /* need to perform find again in case another thread inserted same */
+        z = hash_find_readonly(interned_strings, &str);
+        if (z == NULL) {
+            hash_add(interned_strings, s);
+        } else {
+            /* another thread inserted same entry */
+            struct interned_string *temp = s;
+            s = z;
+            z = temp; /* will cleanup z below */
+        }
     }
     s->ref++;
-    Pthread_mutex_unlock(&intern_lk);
+    Pthread_rwlock_unlock(&intern_lk);
+
+    if (z) { /* cleanup z: it contains item we did not insert */ 
+        free(z->str);
+        free(z);
+    }
     return s->str;
 }
 
@@ -88,19 +106,38 @@ char *internn(const char *str, int len)
     return out;
 }
 
+/* return true if this is an instance of an interned string */
 int isinterned(const char *node)
 {
+    pthread_once(&once, init_interned_strings);
     struct interned_string *s;
 
-    Pthread_mutex_lock(&intern_lk);
+    Pthread_rwlock_rdlock(&intern_lk);
     s = hash_find_readonly(interned_strings, &node);
-    Pthread_mutex_unlock(&intern_lk);
+    Pthread_rwlock_unlock(&intern_lk);
 
     if (s && s->str == node)
         return 1;
 
     return 0;
 }
+
+/* lookup if given string is in the container */
+int intern_find(const char *str)
+{
+    pthread_once(&once, init_interned_strings);
+    struct interned_string *s;
+
+    Pthread_rwlock_rdlock(&intern_lk);
+    s = hash_find_readonly(interned_strings, &str);
+    Pthread_rwlock_unlock(&intern_lk);
+
+    if (s)
+        return 1;
+
+    return 0;
+}
+
 
 static int intern_free(void *ptr, void *unused)
 {
@@ -117,7 +154,7 @@ void cleanup_interned_strings()
     hash_clear(interned_strings);
     hash_free(interned_strings);
     interned_strings = NULL;
-    Pthread_mutex_destroy(&intern_lk);
+    Pthread_rwlock_destroy(&intern_lk);
 }
 
 static int intern_dump(void *ptr, void *unused)
@@ -130,5 +167,6 @@ static int intern_dump(void *ptr, void *unused)
 
 void dump_interned_strings()
 {
+    pthread_once(&once, init_interned_strings);
     hash_for(interned_strings, intern_dump, NULL);
 }

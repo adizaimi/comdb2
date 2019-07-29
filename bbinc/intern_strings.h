@@ -21,6 +21,7 @@ char *intern(const char *str);
 char *internn(const char *str, int len);
 
 int isinterned(const char *str);
+int intern_find(const char *str);
 void cleanup_interned_strings();
 
 #endif
