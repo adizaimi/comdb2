@@ -594,6 +594,46 @@ static int db_comdb_delete_sc_history(Lua L)
     int rc = comdb2DeleteFromScHistory(tbl, fseed);
     if (rc)
         return luaL_error(L, "Error deleting entry");
+    return 1;
+}
+
+int bdb_fetch_page(bdb_state_type *bdb_state, int fileid, int pageno,
+                   char **buf, size_t *size);
+
+static int db_comdb2_get_berkdb_page(Lua L)
+{
+    int fileid;
+    int pageno;
+    int rc;
+    blob_t page;
+    char *buf;
+    size_t size = 0;
+
+    if (lua_isnumber(L, 1)) {
+        fileid = lua_tonumber(L, -2);
+        if (lua_isnumber(L, 2)) {
+            pageno = lua_tonumber(L, -1);
+        }
+    }
+    printf("%s: fileid: %d, pageno: %d\n", __func__, fileid, pageno);
+
+    rc = bdb_fetch_page(thedb->bdb_env, fileid, pageno, &buf, &size);
+    if (rc || size == 0) {
+        return luaL_error(L, "Page not found");
+    }
+    page.length = size;
+    page.data = buf;
+
+    lua_createtable(L, 1, 0);
+
+    // Build a row
+    lua_createtable(L, 1, 0);
+    lua_pushstring(L, "page");
+    luabb_pushblob(L, &page);
+    lua_settable(L, -3);
+
+    // Add it to the table
+    lua_rawseti(L, -2, 1);
 
     return 1;
 }
@@ -612,6 +652,7 @@ static const luaL_Reg sys_funcs[] = {
     { "stop_replication", db_comdb_stop_replication },
     { "register_replicant", db_comdb_register_replicant },
     { "delete_sc_history", db_comdb_delete_sc_history },
+    { "get_berkdb_page", db_comdb2_get_berkdb_page },
     { NULL, NULL }
 }; 
 
@@ -811,6 +852,25 @@ static struct sp_source syssps[] = {
         "  else\n"
         "    db:emit('Failed to delete from sc_history for tablename '..t)\n"
         "  end \n"
+        "end\n",
+        NULL
+    }
+    ,{
+        "sys.cmd.get_berkdb_page",
+        "local function main(fileid, pageno)\n"
+        "    local schema = {\n"
+        "        { 'blob',    'page' },\n"
+        "    }\n"
+        "    db:num_columns(table.getn(schema))\n"
+        "    for i, v in ipairs(schema) do\n"
+        "        db:column_name(v[2], i)\n"
+        "        db:column_type(v[1], i)\n"
+        "    end\n"
+        "    local page\n"
+        "    page = sys.get_berkdb_page(fileid, pageno)\n"
+        "    for i, v in ipairs(page) do\n"
+        "        db:emit(v)\n"
+        "    end\n"
         "end\n",
         NULL
     }
