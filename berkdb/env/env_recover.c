@@ -63,6 +63,7 @@ void bdb_rellock(void *bdb_state, const char *funcname, int line);
 int bdb_is_open(void *bdb_state);
 
 extern int gbl_is_physical_replicant;
+extern int gbl_diskless;
 
 #define BDB_WRITELOCK(idstr)	bdb_get_writelock(bdb_state, (idstr), __func__, __LINE__)
 #define BDB_RELLOCK()		   bdb_rellock(bdb_state, __func__, __LINE__)
@@ -946,6 +947,10 @@ __db_apprec(dbenv, max_lsn, trunclsn, update, flags)
 	DB_LSN *max_lsn, *trunclsn;
 	u_int32_t update, flags;
 {
+    if (gbl_diskless) {
+        logmsg(LOGMSG_INFO, "Skipping recovery for diskless node\n");
+        return 0;
+    }
 	DBT data;
 	DB_LOGC *logc;
 	DB_LSN ckp_lsn, first_lsn, last_lsn, lowlsn, lsn, stop_lsn;

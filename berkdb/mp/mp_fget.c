@@ -51,6 +51,7 @@ extern int gbl_prefault_udp;
 extern __thread int send_prefault_udp;
 extern __thread DB *prefault_dbp;
 extern int gbl_diskless;
+extern int gbl_ready;
 
 void udp_prefault_all(bdb_state_type * bdb_state, unsigned int fileid,
     unsigned int pgno);
@@ -797,20 +798,19 @@ alloc:		/*
 
 
 	if (F_ISSET(bhp, BH_TRASH)) {
-      if(gbl_diskless && *pgnoaddr > 0 && (flags&(~0x80)) == 0) {
+      char *flname = (char*)R_ADDR(dbmp->reginfo, mfp->path_off);
+      int pgno = *pgnoaddr;
+      int fileid = *(int*)R_ADDR(dbmp->reginfo, mfp->fileid_off);
+      if(gbl_ready && gbl_diskless && strcmp(flname, "comdb2_llmeta.dta") != 0 && *pgnoaddr > 0 && (flags&(~0x80)) == 0) {
         logmsg(LOGMSG_ERROR, "AZ: WOULD CALL __memp_pgnetread filename %s, page %d, flags %x, fileid %d\n", 
-                (char*)R_ADDR(dbmp->reginfo, mfp->path_off), *pgnoaddr, flags,
-                *(int*)R_ADDR(dbmp->reginfo, mfp->fileid_off));
+                flname, pgno, flags, fileid);
 		//AZ:if ((ret = __memp_net_pgread(*(int*)R_ADDR(dbmp->reginfo, mfp->fileid_off), *pgnoaddr, &page);
-        //NOTE: issue is that we first open files then we talk to the other nodes in the cluster
-        //so we have to figure out how to get the file contents by contacting a random node
-        //even before attaching to the cluster. Obviously if gbl_diskless is on, we must have a cluster line
+        //NOTE: We will get pages from net only for pg>1 and non sys tbls like llmeta etc.
 		if ((ret = __memp_pgread(dbmfp, hp, bhp, 0, 0)) != 0)
 			 goto err;
       } else {
         logmsg(LOGMSG_ERROR, "AZ: NOT CALL __memp_pgnetread filename %s:%d, flags %x, fileid %d\n", 
-                (char*)R_ADDR(dbmp->reginfo, mfp->path_off), *pgnoaddr, flags,
-                *(int*)R_ADDR(dbmp->reginfo, mfp->fileid_off));
+                flname, pgno, flags, fileid);
 		if ((ret = __memp_pgread(dbmfp,
 				hp, bhp,
 			    LF_ISSET(DB_MPOOL_CREATE) ? 1 : 0,
