@@ -3363,7 +3363,7 @@ int send_to_all_nodes(void *dta, int len, int type, int waittime)
 int send_forgetmenot(void)
 {
     char *master = thedb->master;
-    if (master > 0)
+    if (master)
         return net_send_message(thedb->handle_sibling, master, NET_FORGETMENOT,
                                 NULL, 0, 0, 0);
     else
@@ -6254,3 +6254,81 @@ static int sync_state_to_protobuf(int sync) {
 static int syncmode_callback(bdb_state_type *bdb_state) {
     return sync_state_to_protobuf(thedb->rep_sync);
 }
+
+typedef struct {
+        int token;
+        unsigned char fileid[DB_FILE_ID_LEN];
+        int pageno;
+} req_t;
+
+
+int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t *buf, size_t pagesize, size_t *niop)
+{
+    req_t request = { .pageno = pageno };
+    request.token = rand();
+    memcpy(request.fileid, fileid, sizeof(request.fileid));
+
+    /*
+    bdb_state_type *bdb_state = thedb->bdb_env;
+    int rc = net_send_nodrop(bdb_state->repinfo->netinfo,
+            bdb_state->repinfo->master_host,
+            USER_TYPE_GET_PAGE, &request,
+            sizeof(request), 1);
+    //put_in_circular_queue(token);
+    //if (check_status_in_circular_queue(token) == done) {
+        //pop_from_circular_queue(token, &result);
+    //}
+    return rc;
+    TODO:
+     * CAN use stored procedure for the interim
+     * propably need to set gbl_is_physical_replicant = 1
+            */
+
+    // need to wait for page here
+    char *master = thedb->master;
+    if (master)
+        return net_send_message(thedb->handle_sibling, master, USER_TYPE_GET_PAGE,
+                NULL, 0, 0, 0);
+    else return -1;
+}
+ 
+/*
+int net_send_get_page_from_master(int fileid, int pageno, void *page)
+{
+    req_t request = { .fileid = fileid, .pageno = pageno };
+
+    uint8_t p_net_seqnum[BDB_SEQNUM_TYPE_LEN];
+    int rc = 0;
+
+    bdb_state_type *bdb_state = thedb->bdb_env;
+    rc = net_send_nodrop(bdb_state->repinfo->netinfo,
+            bdb_state->repinfo->master_host,
+            USER_TYPE_GET_PAGE, &request,
+            sizeof(request), 1);
+}
+
+int get_page_request(char *host, int fileid, int pageno)
+{
+    typedef struct {
+        int fileid;
+        int pageno;
+    } req_t;
+
+    void *buffer; 
+    int bufferlen;
+    get_page_into_buffer(fileid, pageno, &buffer, &bufferlen);
+    
+    bdb_state_type *bdb_state = thedb->bdb_env;
+    rc = net_send_nodrop(bdb_state->repinfo->netinfo,
+            host,
+            USER_TYPE_HEREIS_PAGE, &buffer,
+            bufferlen, 1);
+
+}
+
+int get_page_into_buffer(fileid, pageno, &buffer, &bufferlen) 
+{
+	__bam_read_root(dbp, txn, pgno, flags);
+	return ret;
+}
+*/

@@ -41,6 +41,9 @@ static const char revid[] = "$Id: mp_bh.c,v 11.86 2003/07/02 20:02:37 mjc Exp $"
 
 char *bdb_trans(const char infile[], char outfile[]);
 extern int gbl_test_badwrite_intvl;
+extern int gbl_diskless;
+extern int gbl_ready;
+extern int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t *buf, size_t pagesize, size_t *niop);
 
 static int __memp_pgwrite
 __P((DB_ENV *, DB_MPOOLFILE *, DB_MPOOL_HASH *, BH *));
@@ -436,12 +439,23 @@ __memp_pgread(dbmfp, hp, bhp, can_create, is_recovery_page)
 	 * them now, we create them when the pages have to be flushed.
 	 */
 	nr = 0;
-	if (dbmfp->fhp != NULL)
-		// NC: Read the page off the disk
-		if ((ret = __os_io(dbenv, DB_IO_READ,
+	if (dbmfp->fhp != NULL) {
+        DB_MPOOL *dbmp = dbmfp->dbenv->mp_handle;
+        MPOOLFILE *mfp = dbmfp->mfp;
+        char *flname = (char*)R_ADDR(dbmp->reginfo, mfp->path_off);
+        unsigned char *fileid = R_ADDR(dbmp->reginfo, mfp->fileid_off);
+        int pgno = bhp->pgno;
+        if(gbl_ready && gbl_diskless && strcmp(flname, "comdb2_llmeta.dta") != 0 && pgno > 0) {
+            logmsg(LOGMSG_ERROR, "AZ: WOULD CALL __memp_pgnetread filename %s, fileid %llx, page %d\n", 
+                   flname, *(unsigned long long int*)fileid, pgno);
+            if ((ret = __memp_net_pgread(fileid, pgno, bhp->buf, pagesize, &nr)))
+                goto err;
+            //NOTE: We will get pages from net only for pg>1 and non sys tbls like llmeta etc.
+        }
+        else if ((ret = __os_io(dbenv, DB_IO_READ,
 		    dbmfp->fhp, bhp->pgno, pagesize, bhp->buf, &nr)) != 0)
 			goto err;
-
+    }
 	/*
 	 * The page may not exist; if it doesn't, nr may well be 0, but we
 	 * expect the underlying OS calls not to return an error code in

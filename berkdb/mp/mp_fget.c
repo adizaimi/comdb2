@@ -798,25 +798,11 @@ alloc:		/*
 
 
 	if (F_ISSET(bhp, BH_TRASH)) {
-      char *flname = (char*)R_ADDR(dbmp->reginfo, mfp->path_off);
-      int pgno = *pgnoaddr;
-      int fileid = *(int*)R_ADDR(dbmp->reginfo, mfp->fileid_off);
-      if(gbl_ready && gbl_diskless && strcmp(flname, "comdb2_llmeta.dta") != 0 && *pgnoaddr > 0 && (flags&(~0x80)) == 0) {
-        logmsg(LOGMSG_ERROR, "AZ: WOULD CALL __memp_pgnetread filename %s, page %d, flags %x, fileid %d\n", 
-                flname, pgno, flags, fileid);
-		//AZ:if ((ret = __memp_net_pgread(*(int*)R_ADDR(dbmp->reginfo, mfp->fileid_off), *pgnoaddr, &page);
-        //NOTE: We will get pages from net only for pg>1 and non sys tbls like llmeta etc.
-		if ((ret = __memp_pgread(dbmfp, hp, bhp, 0, 0)) != 0)
-			 goto err;
-      } else {
-        logmsg(LOGMSG_ERROR, "AZ: NOT CALL __memp_pgnetread filename %s:%d, flags %x, fileid %d\n", 
-                flname, pgno, flags, fileid);
 		if ((ret = __memp_pgread(dbmfp,
 				hp, bhp,
 			    LF_ISSET(DB_MPOOL_CREATE) ? 1 : 0,
 			    is_recovery_page)) != 0)
 			 goto err;
-      }
 
 		if (state == SECOND_MISS) {
 			if (ISINTERNAL(bhp->buf))

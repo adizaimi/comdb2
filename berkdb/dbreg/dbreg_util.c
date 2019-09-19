@@ -28,6 +28,7 @@ static const char revid[] = "$Id: dbreg_util.c,v 11.39 2003/11/10 17:42:34 sue E
 #include "printformats.h"
 #include "logmsg.h"
 #include "comdb2_atomic.h"
+#include "tohex.h"
 
 static int __dbreg_check_master __P((DB_ENV *, u_int8_t *, char *));
 
@@ -1165,12 +1166,18 @@ __bb_dbreg_print_dblist(dbenv, prncallback, userptr)
 		    dblp->dbentry[fnp->id].dbp;
 		del = fnp->id >= dblp->dbentry_cnt ? 0 :
 		    dblp->dbentry[fnp->id].deleted;
+
+        char fileid[2*DB_FILE_ID_LEN + 1] = {0};
+        util_tohex(fileid, (char*)fnp->ufid, DB_FILE_ID_LEN);
+        if (memcmp(fnp->ufid, dbp->fileid, DB_FILE_ID_LEN) != 0)
+            abort();
+
 		prncallback(userptr,
 		    "%5ld %-*s %-8s%-10lu%-10lx%s %d %lx %lx\n",
 		    (long)fnp->id, longest_len, name, __db_dbtype_to_string(fnp->s_type),
 		    (u_long)fnp->meta_pgno, (u_long)fnp->create_txnid,
 		    dbp == NULL ? "No DBP" : "DBP", del, P_TO_ULONG(dbp),
-		    (u_long)(dbp == NULL ? 0 : dbp->flags));
+		    (u_long)(dbp == NULL ? 0 : dbp->flags), fileid);
 	}
 
 	MUTEX_UNLOCK(dbenv, &lp->fq_mutex);

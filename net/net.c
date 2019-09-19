@@ -3468,7 +3468,8 @@ int net_ack_message(void *handle, int outrc)
 static int process_user_message(netinfo_type *netinfo_ptr,
                                 host_node_type *host_node_ptr)
 {
-    int usertype, seqnum, datalen, needack;
+    int usertype = 0;
+    int seqnum, datalen, needack;
     ack_state_type *ack_state = NULL;
     void *data;
 
@@ -3482,9 +3483,9 @@ static int process_user_message(netinfo_type *netinfo_ptr,
     int rc = read_user_data(host_node_ptr, &usertype, &seqnum, &needack,
                             &datalen, &data, &malloced);
 
-#if 0
     logmsg(LOGMSG_DEBUG, "process_user_message from %s, ut=%d\n",
            host_node_ptr->host, usertype);
+#if 0
 #endif
 
     if (rc != 0)
