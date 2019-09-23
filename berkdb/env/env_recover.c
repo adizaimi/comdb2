@@ -948,8 +948,8 @@ __db_apprec(dbenv, max_lsn, trunclsn, update, flags)
 	u_int32_t update, flags;
 {
     if (gbl_diskless) {
-        logmsg(LOGMSG_INFO, "Skipping recovery for diskless node\n");
-        return 0;
+        logmsg(LOGMSG_INFO, "TODO: WOULD Skip recovery for diskless node\n");
+        //return 0;
     }
 	DBT data;
 	DB_LOGC *logc;

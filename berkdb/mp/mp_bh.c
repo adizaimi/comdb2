@@ -446,8 +446,8 @@ __memp_pgread(dbmfp, hp, bhp, can_create, is_recovery_page)
         unsigned char *fileid = R_ADDR(dbmp->reginfo, mfp->fileid_off);
         int pgno = bhp->pgno;
         if(gbl_ready && gbl_diskless && strcmp(flname, "comdb2_llmeta.dta") != 0 && pgno > 0) {
-            logmsg(LOGMSG_ERROR, "AZ: WOULD CALL __memp_pgnetread filename %s, fileid %llx, page %d\n", 
-                   flname, *(unsigned long long int*)fileid, pgno);
+            logmsg(LOGMSG_ERROR, "AZ: WOULD CALL __memp_pgnetread filename %s, fileid %llx, page %d, pagesize %d\n", 
+                   flname, *(unsigned long long int*)fileid, pgno, pagesize);
             if ((ret = __memp_net_pgread(fileid, pgno, bhp->buf, pagesize, &nr)))
                 goto err;
             //NOTE: We will get pages from net only for pg>1 and non sys tbls like llmeta etc.

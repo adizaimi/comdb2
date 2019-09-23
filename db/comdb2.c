@@ -3508,6 +3508,10 @@ static int init(int argc, char **argv)
     }
 
     handle_cmdline_options(argc, argv, &lrlname);
+    if (gbl_diskless) {
+        extern int gbl_cache_flush_interval;
+        gbl_cache_flush_interval = 0;
+    }
 
     if (gbl_create_mode) {        /*  10  */
         logmsg(LOGMSG_INFO, "create mode.\n");

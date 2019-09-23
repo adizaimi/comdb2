@@ -1863,7 +1863,7 @@ REGISTER_TUNABLE("long_log_truncation_abort_thresh_sec",
                  EXPERIMENTAL | INTERNAL, NULL, NULL, NULL, NULL);
 
 REGISTER_TUNABLE("cache_flush_interval",
-                 "Save bufferpool once every this many seconds.  "
+                 "Save bufferpool once every this many seconds. Setting to 0 will disable this."
                  "(Default: 30)",
                  TUNABLE_INTEGER, &gbl_cache_flush_interval, 0, NULL, NULL,
                  NULL, NULL);

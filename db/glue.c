@@ -177,6 +177,11 @@ static int ix_find_check_blob_race(struct ireq *iq, char *inbuf, int numblobs,
 
 static int syncmode_callback(bdb_state_type *bdb_state);
 
+void net_get_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
+                    int usertype, void *dta, int dtalen, uint8_t is_tcp);
+void net_hereis_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
+                    int usertype, void *dta, int dtalen, uint8_t is_tcp);
+
 /* How many times we became, or ceased to be, master node. */
 int gbl_master_changes = 0;
 
@@ -3731,6 +3736,15 @@ int open_bdb_env(struct dbenv *dbenv)
         if (net_register_handler(dbenv->handle_sibling, NET_TRIGGER_START,
                                  "trigger_start", net_trigger_start))
             return -1;
+
+
+
+        net_register_handler(dbenv->handle_sibling, USER_TYPE_GET_PAGE,
+                             "net_get_page_handler", net_get_page_handler);
+        net_register_handler(dbenv->handle_sibling, USER_TYPE_HEREIS_PAGE,
+                             "net_hereis_page_handler", net_hereis_page_handler);
+
+
         /* Authentication Check */
         if (net_register_handler(
                 dbenv->handle_sibling, NET_AUTHENTICATION_CHECK,
@@ -6256,17 +6270,27 @@ static int syncmode_callback(bdb_state_type *bdb_state) {
 }
 
 typedef struct {
-        int token;
+        uint64_t token;
         unsigned char fileid[DB_FILE_ID_LEN];
         int pageno;
-} req_t;
+        int pagesize;
+} net_pg_req_t;
+
+typedef struct {
+        uint64_t token;
+        int pagesize;
+        int dummy;
+        void *buf;
+} net_pg_resp_t;
 
 
 int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t *buf, size_t pagesize, size_t *niop)
 {
-    req_t request = { .pageno = pageno };
-    request.token = rand();
+    net_pg_req_t request = { .pageno = pageno, .pagesize = pagesize };
+    srand48(time(NULL));
+    request.token = lrand48();
     memcpy(request.fileid, fileid, sizeof(request.fileid));
+    printf("AZ: sending net_pg_req_t.token %lx\n", request.token);
 
     /*
     bdb_state_type *bdb_state = thedb->bdb_env;
@@ -6288,24 +6312,37 @@ int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t
     char *master = thedb->master;
     if (master)
         return net_send_message(thedb->handle_sibling, master, USER_TYPE_GET_PAGE,
-                NULL, 0, 0, 0);
+                &request, sizeof(request), 0, 0);
     else return -1;
 }
  
-/*
-int net_send_get_page_from_master(int fileid, int pageno, void *page)
+void net_get_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
+                    int usertype, void *dta, int dtalen, uint8_t is_tcp)
 {
-    req_t request = { .fileid = fileid, .pageno = pageno };
+    net_pg_req_t *request = (net_pg_req_t*)dta;
 
-    uint8_t p_net_seqnum[BDB_SEQNUM_TYPE_LEN];
-    int rc = 0;
+    printf("AZ: received net_pg_req_t.token %lx\n", request->token);
+    size_t resp_size = sizeof(net_pg_resp_t) + request->pagesize;
+    net_pg_resp_t *resp = malloc(resp_size);
+    resp->token = request->token;
+    resp->pagesize = request->pagesize;
+    /* get page content &into resp->buf */
+    //resp->buf = 
 
-    bdb_state_type *bdb_state = thedb->bdb_env;
-    rc = net_send_nodrop(bdb_state->repinfo->netinfo,
-            bdb_state->repinfo->master_host,
-            USER_TYPE_GET_PAGE, &request,
-            sizeof(request), 1);
+    net_send_message(thedb->handle_sibling, fromhost, USER_TYPE_HEREIS_PAGE,
+                resp, resp_size, 0, 0);
 }
+
+void net_hereis_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
+                    int usertype, void *dta, int dtalen, uint8_t is_tcp)
+{
+    net_pg_resp_t *resp = (net_pg_resp_t *)usr_ptr;
+
+    /* assign to resp->buf to global */
+    printf("AZ: resp.token %lx\n", resp->token);
+}
+
+/*
 
 int get_page_request(char *host, int fileid, int pageno)
 {
