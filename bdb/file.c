@@ -8911,7 +8911,7 @@ int bdb_debug_log(bdb_state_type *bdb_state, tran_type *trans, int inop)
     op.data = &endianized;
     return bdb_state->dbenv->debug_log(bdb_state->dbenv, tid, &op, NULL, NULL);
 }
-int bdb_fetch_page(bdb_state_type *bdb_state, int fileid, int pageno,
+int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LEN], int pageno,
                    char **buf, size_t *size)
 {
     return bdb_state->dbenv->get_page(bdb_state->dbenv, fileid, pageno, buf,

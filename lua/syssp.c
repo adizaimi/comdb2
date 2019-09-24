@@ -11,6 +11,7 @@
 #include <verify.h>
 #include <tag.h>
 #include <sql.h>
+#include "luautil.h"
 
 #include <logmsg.h>
 #include <parse_lsn.h>
@@ -597,28 +598,30 @@ static int db_comdb_delete_sc_history(Lua L)
     return 1;
 }
 
-int bdb_fetch_page(bdb_state_type *bdb_state, int fileid, int pageno,
+#define       DB_FILE_ID_LEN          20
+int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LEN], int pageno,
                    char **buf, size_t *size);
 
 static int db_comdb2_get_berkdb_page(Lua L)
 {
-    int fileid = -1;
+    unsigned char fileid[DB_FILE_ID_LEN] = {0};
     int pageno = -1;
     int rc;
     blob_t page;
     char *buf;
     size_t size = 0;
 
-    if (lua_isnumber(L, 1)) {
-        fileid = lua_tonumber(L, -2);
+    if (lua_isstring(L, 1)) {
+        const char *id = lua_tostring(L, -2);
+        luabb_fromhex(fileid, (const uint8_t *)id, strlen(id));
         if (lua_isnumber(L, 2)) {
             pageno = lua_tonumber(L, -1);
         }
     }
-    if (fileid < 0 || pageno < 0) {
+    if (!fileid[0] || pageno < 0) {
         return luaL_error(L, "Need valid fileid and page number");
     }
-    printf("%s: fileid: %d, pageno: %d\n", __func__, fileid, pageno);
+    printf("%s: fileid: %llx, pageno: %d\n", __func__, *(unsigned long long int*)fileid, pageno);
 
     rc = bdb_fetch_page(thedb->bdb_env, fileid, pageno, &buf, &size);
     if (rc || size == 0) {

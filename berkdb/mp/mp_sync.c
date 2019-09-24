@@ -2509,3 +2509,52 @@ __bhlru(p1, p2)
 
 	return (0);
 }
+
+/* page gets written in buf, caller is responsible to free it */
+int
+__get_page(DB_ENV *dbenv, unsigned char fileid[DB_FILE_ID_LEN], db_pgno_t pgno, unsigned char **buf, size_t *size)
+{
+	int ret;
+	PAGE *pagep;
+
+	DB_MPOOL *dbmp = dbenv->mp_handle;
+	DB_MPOOLFILE *dbmfp = NULL;
+
+	MUTEX_THREAD_LOCK(dbenv, dbmp->mutexp);
+	for (dbmfp = TAILQ_FIRST(&dbmp->dbmfq); dbmfp != NULL;                                                                                                               
+			dbmfp = TAILQ_NEXT(dbmfp, q)) {
+		if (memcmp(dbmfp->fileid, fileid, DB_FILE_ID_LEN) == 0)
+			break;
+	}
+	MUTEX_THREAD_UNLOCK(dbenv, dbmp->mutexp);
+
+	if (!dbmfp)
+		return 1;
+
+	ret = __memp_fget(dbmfp, &pgno, 0, &pagep);
+	if (ret) {
+		fprintf(stderr,
+			"%s: __memp_fget %s pgno %" PRIu32 " %llx"
+			" error=%d\n", __func__, dbmfp->mfp->stat.file_name, pgno, *(long long unsigned int*)fileid, ret);
+		return 1;
+	}
+    *buf = malloc(dbmfp->mfp->stat.st_pagesize);
+    memcpy(buf, pagep, dbmfp->mfp->stat.st_pagesize);
+    *size = (size_t)dbmfp->mfp->stat.st_pagesize;
+
+	logmsg(LOGMSG_USER, "__get_page> %s id %llx page %d size %ld\n", dbmfp->mfp->stat.file_name, *(long long unsigned int*)fileid, pgno, *size);
+
+    char *util_tohex(char *out, const char *in, size_t len);
+    char expanded[21];
+    util_tohex(expanded, (const char *)buf, 10);
+	logmsg(LOGMSG_USER, "__get_page> %s\n", expanded);
+
+	//dopage(dbp, pagep);
+	ret = __memp_fput(dbmfp, pagep, 0);
+	if (ret) {
+		fprintf(stderr, "%s: mempfput %s pgno %d %llx error=%d\n",
+			__func__, dbmfp->mfp->stat.file_name, pgno, (long long unsigned int)fileid, ret);
+		return 1;
+	}
+	return 0;
+}

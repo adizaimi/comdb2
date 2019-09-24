@@ -6275,16 +6275,47 @@ typedef struct {
         int pageno;
         int pagesize;
 } net_pg_req_t;
+#define NET_PG_REQ_LEN (8+DB_FILE_ID_LEN+4+4)
 
 typedef struct {
         uint64_t token;
         int pagesize;
         int dummy;
-        void *buf;
+        char buf[1];
 } net_pg_resp_t;
+#define NET_PG_RESP_LEN (8+4+4+4)
 
 int page_has_arrived;
 net_pg_resp_t *l_response;
+
+
+static uint8_t *net_pg_req_type_put(const net_pg_req_t *ptr,
+                                 uint8_t *p_buf, const uint8_t *p_buf_end)
+{
+    if (p_buf_end < p_buf || NET_PG_REQ_LEN > (p_buf_end - p_buf))
+        return NULL;
+
+    p_buf = buf_put(&(ptr->token), sizeof(ptr->token), p_buf, p_buf_end);
+    p_buf = buf_put(&(ptr->fileid), sizeof(ptr->fileid), p_buf, p_buf_end);
+    p_buf = buf_put(&(ptr->pageno), sizeof(ptr->pageno), p_buf, p_buf_end);
+    p_buf = buf_put(&(ptr->pagesize), sizeof(ptr->pagesize), p_buf, p_buf_end);
+
+    return p_buf;
+}
+
+static const uint8_t *net_pg_req_type_get(net_pg_req_t *ptr,
+                                 const uint8_t *p_buf, const uint8_t *p_buf_end)
+{
+    if (p_buf_end < p_buf || NET_PG_REQ_LEN > (p_buf_end - p_buf))
+        return NULL;
+
+    p_buf = buf_get(&(ptr->token), sizeof(ptr->token), p_buf, p_buf_end);
+    p_buf = buf_get(&(ptr->fileid), sizeof(ptr->fileid), p_buf, p_buf_end);
+    p_buf = buf_get(&(ptr->pageno), sizeof(ptr->pageno), p_buf, p_buf_end);
+    p_buf = buf_get(&(ptr->pagesize), sizeof(ptr->pagesize), p_buf, p_buf_end);
+
+    return p_buf;
+}
 
 int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t *buf, size_t pagesize, size_t *niop)
 {
@@ -6292,56 +6323,70 @@ int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t
     srand48(time(NULL));
     request.token = lrand48();
     memcpy(request.fileid, fileid, sizeof(request.fileid));
-    printf("AZ: sending net_pg_req_t.token %lx\n", request.token);
+    printf("AZ: sending net_pg_req_t.token %lx fileid %llx pageno %d pagesize %d\n", request.token, *(unsigned long long int*)request.fileid, request.pageno, request.pagesize);
 
-    /*
-    bdb_state_type *bdb_state = thedb->bdb_env;
-    int rc = net_send_nodrop(bdb_state->repinfo->netinfo,
-            bdb_state->repinfo->master_host,
-            USER_TYPE_GET_PAGE, &request,
-            sizeof(request), 1);
-    //put_in_circular_queue(token);
-    //if (check_status_in_circular_queue(token) == done) {
-        //pop_from_circular_queue(token, &result);
-    //}
-    return rc;
-    TODO:
-     * CAN use stored procedure for the interim
-     * propably need to set gbl_is_physical_replicant = 1
-            */
-
-    // need to wait for page here
     char *master = thedb->master;
     if (!master)
         return -1;
+    uint8_t net_buf[sizeof(request)];
+    net_pg_req_type_put(&request, net_buf, net_buf + sizeof(request));
     int rc = net_send_message(thedb->handle_sibling, master, USER_TYPE_GET_PAGE,
-            &request, sizeof(request), 0, 0);
+            net_buf, sizeof(request), 0, 0);
     if (rc) {
+        printf("AZ: error from net_send_message \n");
         return -1;
     }
+    
+    // need to wait for page here
     int count = 0;
     const int MAX_WAIT = 100;
     while (!page_has_arrived && ++count < MAX_WAIT) {
-        usleep(1);
+        usleep(10);
     }
-    if (!page_has_arrived)
+    if (!page_has_arrived) {
+        printf("AZ: page has not arrived after count 1us sleeps %d\n", count);
         return -1;
+    }
+    printf("AZ: page token %lx with pagesize %d has arrived after count 1us sleeps %d\n", l_response->token, l_response->pagesize, count);
     memcpy(buf, l_response->buf, l_response->pagesize);
+
+    char *util_tohex(char *out, const char *in, size_t len);
+    char expanded[21];
+    util_tohex(expanded, (const char *)buf, 10);
+    logmsg(LOGMSG_USER, "net_hereis_page_handler> expanded %s\n", expanded);
+
+    *niop = l_response->pagesize;
     return 0;
 }
  
+int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LEN], int pageno,
+        char **buf, size_t *size);
+
 void net_get_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
                     int usertype, void *dta, int dtalen, uint8_t is_tcp)
 {
-    net_pg_req_t *request = (net_pg_req_t*)dta;
+    net_pg_req_t request;
+    net_pg_req_type_get(&request, dta, dta + dtalen);
 
-    printf("AZ: received net_pg_req_t.token %lx\n", request->token);
-    size_t resp_size = sizeof(net_pg_resp_t) + request->pagesize;
-    net_pg_resp_t *resp = malloc(resp_size);
-    resp->token = request->token;
-    resp->pagesize = request->pagesize;
-    /* get page content &into resp->buf */
-    //resp->buf = 
+    printf("AZ: received net_pg_req_t.token %lx fileid %llx pageno %d pagesize %d\n", request.token, *(unsigned long long int*)request.fileid, request.pageno, request.pagesize);
+    size_t resp_size = sizeof(net_pg_resp_t) + request.pagesize;
+    net_pg_resp_t *resp = alloca(resp_size);
+    resp->token = request.token;
+    resp->pagesize = request.pagesize;
+    size_t size;
+    /* get page content into resp->buf */
+    int rc = bdb_fetch_page(thedb->bdb_env, request.fileid, request.pageno, (char **)&resp->buf, &size);
+    if (rc) {
+        abort();
+    }
+    if (request.pagesize != size) {
+        abort();
+    }
+
+    char *util_tohex(char *out, const char *in, size_t len);
+    char expanded[21];
+    util_tohex(expanded, (const char *)resp->buf, 10);
+    logmsg(LOGMSG_USER, "net_get_page_handler> expanded %s\n", expanded);
 
     net_send_message(thedb->handle_sibling, fromhost, USER_TYPE_HEREIS_PAGE,
                 resp, resp_size, 0, 0);
@@ -6350,11 +6395,12 @@ void net_get_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
 void net_hereis_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
                     int usertype, void *dta, int dtalen, uint8_t is_tcp)
 {
-    // is dta something that goes away or can we take ownership
-    net_pg_resp_t *resp = l_response = (net_pg_resp_t *)dta;
+    // is dta something that goes away or can we take ownership?
+    /* assign to dta to global */
+    l_response = malloc(dtalen);
+    memcpy(l_response, dta, dtalen);
     page_has_arrived = 1;
-    /* assign to resp->buf to global */
-    printf("AZ: resp.token %lx\n", resp->token);
+    printf("AZ: resp.token %lx\n", l_response->token);
 }
 
 /*
