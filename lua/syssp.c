@@ -602,8 +602,8 @@ int bdb_fetch_page(bdb_state_type *bdb_state, int fileid, int pageno,
 
 static int db_comdb2_get_berkdb_page(Lua L)
 {
-    int fileid;
-    int pageno;
+    int fileid = -1;
+    int pageno = -1;
     int rc;
     blob_t page;
     char *buf;
@@ -614,6 +614,9 @@ static int db_comdb2_get_berkdb_page(Lua L)
         if (lua_isnumber(L, 2)) {
             pageno = lua_tonumber(L, -1);
         }
+    }
+    if (fileid < 0 || pageno < 0) {
+        return luaL_error(L, "Need valid fileid and page number");
     }
     printf("%s: fileid: %d, pageno: %d\n", __func__, fileid, pageno);
 

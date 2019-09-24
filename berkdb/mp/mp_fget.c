@@ -219,14 +219,12 @@ u_int64_t gbl_memp_pgreads = 0;
  *      mark whether it needs to do io
  */
 static int
-__memp_fget_buf_internal(dbmfp, pgnoaddr, flags, addrp, did_io, buf, size)
+__memp_fget_internal(dbmfp, pgnoaddr, flags, addrp, did_io)
 	DB_MPOOLFILE *dbmfp;
 	db_pgno_t *pgnoaddr;
 	u_int32_t flags;
 	void *addrp;
 	int *did_io;
-	unsigned char **buf;
-	size_t *size;
 {
 	enum { FIRST_FOUND, FIRST_MISS, SECOND_FOUND, SECOND_MISS } state;
 	BH *alloc_bhp, *bhp;
@@ -846,13 +844,6 @@ alloc:		/*
 	if (gbl_bb_berkdb_enable_memp_timing)
 		bb_memp_hit(start_time_us);
 
-	// NC: page is stuck in bhp->buf and its size is
-	// dbmfp->mfp->stat.st_pagesize;
-	if (buf)
-		*buf = bhp->buf;
-	if (size)
-		*size =  dbmfp->mfp->stat.st_pagesize;
-
 	return (0);
 
 err:	/*
@@ -883,16 +874,6 @@ err:	/*
 	return (ret);
 }
 
-static int
-__memp_fget_internal(dbmfp, pgnoaddr, flags, addrp, did_io)
-	DB_MPOOLFILE *dbmfp;
-	db_pgno_t *pgnoaddr;
-	u_int32_t flags;
-	void *addrp;
-	int *did_io;
-{
-	return __memp_fget_buf_internal(dbmfp, pgnoaddr, flags, addrp, did_io, 1, 0);
-}
 
 /*
  * __memp_read_recovery_pages --
@@ -1163,17 +1144,15 @@ int __slow_memp_fget_ns = 0;
  * __memp_buf_fget --
  *	Get a page from the file.
  *
- * PUBLIC: int __memp_buf_fget
- * PUBLIC:     __P((DB_MPOOLFILE *, db_pgno_t *, u_int32_t, void *, unsigned char **, size_t *));
+ * PUBLIC: int __memp_fget
+ * PUBLIC:     __P((DB_MPOOLFILE *, db_pgno_t *, u_int32_t, void *));
  */
 int
-__memp_buf_fget(dbmfp, pgnoaddr, flags, addrp, buf, size)
+__memp_fget(dbmfp, pgnoaddr, flags, addrp)
 	DB_MPOOLFILE *dbmfp;
 	db_pgno_t *pgnoaddr;
 	u_int32_t flags;
 	void *addrp;
-	unsigned char **buf;
-	size_t *size;
 {
 	int ret;
 	struct timespec s, rem;
@@ -1195,7 +1174,7 @@ __memp_buf_fget(dbmfp, pgnoaddr, flags, addrp, buf, size)
 		}
 	}
 
-	ret = __memp_fget_buf_internal(dbmfp, pgnoaddr, flags, addrp, &did_io, buf, size);
+	ret = __memp_fget_internal(dbmfp, pgnoaddr, flags, addrp, &did_io);
 	if (ret || !did_io || !prefault_dbp || !prefault_dbp->log_filename)
 		goto out;
 
@@ -1241,21 +1220,4 @@ __memp_buf_fget(dbmfp, pgnoaddr, flags, addrp, buf, size)
 out:
 
 	return ret;
-}
-
-/*
- * __memp_fget --
- *	Get a page from the file.
- *
- * PUBLIC: int __memp_fget
- * PUBLIC:     __P((DB_MPOOLFILE *, db_pgno_t *, u_int32_t, void *));
- */
-int
-__memp_fget(dbmfp, pgnoaddr, flags, addrp)
-	DB_MPOOLFILE *dbmfp;
-	db_pgno_t *pgnoaddr;
-	u_int32_t flags;
-	void *addrp;
-{
-	return __memp_buf_fget(dbmfp, pgnoaddr, flags, addrp, 0, 0);
 }

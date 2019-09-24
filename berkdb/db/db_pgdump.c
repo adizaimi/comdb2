@@ -352,6 +352,7 @@ __pgdump(DB_ENV *dbenv, int32_t fileid, db_pgno_t pgno)
 	}
 }
 
+/* page gets written in buf, caller is responsible to free it */
 int
 __get_page(DB_ENV *dbenv, int32_t fileid, db_pgno_t pgno, unsigned char **buf,
 	size_t *size)
@@ -370,13 +371,17 @@ __get_page(DB_ENV *dbenv, int32_t fileid, db_pgno_t pgno, unsigned char **buf,
 		return 1;
 	}
 	mpf = dbp->mpf;
-	ret = __memp_buf_fget(mpf, &pgno, 0, &pagep, buf, size);
+	ret = __memp_fget(mpf, &pgno, 0, &pagep);
 	if (ret) {
 		fprintf(stderr,
 			"%s: __memp_fget %s pgno %" PRIu32 " %" PRIi32
 			" error=%d\n", __func__, dbp->fname, pgno, fileid, ret);
 		return 1;
 	}
+    *buf = malloc(mpf->mfp->stat.st_pagesize);
+    memcpy(*buf, pagep, mpf->mfp->stat.st_pagesize);
+
+    *size = (size_t)mpf->mfp->stat.st_pagesize;
 	logmsg(LOGMSG_INFO, "%s: page size: %ld\n", __func__, *size);
 	logmsg(LOGMSG_USER, "pgdump> %s id %" PRIi32 " page %" PRIu32 "\n", dbp->fname,
 		fileid, pgno);

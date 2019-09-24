@@ -6283,6 +6283,8 @@ typedef struct {
         void *buf;
 } net_pg_resp_t;
 
+int page_has_arrived;
+net_pg_resp_t *l_response;
 
 int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t *buf, size_t pagesize, size_t *niop)
 {
@@ -6310,10 +6312,22 @@ int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t
 
     // need to wait for page here
     char *master = thedb->master;
-    if (master)
-        return net_send_message(thedb->handle_sibling, master, USER_TYPE_GET_PAGE,
-                &request, sizeof(request), 0, 0);
-    else return -1;
+    if (!master)
+        return -1;
+    int rc = net_send_message(thedb->handle_sibling, master, USER_TYPE_GET_PAGE,
+            &request, sizeof(request), 0, 0);
+    if (rc) {
+        return -1;
+    }
+    int count = 0;
+    const int MAX_WAIT = 100;
+    while (!page_has_arrived && ++count < MAX_WAIT) {
+        usleep(1);
+    }
+    if (!page_has_arrived)
+        return -1;
+    memcpy(buf, l_response->buf, l_response->pagesize);
+    return 0;
 }
  
 void net_get_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
@@ -6336,8 +6350,9 @@ void net_get_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
 void net_hereis_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
                     int usertype, void *dta, int dtalen, uint8_t is_tcp)
 {
-    net_pg_resp_t *resp = (net_pg_resp_t *)usr_ptr;
-
+    // is dta something that goes away or can we take ownership
+    net_pg_resp_t *resp = l_response = (net_pg_resp_t *)dta;
+    page_has_arrived = 1;
     /* assign to resp->buf to global */
     printf("AZ: resp.token %lx\n", resp->token);
 }
