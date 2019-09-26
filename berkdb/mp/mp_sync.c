@@ -2545,8 +2545,9 @@ __get_page(DB_ENV *dbenv, unsigned char fileid[DB_FILE_ID_LEN], db_pgno_t pgno, 
 	logmsg(LOGMSG_USER, "__get_page> %s id %llx page %d size %ld\n", dbmfp->mfp->stat.file_name, *(long long unsigned int*)fileid, pgno, *size);
 
     char *util_tohex(char *out, const char *in, size_t len);
-    char expanded[21];
-    util_tohex(expanded, (const char *)buf, 10);
+#define EXSZ 40
+    char expanded[EXSZ*2+1];
+    util_tohex(expanded, (const char *)buf, EXSZ);
 	logmsg(LOGMSG_USER, "__get_page> %s\n", expanded);
 
 	//dopage(dbp, pagep);

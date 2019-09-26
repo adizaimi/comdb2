@@ -450,11 +450,41 @@ __memp_pgread(dbmfp, hp, bhp, can_create, is_recovery_page)
                    flname, *(unsigned long long int*)fileid, pgno, (int)pagesize);
             if ((ret = __memp_net_pgread(fileid, pgno, bhp->buf, pagesize, &nr)))
                 goto err;
-            //NOTE: We will get pages from net only for pg>1 and non sys tbls like llmeta etc.
+
+            __dir_pg(dbmfp, pgno, bhp->buf, 0);
+
+            {
+                uint8_t *newbuf = alloca(pagesize);
+                size_t newnr = 0;
+                //NOTE: We will get pages from net only for pg>1 and non sys tbls like llmeta etc.
+                if ((ret = __os_io(dbenv, DB_IO_READ,
+                                dbmfp->fhp, bhp->pgno, pagesize, newbuf, &newnr)) != 0)
+                    goto err;
+                if(nr != newnr)
+                    abort();
+
+                extern char *util_tohex(char *out, const char *in, size_t len);
+#define EXSZ 40
+                char expanded[EXSZ*2+1];
+                util_tohex(expanded, (const char *)bhp->buf, EXSZ);
+                logmsg(LOGMSG_USER, "__memp_pgread %d NET> %s\n", bhp->pgno, expanded);
+                util_tohex(expanded, (const char *)newbuf, EXSZ);
+                logmsg(LOGMSG_USER, "__memp_pgread %d IO > %s\n", bhp->pgno, expanded);
+
+                if(memcmp(newbuf, bhp->buf, nr)!=0) abort(); 
+            }
         }
         else if ((ret = __os_io(dbenv, DB_IO_READ,
 		    dbmfp->fhp, bhp->pgno, pagesize, bhp->buf, &nr)) != 0)
 			goto err;
+        else { 
+            extern char *util_tohex(char *out, const char *in, size_t len);
+#define EXSZ 40
+            char expanded[EXSZ*2+1];
+            util_tohex(expanded, (const char *)bhp->buf, EXSZ);
+            logmsg(LOGMSG_USER, "__memp_pgread %d IO > %s\n", bhp->pgno, expanded);
+        }
+
     }
 	/*
 	 * The page may not exist; if it doesn't, nr may well be 0, but we

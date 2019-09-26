@@ -6320,10 +6320,12 @@ static const uint8_t *net_pg_req_type_get(net_pg_req_t *ptr,
 int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t *buf, size_t pagesize, size_t *niop)
 {
     net_pg_req_t request = { .pageno = pageno, .pagesize = pagesize };
-    srand48(time(NULL));
+    //srand48(time(NULL));
+    request.token = lrand48();
     request.token = lrand48();
     memcpy(request.fileid, fileid, sizeof(request.fileid));
     printf("AZ: sending net_pg_req_t.token %lx fileid %llx pageno %d pagesize %d\n", request.token, *(unsigned long long int*)request.fileid, request.pageno, request.pagesize);
+    page_has_arrived = 0;
 
     char *master = thedb->master;
     if (!master)
@@ -6351,8 +6353,9 @@ int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t
     memcpy(buf, l_response->buf, l_response->pagesize);
 
     char *util_tohex(char *out, const char *in, size_t len);
-    char expanded[21];
-    util_tohex(expanded, (const char *)buf, 10);
+#define EXSZ 40
+    char expanded[EXSZ*2+1];
+    util_tohex(expanded, (const char *)buf, EXSZ);
     logmsg(LOGMSG_USER, "net_hereis_page_handler> expanded %s\n", expanded);
 
     *niop = l_response->pagesize;
@@ -6384,8 +6387,9 @@ void net_get_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
     }
 
     char *util_tohex(char *out, const char *in, size_t len);
-    char expanded[21];
-    util_tohex(expanded, (const char *)resp->buf, 10);
+#define EXSZ 40
+    char expanded[EXSZ*2+1];
+    util_tohex(expanded, (const char *)resp->buf, EXSZ);
     logmsg(LOGMSG_USER, "net_get_page_handler> expanded %s\n", expanded);
 
     net_send_message(thedb->handle_sibling, fromhost, USER_TYPE_HEREIS_PAGE,
