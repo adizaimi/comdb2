@@ -6378,7 +6378,8 @@ void net_get_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
     resp->pagesize = request.pagesize;
     size_t size;
     /* get page content into resp->buf */
-    int rc = bdb_fetch_page(thedb->bdb_env, request.fileid, request.pageno, (char **)&resp->buf, &size);
+    char *bptr = &(resp->buf[0]);
+    int rc = bdb_fetch_page(thedb->bdb_env, request.fileid, request.pageno, &bptr, &size);
     if (rc) {
         abort();
     }

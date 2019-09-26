@@ -2510,7 +2510,7 @@ __bhlru(p1, p2)
 	return (0);
 }
 
-/* page gets written in buf, caller is responsible to free it */
+/* page gets written in *buf, if caller has not already allocated space, we will alocate it and caller is responsible to free it */
 int
 __get_page(DB_ENV *dbenv, unsigned char fileid[DB_FILE_ID_LEN], db_pgno_t pgno, unsigned char **buf, size_t *size)
 {
@@ -2538,17 +2538,12 @@ __get_page(DB_ENV *dbenv, unsigned char fileid[DB_FILE_ID_LEN], db_pgno_t pgno, 
 			" error=%d\n", __func__, dbmfp->mfp->stat.file_name, pgno, *(long long unsigned int*)fileid, ret);
 		return 1;
 	}
-    *buf = malloc(dbmfp->mfp->stat.st_pagesize);
-    memcpy(buf, pagep, dbmfp->mfp->stat.st_pagesize);
-    *size = (size_t)dbmfp->mfp->stat.st_pagesize;
 
-	logmsg(LOGMSG_USER, "__get_page> %s id %llx page %d size %ld\n", dbmfp->mfp->stat.file_name, *(long long unsigned int*)fileid, pgno, *size);
-
-    char *util_tohex(char *out, const char *in, size_t len);
+    extern char *util_tohex(char *out, const char *in, size_t len);
 #define EXSZ 40
     char expanded[EXSZ*2+1];
-    util_tohex(expanded, (const char *)buf, EXSZ);
-	logmsg(LOGMSG_USER, "__get_page> %s\n", expanded);
+    util_tohex(expanded, (const char *)pagep, EXSZ);
+	logmsg(LOGMSG_USER, "__get_page preout %llx:%d> %s\n", *(long long unsigned int*)fileid, pgno, expanded);
 
 	//dopage(dbp, pagep);
 	ret = __memp_fput(dbmfp, pagep, 0);
@@ -2557,5 +2552,15 @@ __get_page(DB_ENV *dbenv, unsigned char fileid[DB_FILE_ID_LEN], db_pgno_t pgno, 
 			__func__, dbmfp->mfp->stat.file_name, pgno, (long long unsigned int)fileid, ret);
 		return 1;
 	}
+
+    if (!*buf)
+        *buf = malloc(dbmfp->mfp->stat.st_pagesize);
+    memcpy(*buf, pagep, dbmfp->mfp->stat.st_pagesize);
+    *size = (size_t)dbmfp->mfp->stat.st_pagesize;
+    __dir_pg(dbmfp, pgno, *buf, 0);
+
+    util_tohex(expanded, (const char *)*buf, EXSZ);
+	logmsg(LOGMSG_USER, "__get_page pstout %llx:%d> %s\n", *(long long unsigned int*)fileid, pgno, expanded);
+
 	return 0;
 }

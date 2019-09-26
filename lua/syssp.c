@@ -608,7 +608,7 @@ static int db_comdb2_get_berkdb_page(Lua L)
     int pageno = -1;
     int rc;
     blob_t page;
-    char *buf;
+    char *buf = NULL;
     size_t size = 0;
 
     if (lua_isstring(L, 1)) {
@@ -637,6 +637,7 @@ static int db_comdb2_get_berkdb_page(Lua L)
     lua_pushstring(L, "page");
     luabb_pushblob(L, &page);
     lua_settable(L, -3);
+    free(buf);
 
     // Add it to the table
     lua_rawseti(L, -2, 1);
