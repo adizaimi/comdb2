@@ -276,13 +276,13 @@ DEF_ATTR(CHECK_LOCKER_LOCKS, check_locker_locks, BOOLEAN, 0,
 DEF_ATTR(DEADLOCK_MOST_WRITES, deadlock_most_writes, BOOLEAN, 0,
          "If AUTODEADLOCKDETECT is off, prefer transaction with most writes as "
          "deadlock victim.")
-DEF_ATTR(DEADLOCK_WRITERS_WITH_LEAST_WRITES, deadlock_least_writes, BOOLEAN, 1,
+DEF_ATTR(DEADLOCK_WRITERS_WITH_LEAST_WRITES, deadlock_least_writes, BOOLEAN, 0,
          "If AUTODEADLOCKDETECT is off, prefer transaction with least write as "
          "deadlock victim.")
 DEF_ATTR(DEADLOCK_YOUNGEST_EVER, deadlock_youngest_ever, BOOLEAN, 0,
          "If AUTODEADLOCKDETECT is off, prefer youngest transaction as "
          "deadlock victim.")
-DEF_ATTR(DEADLOCK_LEAST_WRITES_EVER, deadlock_least_writes_ever, BOOLEAN, 1,
+DEF_ATTR(DEADLOCK_LEAST_WRITES_EVER, deadlock_least_writes_ever, BOOLEAN, 0,
          "If AUTODEADLOCKDETECT is off, prefer transaction with least write as "
          "deadlock victim.")
 DEF_ATTR(DISABLE_WRITER_PENALTY_DEADLOCK, disable_writer_penalty_deadlock,
