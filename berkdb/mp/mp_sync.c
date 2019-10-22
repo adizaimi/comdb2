@@ -2521,7 +2521,7 @@ __get_page(DB_ENV *dbenv, unsigned char fileid[DB_FILE_ID_LEN], db_pgno_t pgno, 
 	DB_MPOOLFILE *dbmfp = NULL;
 
 	MUTEX_THREAD_LOCK(dbenv, dbmp->mutexp);
-	for (dbmfp = TAILQ_FIRST(&dbmp->dbmfq); dbmfp != NULL;                                                                                                               
+	for (dbmfp = TAILQ_FIRST(&dbmp->dbmfq); dbmfp != NULL;
 			dbmfp = TAILQ_NEXT(dbmfp, q)) {
 		if (memcmp(dbmfp->fileid, fileid, DB_FILE_ID_LEN) == 0)
 			break;

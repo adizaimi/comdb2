@@ -196,6 +196,8 @@ static void *thd_appsock_int(appsock_work_args_t *w, int *keepsocket,
 
         st = 0;
 
+        logmsg(LOGMSG_ERROR, "________  %s:%s", __func__, line);
+
         tok = segtok(line, rc, &st, &ltok);
         if (ltok == 0)
             continue;

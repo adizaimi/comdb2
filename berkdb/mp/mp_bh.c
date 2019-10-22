@@ -446,7 +446,7 @@ __memp_pgread(dbmfp, hp, bhp, can_create, is_recovery_page)
         unsigned char *fileid = R_ADDR(dbmp->reginfo, mfp->fileid_off);
         int pgno = bhp->pgno;
         if(gbl_ready && gbl_diskless && strcmp(flname, "comdb2_llmeta.dta") != 0 && pgno > 0) {
-            logmsg(LOGMSG_ERROR, "AZ: WOULD CALL __memp_pgnetread filename %s, fileid %llx, page %d, pagesize %d\n", 
+            logmsg(LOGMSG_USER, "AZ: WOULD CALL  __memp_net_pgread filename %s, fileid %llx, page %d, pagesize %d\n", 
                    flname, *(unsigned long long int*)fileid, pgno, (int)pagesize);
             if ((ret = __memp_net_pgread(fileid, pgno, bhp->buf, pagesize, &nr)))
                 goto err;

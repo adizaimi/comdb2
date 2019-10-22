@@ -20,6 +20,7 @@ add_subdirectory(remsql)
 add_subdirectory(repopnewlrl)
 add_subdirectory(dbqueuedb)
 add_subdirectory(sockbplog)
+add_subdirectory(getpage)
 
 set(COMDB2_EXTRA_PLUGINS ${EXTRA_PLUGINS} CACHE PATH "Path to additional plugins")
 if (COMDB2_EXTRA_PLUGINS)

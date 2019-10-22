@@ -4371,7 +4371,7 @@ logmsg(LOGMSG_ERROR, "AZ: dtanum=%d, strnum=%d\n", dtanum, strnum);
                         db_flags |= DB_OLCOMPACT;
                     rc = dbp->open(dbp, tid, tmpname, NULL, dta_type, db_flags,
                                    db_mode);
-                    logmsg(LOGMSG_FATAL, "AZ: ERRR tmpname=%s diskless=%d, rc=%d\n", tmpname, gbl_diskless, rc);
+                    logmsg(LOGMSG_USER, "AZ: ERRR tmpname=%s diskless=%d, rc=%d\n", tmpname, gbl_diskless, rc);
                     logmsg(
                         LOGMSG_DEBUG,
                         "dbp->open %s type=%d dbp=%p txn=%p rc %d flags=0x%X\n",

@@ -491,7 +491,8 @@ int authenticate_cursor(BtCursor *pCur, int how)
     return 0;
 }
 
-int peer_dropped_connection_sbuf(SBUF2 *sb)
+/* returs 1 if sb is disconnected, 0 otherwise */
+inline int peer_dropped_connection_sb(SBUF2 *sb)
 {
     if (!sb)
         return 0;
@@ -10978,6 +10979,9 @@ retry:
                 __func__, host);
         return NULL;
     }
+
+    logmsg(LOGMSG_ERROR, "%s: connecting to %s on machine %s port %d\n",
+                __func__, dbname, host, port);
 
     sockfd = tcpconnecth_to(host, port, 0, 0);
     if (sockfd == -1) {

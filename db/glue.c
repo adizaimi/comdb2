@@ -6319,6 +6319,11 @@ static const uint8_t *net_pg_req_type_get(net_pg_req_t *ptr,
 
 int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t *buf, size_t pagesize, size_t *niop)
 {
+
+    extern int send_get_page(unsigned char fileid[DB_FILE_ID_LEN], int pageno,
+                   u_int8_t *buf, size_t pagesize, size_t *niop);
+    return send_get_page(fileid, pageno, buf, pagesize, niop);
+
     net_pg_req_t request = { .pageno = pageno, .pagesize = pagesize };
     //srand48(time(NULL));
     request.token = lrand48();
@@ -6352,18 +6357,17 @@ int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t
     printf("AZ: page token %lx with pagesize %d has arrived after count 1us sleeps %d\n", l_response->token, l_response->pagesize, count);
     memcpy(buf, l_response->buf, l_response->pagesize);
 
-    char *util_tohex(char *out, const char *in, size_t len);
+    extern char *util_tohex(char *out, const char *in, size_t len);
 #define EXSZ 40
     char expanded[EXSZ*2+1];
     util_tohex(expanded, (const char *)buf, EXSZ);
-    logmsg(LOGMSG_USER, "net_hereis_page_handler> expanded %s\n", expanded);
+    logmsg(LOGMSG_USER, "__memp_net_pgread> expanded %s\n", expanded);
 
     *niop = l_response->pagesize;
     return 0;
 }
  
-int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LEN], int pageno,
-        char **buf, size_t *size);
+extern int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LEN], int pageno, char **buf, size_t *size);
 
 void net_get_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
                     int usertype, void *dta, int dtalen, uint8_t is_tcp)
