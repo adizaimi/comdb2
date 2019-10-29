@@ -3684,7 +3684,7 @@ static int init(int argc, char **argv)
      * it decides it needs to fixcomdb2 itself.  From itself.
      */
 
-    if (!gbl_exit) {
+    if (!gbl_exit && !gbl_diskless) {
         char copylockfile[256], txndir[256];
         struct stat st;
         DIR *dh;
@@ -3807,7 +3807,7 @@ static int init(int argc, char **argv)
 
     gbl_myroom = getroom_callback(NULL, gbl_myhostname);
 
-    if (skip_clear_queue_extents) {
+    if (skip_clear_queue_extents || gbl_diskless) {
         logmsg(LOGMSG_INFO, "skipping clear_queue_extents()\n");
     } else {
         clear_queue_extents();

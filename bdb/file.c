@@ -2841,30 +2841,31 @@ static DB_ENV *dbenv_open(bdb_state_type *bdb_state)
         opt = listc_rtl(&bdb_state->attr->deferred_berkdb_options);
     }
 
-    BDB_WRITELOCK("dbenv_open");
+    if (!gbl_diskless) {
+        BDB_WRITELOCK("dbenv_open");
 
-    print(bdb_state, "opening %s\n", txndir);
-    rc = dbenv->open(dbenv, txndir, flags, S_IRUSR | S_IWUSR);
-    if (rc != 0) {
-        (void)dbenv->close(dbenv, 0);
-        logmsg(LOGMSG_FATAL, "%d dbenv->open: %s: %s\n", rc, bdb_state->name,
-                db_strerror(rc));
-        exit(1);
-    }
-
-    BDB_RELLOCK();
-
-    /* Just before we are officially "open" - we still need to add any blkseqs
-     * that may precede the recovery point in the log.  Now would be a good time
-     * -
-     * the environment is open, but we haven't started replication yet. */
-    if (bdb_state->attr->private_blkseq_enabled) {
-        rc = bdb_recover_blkseq(bdb_state);
-        if (rc) {
-            logmsg(LOGMSG_ERROR, "bdb_recover_blkseq rc %d\n", rc);
-            return NULL;
+        print(bdb_state, "opening %s\n", txndir);
+        rc = dbenv->open(dbenv, txndir, flags, S_IRUSR | S_IWUSR);
+        if (rc != 0) {
+            (void)dbenv->close(dbenv, 0);
+            logmsg(LOGMSG_FATAL, "%d dbenv->open: %s: %s\n", rc, bdb_state->name,
+                    db_strerror(rc));
+            exit(1);
         }
-    }
+
+        BDB_RELLOCK();
+
+        /* Just before we are officially "open" - we still need to add any blkseqs
+         * that may precede the recovery point in the log.  Now would be a good time
+         * -
+         * the environment is open, but we haven't started replication yet. */
+        if (bdb_state->attr->private_blkseq_enabled) {
+            rc = bdb_recover_blkseq(bdb_state);
+            if (rc) {
+                logmsg(LOGMSG_ERROR, "bdb_recover_blkseq rc %d\n", rc);
+                return NULL;
+            }
+        }
 
 /* skip all the replication stuff if we dont have a network */
 /*
@@ -2872,39 +2873,40 @@ if (!is_real_netinfo(bdb_state->repinfo->netinfo))
    goto end;
    */
 
-/* limit amount we retrans in one shot */
+    /* limit amount we retrans in one shot */
 #if defined(BERKDB_4_5) || defined(BERKDB_46)
-    rc = dbenv->rep_set_limit(dbenv, 0, bdb_state->attr->replimit);
+        rc = dbenv->rep_set_limit(dbenv, 0, bdb_state->attr->replimit);
 #else
-    rc = dbenv->set_rep_limit(dbenv, 0, bdb_state->attr->replimit);
+        rc = dbenv->set_rep_limit(dbenv, 0, bdb_state->attr->replimit);
 #endif
-    if (rc != 0) {
-        logmsg(LOGMSG_FATAL, "%s: dbenv->set_rep_limit(%u) %d %s\n", __func__,
-                bdb_state->attr->replimit, rc, bdb_strerror(rc));
-        exit(1);
-    }
+        if (rc != 0) {
+            logmsg(LOGMSG_FATAL, "%s: dbenv->set_rep_limit(%u) %d %s\n", __func__,
+                    bdb_state->attr->replimit, rc, bdb_strerror(rc));
+            exit(1);
+        }
 
 #ifdef DEAD
-    /* immediately ask for retrans if we see a gap in sequence */
-    dbenv->set_rep_request(dbenv, 1, 1);
+        /* immediately ask for retrans if we see a gap in sequence */
+        dbenv->set_rep_request(dbenv, 1, 1);
 #endif
 
-    /* display our starting LSN before we begin replication */
-    {
-        DB_LSN our_lsn;
-        DB_LOG_STAT *log_stats;
-        char our_lsn_str[80];
+        /* display our starting LSN before we begin replication */
+        {
+            DB_LSN our_lsn;
+            DB_LOG_STAT *log_stats;
+            char our_lsn_str[80];
 
-        bdb_state->dbenv->log_stat(bdb_state->dbenv, &log_stats,
-                                   DB_STAT_VERIFY);
-        make_lsn(&our_lsn, log_stats->st_cur_file, log_stats->st_cur_offset);
-        free(log_stats);
+            bdb_state->dbenv->log_stat(bdb_state->dbenv, &log_stats,
+                                       DB_STAT_VERIFY);
+            make_lsn(&our_lsn, log_stats->st_cur_file, log_stats->st_cur_offset);
+            free(log_stats);
 
-        print(bdb_state, "BEFORE REP_START our LSN: %s\n",
-              lsn_to_str(our_lsn_str, &our_lsn));
+            print(bdb_state, "BEFORE REP_START our LSN: %s\n",
+                  lsn_to_str(our_lsn_str, &our_lsn));
 
-        memcpy(&starting_lsn, &our_lsn, sizeof(DB_LSN));
-        starting_time = time(NULL);
+            memcpy(&starting_lsn, &our_lsn, sizeof(DB_LSN));
+            starting_time = time(NULL);
+        }
     }
 
     /* start the network up */
@@ -2917,37 +2919,39 @@ if (!is_real_netinfo(bdb_state->repinfo->netinfo))
 
     start_udp_reader(bdb_state);
 
-    if (startasmaster) {
-        logmsg(LOGMSG_INFO,
-               "%s line %d calling rep_start as master with egen 0\n", __func__,
-               __LINE__);
-        rc = dbenv->rep_start(dbenv, NULL, 0, DB_REP_MASTER);
-        if (rc != 0) {
-            logmsg(LOGMSG_ERROR, "dbenv_open: rep_start as master failed %d %s\n",
-                    rc, db_strerror(rc));
-            return NULL;
+    if (!gbl_diskless) {
+        if (startasmaster) {
+            logmsg(LOGMSG_INFO,
+                    "%s line %d calling rep_start as master with egen 0\n", __func__,
+                    __LINE__);
+            rc = dbenv->rep_start(dbenv, NULL, 0, DB_REP_MASTER);
+            if (rc != 0) {
+                logmsg(LOGMSG_ERROR, "dbenv_open: rep_start as master failed %d %s\n",
+                        rc, db_strerror(rc));
+                return NULL;
+            }
+            print(bdb_state, "dbenv_open: started rep as MASTER\n");
+        } else /* we start as a client */
+        {
+            /*fprintf(stderr, "dbenv_open: starting rep as client\n");*/
+            logmsg(LOGMSG_USER,
+                    "%s line %d calling rep_start as client with egen 0\n", __func__,
+                    __LINE__);
+            rc = dbenv->rep_start(dbenv, NULL, 0, DB_REP_CLIENT);
+            if (rc != 0) {
+                logmsg(LOGMSG_ERROR, "dbenv_open: rep_start as client failed %d %s\n",
+                        rc, db_strerror(rc));
+                return NULL;
+            }
+            print(bdb_state, "dbenv_open: started rep as CLIENT\n");
         }
-        print(bdb_state, "dbenv_open: started rep as MASTER\n");
-    } else /* we start as a client */
-    {
-        /*fprintf(stderr, "dbenv_open: starting rep as client\n");*/
-        logmsg(LOGMSG_USER,
-               "%s line %d calling rep_start as client with egen 0\n", __func__,
-               __LINE__);
-        rc = dbenv->rep_start(dbenv, NULL, 0, DB_REP_CLIENT);
-        if (rc != 0) {
-            logmsg(LOGMSG_ERROR, "dbenv_open: rep_start as client failed %d %s\n",
-                    rc, db_strerror(rc));
-            return NULL;
-        }
-        print(bdb_state, "dbenv_open: started rep as CLIENT\n");
-    }
 
-    if (bdb_state->rep_started) {
-        logmsg(LOGMSG_ERROR, "rep_started is not 0, but i never set it!\n");
-        exit(1);
+        if (bdb_state->rep_started) {
+            logmsg(LOGMSG_ERROR, "rep_started is not 0, but i never set it!\n");
+            exit(1);
+        }
+        bdb_state->rep_started = 1;
     }
-    bdb_state->rep_started = 1;
 
     /*
       fprintf(stderr, "\n\n################################ back from
@@ -5920,13 +5924,15 @@ static bdb_state_type *bdb_open_int(
 
         bdb_set_key(bdb_state);
 
-        /* create a blkseq db before we open the main environment,
-         * since recovery routines will expect it to exist */
-        if (bdb_state->attr->private_blkseq_enabled) {
-            rc = bdb_create_private_blkseq(bdb_state);
-            if (rc) {
-                logmsg(LOGMSG_FATAL, "failed to create private blkseq rc %d\n", rc);
-                exit(1);
+        if (!gbl_diskless) {
+            /* create a blkseq db before we open the main environment,
+             * since recovery routines will expect it to exist */
+            if (bdb_state->attr->private_blkseq_enabled) {
+                rc = bdb_create_private_blkseq(bdb_state);
+                if (rc) {
+                    logmsg(LOGMSG_FATAL, "failed to create private blkseq rc %d\n", rc);
+                    exit(1);
+                }
             }
         }
 
