@@ -4291,7 +4291,7 @@ void create_old_blkseq_thread(struct dbenv *dbenv)
 {
     int rc;
 
-    if (!dbenv->purge_old_blkseq_is_running) {
+    if (!dbenv->purge_old_blkseq_is_running && !gbl_diskless) {
         rc = pthread_create(&dbenv->purge_old_blkseq_tid, &gbl_pthread_attr,
                             purge_old_blkseq_thread, thedb);
         if (rc)

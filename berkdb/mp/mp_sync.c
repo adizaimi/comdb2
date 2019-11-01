@@ -555,9 +555,15 @@ int gbl_ref_sync_wait_txnlist = 0;
 void collect_txnids(DB_ENV *dbenv, u_int32_t *txnarray, int max, int *count);
 int still_running(DB_ENV *dbenv, u_int32_t *txnarray, int count);
 
+extern int gbl_diskless;
+
 static void
 trickle_do_work(struct thdpool *thdpool, void *work, void *thddata, int thd_op)
 {
+    if (gbl_diskless) {
+        return;
+    }
+
 	struct writable_range *range;
 	DB_ENV *dbenv;
 	db_sync_op op;
