@@ -35,7 +35,7 @@ static int pgetter_connect(SBUF2 **psb)
     SBUF2 *sb = *psb; 
     int use_cache = 0;
     *psb = sb = connect_remote_db("getpage", thedb->envname, "getpage",
-                                  thedb->master, use_cache);
+                                  "node1", use_cache);
     if (!sb) {
         logmsg(LOGMSG_ERROR, "%s unable to connect to %s\n", __func__,
                thedb->master);
@@ -60,7 +60,7 @@ int send_get_page(unsigned char fileid[DB_FILE_ID_LEN], int pageno,
 {
     char expanded[DB_FILE_ID_LEN*2+1];
     util_tohex(expanded, (const char *)fileid, DB_FILE_ID_LEN);
-    printf("^^^^^ AZ: send_get_page() entering, fileid %s:%d\n", expanded, pageno);
+    printf("^^^^^ AZ: %s() entering, fileid %s:%d\n", __func__, expanded, pageno);
     int count = 0;
 
 retry:
@@ -107,19 +107,19 @@ retry:
     char line[256];
     if ((rc = sbuf2gets(line, sizeof(line), sb)) < 0) {
         count++;
-        printf("^^^^^ AZ: handle_getpage_request() line no resp rc=%d count=%d\n", rc, count);
+        printf("^^^^^ AZ: %s() line no resp rc=%d count=%d\n", __func__, rc, count);
         pgetter_disconnect(&pgetter);
         goto retry;
     }
 
     if ((rc = sbuf2fread((char *)buf, 1, pagesize, sb)) != pagesize) {
         count++;
-        printf("^^^^^ AZ: handle_getpage_request() page no resp rc=%d count=%d\n", rc, count);
+        printf("^^^^^ AZ: %s() page no resp rc=%d count=%d\n", __func__, rc, count);
         pgetter_disconnect(&pgetter);
         goto retry;
     }
 
-    printf("^^^^^ AZ: handle_getpage_request() got resp %s after count=%d\n", line, count);
+    printf("^^^^^ AZ: %s() got resp %s after count=%d\n", __func__, line, count);
 
     {
 #define EXSZ 40
@@ -130,11 +130,11 @@ retry:
 
     count = 0;
     if ((rc = sbuf2gets(line, sizeof(line), sb)) < 0) {
-    //while ((rc = sbuf2fread(bptr, 1, 1, sb)) >= 0) {
+    //while ((rc = sbuf2fread(bptr, 1, 1, sb)) >= 0)
         count++;
-        printf("^^^^^ AZ: handle_getpage_request() consume input rc=%d count=%d\n", rc, count);
+        printf("^^^^^ AZ: %s() consume input rc=%d count=%d\n", __func__, rc, count);
     }
-    printf("^^^^^ AZ: handle_getpage_request() final line %s after count=%d\n", line, count);
+    printf("^^^^^ AZ: %s() final line %s after count=%d\n", __func__, line, count);
 
     *niop = pagesize;
     return 0;
@@ -146,32 +146,32 @@ extern int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FIL
  * messages should be compressed by ssl layer as well */
 static int handle_getpage_request(comdb2_appsock_arg_t *arg)
 {
-    unsigned char fileid[DB_FILE_ID_LEN];
     int pageno = 0;
     int pagesize = 0;
     int rc;
     SBUF2 *sb = arg->sb;
-    printf("^^^^^ AZ: handle_getpage_request() entering\n");
+    printf("^^^^^ AZ: %s() entering\n", __func__);
+    sbuf2settimeout(sb, 0, 0);
 
-    while (1) {
+    while (!is_sb_disconnected(sb)) {
+        unsigned char fileid[DB_FILE_ID_LEN] = {0};
         if (((rc = sbuf2fread((char *)fileid, sizeof(fileid), 1, sb)) <= 0)) {
             char expanded[DB_FILE_ID_LEN*2+1];
             util_tohex(expanded, (const char *)fileid, DB_FILE_ID_LEN);
-            logmsg(LOGMSG_ERROR, "%s: I/O error reading out fileid %s\n", __func__,
-                    expanded);
+            logmsg(LOGMSG_ERROR, "%s: I/O error reading out fileid rc=%d errno=%d %s\n", __func__, rc, errno, strerror(errno));
             arg->error = -1;
             return APPSOCK_RETURN_ERR;
         }
 
         if ((rc = sbuf2fread((char*)&pageno, sizeof(pageno), 1, sb)) <= 0) {
-            logmsg(LOGMSG_ERROR, "%s: I/O error reading pageno\n", __func__);
+            logmsg(LOGMSG_ERROR, "%s: I/O error reading out pageno rc=%d\n", __func__, rc);
             arg->error = -1;
             return APPSOCK_RETURN_ERR;
         }
         pageno = ntohl(pageno);
 
         if ((rc = sbuf2fread((char*)&pagesize, sizeof(pagesize), 1, sb)) <= 0) {
-            logmsg(LOGMSG_ERROR, "%s: I/O error reading pagesize\n", __func__);
+            logmsg(LOGMSG_ERROR, "%s: I/O error reading out pagesize rc=%d\n", __func__, rc);
             arg->error = -1;
             return APPSOCK_RETURN_ERR;
         }

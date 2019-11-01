@@ -70,6 +70,10 @@ int SBUF2_FUNC(sbuf2fileno)(SBUF2 *sb);
 void SBUF2_FUNC(sbuf2setflags)(SBUF2 *sb, int flags);
 #define sbuf2setflags SBUF2_FUNC(sbuf2setflags)
 
+/* returs 1 if sb is disconnected, 0 otherwise */
+int SBUF2_FUNC(is_sb_disconnected)(SBUF2 *sb);
+#define is_sb_disconnected SBUF2_FUNC(is_sb_disconnected)
+
 /* open SBUF2 for file descriptor.  returns SBUF2 handle or 0 if error.*/
 SBUF2 *SBUF2_FUNC(sbuf2open)(int fd, int flags);
 #define sbuf2open SBUF2_FUNC(sbuf2open)

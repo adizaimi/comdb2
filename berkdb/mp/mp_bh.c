@@ -445,7 +445,8 @@ __memp_pgread(dbmfp, hp, bhp, can_create, is_recovery_page)
         char *flname = (char*)R_ADDR(dbmp->reginfo, mfp->path_off);
         unsigned char *fileid = R_ADDR(dbmp->reginfo, mfp->fileid_off);
         int pgno = bhp->pgno;
-        if(gbl_ready && gbl_diskless && strcmp(flname, "comdb2_llmeta.dta") != 0 && pgno > 0) {
+        // __db.rep.db. should be allowed to be read normally
+        if(gbl_diskless ) {
             logmsg(LOGMSG_USER, "AZ: WOULD CALL  __memp_net_pgread filename %s, fileid %llx, page %d, pagesize %d\n", 
                    flname, *(unsigned long long int*)fileid, pgno, (int)pagesize);
             if ((ret = __memp_net_pgread(fileid, pgno, bhp->buf, pagesize, &nr)))
@@ -454,7 +455,7 @@ __memp_pgread(dbmfp, hp, bhp, can_create, is_recovery_page)
         else if ((ret = __os_io(dbenv, DB_IO_READ,
 		    dbmfp->fhp, bhp->pgno, pagesize, bhp->buf, &nr)) != 0)
 			goto err;
-        else { 
+        else {  // print pg only if read from disk
             extern char *util_tohex(char *out, const char *in, size_t len);
 #define EXSZ 40
             char expanded[EXSZ*2+1];
