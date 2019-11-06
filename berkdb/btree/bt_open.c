@@ -63,6 +63,7 @@ static const char revid[] = "$Id: bt_open.c,v 11.87 2003/07/17 01:39:09 margo Ex
 #include "dbinc/mp.h"
 #include "dbinc/fop.h"
 
+extern int gbl_diskless;
 static void __bam_init_meta __P((DB *, BTMETA *, db_pgno_t, DB_LSN *));
 
 /*
@@ -297,6 +298,10 @@ __bam_read_root(dbp, txn, base_pgno, flags)
 		goto err;
 	if ((ret = __memp_fget(mpf, &base_pgno, 0, &meta)) != 0)
 		goto err;
+
+    if (gbl_diskless) {
+        mpf->mfp->last_pgno = meta->dbmeta.last_pgno;
+    }
 
 	/*
 	 * If the magic number is set, the tree has been created.  Correct

@@ -17,6 +17,11 @@ static const char revid[] = "$Id: fop_util.c,v 1.83 2003/10/15 20:29:59 margo Ex
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <fcntl.h>
 #endif
 
 #include "db_int.h"
@@ -28,6 +33,9 @@ static const char revid[] = "$Id: fop_util.c,v 1.83 2003/10/15 20:29:59 margo Ex
 #include "dbinc/mp.h"
 #include "dbinc/log.h"
 #include "dbinc/txn.h"
+#include "logmsg.h"
+
+extern int gbl_diskless;
 
 static int __fop_set_pgsize __P((DB *, DB_FH *, const char *));
 
@@ -291,6 +299,45 @@ __fop_file_setup(dbp, txn, name, mode, flags, retidp)
 	if (F_ISSET(dbenv, DB_ENV_OSYNC))
 	    oflags |= DB_OSO_OSYNC;
 
+    if (gbl_diskless) {
+        if ((ret = __os_exists(real_name, NULL)) == 0) {
+            logmsg(LOGMSG_ERROR, "For diskless mode we should not have data file %s in the directory \n", real_name);
+            exit(1);
+        }
+        // get_the_metapage of the file, write it to disk so we can open it next
+        // AZ:
+        extern int send_get_metapage(const char *fname, uint8_t *buf, int dbmetasize);
+        int sizetoget = dbp->pgsize;
+        if (strcmp(real_name, "XXX.comdb2_llmeta.dta") == 0)
+            sizetoget = 9 * dbp->pgsize;
+        u_int8_t *bptr = alloca(sizetoget);
+        send_get_metapage(real_name, bptr, sizetoget);
+
+        char *bdb_trans(const char infile[], char outfile[]);
+        char l[PATH_MAX];
+        bdb_trans(real_name, l);
+
+        int fout = open(l, O_CREAT|O_WRONLY, mode);
+        if (fout < 0) {
+            logmsg(LOGMSG_ERROR, "%s: failed to open fname %s errno = %d (%s)\n", __func__, l, errno, strerror(errno));
+            abort();
+        }
+        int rc;
+
+        /*
+        if((rc = posix_fallocate(fout, 0, dbp->pgsize))) {
+            logmsg(LOGMSG_ERROR, "%s: failed fallocate metapage for real_name %s fout %d rc = %d\n", __func__, l, fout, rc);
+            abort();
+        }
+        lseek(fout, 0, 0);
+        */
+
+        if((rc = write(fout, bptr, sizetoget)) != sizetoget) {
+            logmsg(LOGMSG_ERROR, "%s: failed write metapage for real_name %s fout %d rc = %d\n", __func__, l, fout, rc);
+            abort();
+        }
+    }
+
 retry:	if (!F_ISSET(dbp, DB_AM_COMPENSATE))
 		GET_ENVLOCK(dbenv, locker, &elock);
 	if ((ret = __os_exists(real_name, NULL)) == 0) {
@@ -308,6 +355,8 @@ retry:	if (!F_ISSET(dbp, DB_AM_COMPENSATE))
 		 * 4. Is it a Berkeley DB file and we should simply open it.
 		 * 5. It is not a BDB file and we should return an error.
 		 */
+
+
 
 		/* We have to open the file. */
 reopen:		if ((ret = __os_open(dbenv, real_name, oflags, 0, &fhp)) != 0)
@@ -600,7 +649,7 @@ creat2:	if ((ret = __db_appname(dbenv,
 	F_SET(dbp, DB_AM_CREATED);
 
 	if (0) {
-errmsg:		__db_err(dbenv, "%s: %s", name, db_strerror(ret));
+errmsg:		__db_err(dbenv, "%s: %s: %s", __func__, name, db_strerror(ret));
 err:		CLOSE_HANDLE(dbp, fhp, recp);
 		if (stxn != NULL)
 			(void)__txn_abort(stxn);
@@ -633,6 +682,12 @@ done:	/*
 	if (recp_name != NULL)
 		__os_free(dbenv, recp_name);
 	CLOSE_HANDLE(dbp, fhp, recp);
+    /*
+    if (gbl_diskless) {
+        if (strcmp(real_name, "XXX.comdb2_llmeta.dta") != 0) {
+            __os_unlink(dbenv, real_name);
+        }
+    }*/
 
 	return (ret);
 }
@@ -660,7 +715,7 @@ __fop_set_pgsize(dbp, fhp, name)
 	 * default pagesize to 16K.
 	 */
 	if ((ret = __os_ioinfo(dbenv, name, fhp, NULL, NULL, &iopsize)) != 0) {
-		__db_err(dbenv, "%s: %s", name, db_strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, name, db_strerror(ret));
 		return (ret);
 	}
 	if (iopsize < 512)
@@ -1000,7 +1055,7 @@ __fop_read_meta(dbenv, name, buf, size, fhp, errok, nbytesp)
 
 	if (ret != 0) {
 		if (!errok)
-			__db_err(dbenv, "%s: %s", name, db_strerror(ret));
+			__db_err(dbenv, "%s: %s: %s", __func__, name, db_strerror(ret));
 		goto err;
 	}
 

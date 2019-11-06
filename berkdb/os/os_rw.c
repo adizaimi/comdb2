@@ -631,8 +631,12 @@ retry:		if ((nr = DB_GLOBAL(j_read) != NULL ?
 			if ((ret == EINTR || ret == EBUSY) && nr == -1 &&
 			    ++retries < DB_RETRY)
 				goto retry;
+			printf("read meta: %p, %zu: %s",
+			    taddr, (unsigned)len - offset, strerror(ret));
 			__db_err(dbenv, "read: %p, %zu: %s",
 			    taddr, len - offset, strerror(ret));
+            if (ret)
+                abort();
 			return (ret);
 		}
 		if (nr == 0)

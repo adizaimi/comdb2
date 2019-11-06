@@ -990,7 +990,7 @@ __ram_source(dbp)
 	 */
 	if ((t->re_fp = fopen(t->re_source, "r")) == NULL) {
 		ret = errno;
-		__db_err(dbp->dbenv, "%s: %s", t->re_source, db_strerror(ret));
+		__db_err(dbp->dbenv, "%s: %s: %s", __func__, t->re_source, db_strerror(ret));
 		return (ret);
 	}
 
@@ -1073,7 +1073,7 @@ __ram_writeback(dbp)
 	}
 	if ((fp = fopen(t->re_source, "w")) == NULL) {
 		ret = errno;
-		__db_err(dbenv, "%s: %s", t->re_source, db_strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, t->re_source, db_strerror(ret));
 		goto err;
 	}
 
@@ -1133,7 +1133,7 @@ done:	/* Close the file descriptor. */
 	if (fp != NULL && fclose(fp) != 0) {
 		if (ret == 0)
 			ret = errno;
-		__db_err(dbenv, "%s: %s", t->re_source, db_strerror(errno));
+		__db_err(dbenv, "%s: %s: %s", __func__, t->re_source, db_strerror(errno));
 	}
 
 	/* Discard the cursor. */

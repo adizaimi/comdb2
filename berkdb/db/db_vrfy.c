@@ -382,7 +382,7 @@ __db_verify(dbp, name, subdb, handle, callback, flags)
 		/* Don't try to strerror() DB_VERIFY_FATAL;  it's private. */
 err:		if (ret == DB_VERIFY_FATAL)
 			ret = DB_VERIFY_BAD;
-		__db_err(dbenv, "%s: %s", name, db_strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, name, db_strerror(ret));
 	}
 
 	if (LF_ISSET(DB_SALVAGE) &&

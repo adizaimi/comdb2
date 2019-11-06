@@ -120,7 +120,7 @@ __db_overwrite(dbenv, path)
 		    dbenv, path, fhp, mbytes, bytes, 255)) != 0)
 			goto err;
 	} else
-		__db_err(dbenv, "%s: %s", path, db_strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, path, db_strerror(ret));
 
 err:	if (fhp != NULL)
 		(void)__os_closehandle(dbenv, fhp);
@@ -160,7 +160,7 @@ __db_overwrite_pass(dbenv, path, fhp, mbytes, bytes, pattern)
 	}
 
 	if ((ret = __os_fsync(dbenv, fhp)) != 0)
-err:		__db_err(dbenv, "%s: %s", path, db_strerror(ret));
+err:		__db_err(dbenv, "%s: %s: %s", __func__, path, db_strerror(ret));
 
 	return (ret);
 }

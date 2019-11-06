@@ -241,7 +241,7 @@ int SBUF2_FUNC(sbuf2putc)(SBUF2 *sb, char c)
     return 1;
 }
 
-int SBUF2_FUNC(sbuf2puts)(SBUF2 *sb, char *string)
+int SBUF2_FUNC(sbuf2puts)(SBUF2 *sb, const char *string)
 {
     int rc, ii;
     if (sb == 0)
@@ -260,7 +260,7 @@ int SBUF2_FUNC(sbuf2puts)(SBUF2 *sb, char *string)
 }
 
 /* returns num items written || <0 for error*/
-int SBUF2_FUNC(sbuf2write)(char *ptr, int nbytes, SBUF2 *sb)
+int SBUF2_FUNC(sbuf2write)(const char *ptr, int nbytes, SBUF2 *sb)
 {
     int rc, off, left, written = 0;
     if (sb == 0)
@@ -311,7 +311,7 @@ int SBUF2_FUNC(sbuf2write)(char *ptr, int nbytes, SBUF2 *sb)
 }
 
 /* returns num items written || <0 for error*/
-int SBUF2_FUNC(sbuf2fwrite)(char *ptr, int size, int nitems, SBUF2 *sb)
+int SBUF2_FUNC(sbuf2fwrite)(const char *ptr, int size, int nitems, SBUF2 *sb)
 {
     int rc, ii, jj, off;
     if (sb == 0)

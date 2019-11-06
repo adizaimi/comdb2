@@ -101,15 +101,15 @@ int SBUF2_FUNC(sbuf2putc)(SBUF2 *sb, char c);
 #define sbuf2putc SBUF2_FUNC(sbuf2putc)
 
 /* put \0 terminated string. returns # of bytes written or <0 for err */
-int SBUF2_FUNC(sbuf2puts)(SBUF2 *sb, char *string);
+int SBUF2_FUNC(sbuf2puts)(SBUF2 *sb, const char *string);
 #define sbuf2puts SBUF2_FUNC(sbuf2puts)
 
 /* write to SBUF2. returns number of bytes written or <0 for error */
-int SBUF2_FUNC(sbuf2write)(char *ptr, int nbytes, SBUF2 *sb);
+int SBUF2_FUNC(sbuf2write)(const char *ptr, int nbytes, SBUF2 *sb);
 #define sbuf2write SBUF2_FUNC(sbuf2write)
 
 /* fwrite to SBUF2. returns # of items written or <0 for error */
-int SBUF2_FUNC(sbuf2fwrite)(char *ptr, int size, int nitems, SBUF2 *sb);
+int SBUF2_FUNC(sbuf2fwrite)(const char *ptr, int size, int nitems, SBUF2 *sb);
 #define sbuf2fwrite SBUF2_FUNC(sbuf2fwrite)
 
 /* get character. returns character read */

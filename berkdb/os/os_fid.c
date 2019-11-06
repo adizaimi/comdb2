@@ -74,7 +74,7 @@ retry:
 		if (((ret = __os_get_errno()) == EINTR || ret == EBUSY) &&
 		    ++retries < DB_RETRY)
 			goto retry;
-		__db_err(dbenv, "%s: %s", fname, strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, fname, strerror(ret));
 		return (ret);
 	}
 

@@ -151,7 +151,7 @@ __os_r_sysattach(dbenv, infop, rp)
 	    DB_OSO_REGION | DB_OSO_DIRECT |
 	    (F_ISSET(infop, REGION_CREATE_OK) ? DB_OSO_CREATE : 0),
 	    infop->mode, &fhp)) != 0)
-		__db_err(dbenv, "%s: %s", infop->name, db_strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, infop->name, db_strerror(ret));
 
 	/*
 	 * If we created the file, grow it to its full size before mapping

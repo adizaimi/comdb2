@@ -47,8 +47,6 @@
 
 extern int active_appsock_conns;
 
-extern int sbuf2write(char *ptr, int nbytes, SBUF2 *sb);
-
 static int send_ack_reply(SBUF2 *sb, int rcode, u_char *buf, int buflen);
 
 static const uint8_t *sockreq_type_get(sockreq_t *p_sockreq,

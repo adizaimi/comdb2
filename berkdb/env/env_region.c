@@ -151,7 +151,7 @@ loop:	renv = NULL;
 			goto creation;
 		if (ret != EEXIST) {
 			__db_err(dbenv,
-			    "%s: %s", infop->name, db_strerror(ret));
+			    "%s: %s: %s", __func__, infop->name, db_strerror(ret));
 			goto err;
 		}
 	}
@@ -209,7 +209,7 @@ loop:	renv = NULL;
 	 */
 	if ((ret = __os_ioinfo(dbenv, infop->name,
 	    dbenv->lockfhp, &mbytes, &bytes, NULL)) != 0) {
-		__db_err(dbenv, "%s: %s", infop->name, db_strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, infop->name, db_strerror(ret));
 		goto err;
 	}
 
@@ -821,7 +821,7 @@ __db_e_remfile(dbenv)
 
 	/* Get the list of file names. */
 	if ((ret = __os_dirlist(dbenv, dir, &names, &fcnt)) != 0)
-		__db_err(dbenv, "%s: %s", dir, db_strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, dir, db_strerror(ret));
 
 	/* Restore the path, and free it. */
 	*p = saved_byte;

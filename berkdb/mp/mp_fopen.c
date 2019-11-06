@@ -704,7 +704,7 @@ __memp_fopen(dbmfp, mfp, path, flags, mode, pagesize)
 	if ((ret = __os_open_extend(dbenv, rpath,
 		    0, (u_int32_t)pagesize, oflags, mode, &dbmfp->fhp)) != 0) {
 		if (!LF_ISSET(DB_EXTENT))
-			 __db_err(dbenv, "%s: %s", rpath, db_strerror(ret));
+			 __db_err(dbenv, "%s: %s: %s", __func__, rpath, db_strerror(ret));
 
 		goto err;
 	}
@@ -730,7 +730,7 @@ __memp_fopen(dbmfp, mfp, path, flags, mode, pagesize)
 			    0, (u_int32_t)pagesize,
 			    oflags | DB_OSO_CREATE |DB_OSO_OSYNC,
 			    mode, &dbmfp->recp)) != 0) {
-			__db_err(dbenv, "%s: %s", recp_path, db_strerror(ret));
+			__db_err(dbenv, "%s: %s: %s", __func__, recp_path, db_strerror(ret));
 			goto err;
 		}
 
@@ -764,7 +764,7 @@ __memp_fopen(dbmfp, mfp, path, flags, mode, pagesize)
 	 */
 	if ((ret = __os_ioinfo(
 	    dbenv, rpath, dbmfp->fhp, &mbytes, &bytes, NULL)) != 0) {
-		__db_err(dbenv, "%s: %s", rpath, db_strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, rpath, db_strerror(ret));
 		goto err;
 	}
 
@@ -1245,7 +1245,7 @@ __memp_fclose(dbmfp, flags)
 	/* Discard any mmap information. */
 	if (dbmfp->addr != NULL &&
 	    (ret = __os_unmapfile(dbenv, dbmfp->addr, dbmfp->len)) != 0)
-		__db_err(dbenv, "%s: %s", __memp_fn(dbmfp), db_strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, __memp_fn(dbmfp), db_strerror(ret));
 
 	/*
 	 * Close the file and discard the descriptor structure; temporary
@@ -1258,8 +1258,8 @@ __memp_fclose(dbmfp, flags)
 			dbmfp->fhp->mutexp = NULL;
 		}
 		if ((t_ret = __os_closehandle(dbenv, dbmfp->fhp)) != 0) {
-			__db_err(dbenv, "%s: %s",
-			    __memp_fn(dbmfp), db_strerror(t_ret));
+			__db_err(dbenv, "%s: %s: %s",
+			    __func__, __memp_fn(dbmfp), db_strerror(t_ret));
 			if (ret == 0)
 				ret = t_ret;
 		}
@@ -1274,8 +1274,8 @@ __memp_fclose(dbmfp, flags)
 			dbmfp->recp->mutexp = NULL;
 		}
 		if ((t_ret = __os_closehandle(dbenv, dbmfp->recp)) != 0) {
-			__db_err(dbenv, "%s: %s",
-			    __memp_fn(dbmfp), db_strerror(t_ret));
+			__db_err(dbenv, "%s: %s: %s",
+			    __func__, __memp_fn(dbmfp), db_strerror(t_ret));
 			if (ret == 0)
 				ret = t_ret;
 		}

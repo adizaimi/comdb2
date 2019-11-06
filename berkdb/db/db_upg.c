@@ -102,7 +102,7 @@ __db_upgrade(dbp, fname, flags)
 
 	/* Open the file. */
 	if ((ret = __os_open(dbenv, real_name, 0, 0, &fhp)) != 0) {
-		__db_err(dbenv, "%s: %s", real_name, db_strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, real_name, db_strerror(ret));
 		return (ret);
 	}
 
@@ -354,7 +354,7 @@ __db_lastpgno(dbp, real_name, fhp, pgno_lastp)
 
 	if ((ret = __os_ioinfo(dbenv,
 	    real_name, fhp, &mbytes, &bytes, NULL)) != 0) {
-		__db_err(dbenv, "%s: %s", real_name, db_strerror(ret));
+		__db_err(dbenv, "%s: %s: %s", __func__, real_name, db_strerror(ret));
 		return (ret);
 	}
 
