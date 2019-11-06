@@ -324,14 +324,6 @@ __fop_file_setup(dbp, txn, name, mode, flags, retidp)
         }
         int rc;
 
-        /*
-        if((rc = posix_fallocate(fout, 0, dbp->pgsize))) {
-            logmsg(LOGMSG_ERROR, "%s: failed fallocate metapage for real_name %s fout %d rc = %d\n", __func__, l, fout, rc);
-            abort();
-        }
-        lseek(fout, 0, 0);
-        */
-
         if((rc = write(fout, bptr, sizetoget)) != sizetoget) {
             logmsg(LOGMSG_ERROR, "%s: failed write metapage for real_name %s fout %d rc = %d\n", __func__, l, fout, rc);
             abort();
@@ -682,13 +674,6 @@ done:	/*
 	if (recp_name != NULL)
 		__os_free(dbenv, recp_name);
 	CLOSE_HANDLE(dbp, fhp, recp);
-    /*
-    if (gbl_diskless) {
-        if (strcmp(real_name, "XXX.comdb2_llmeta.dta") != 0) {
-            __os_unlink(dbenv, real_name);
-        }
-    }*/
-
 	return (ret);
 }
 

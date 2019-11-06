@@ -203,6 +203,15 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 		return (ret);
 	}
 
+    if (gbl_diskless) {
+        //if (strcmp(fname, "XXX.comdb2_llmeta.dta") != 0) { }
+        printf("deleting %s\n", fname);
+        int rc = __os_unlink(dbenv, fname);
+        if (rc) {
+            logmsg(LOGMSG_ERROR, "%s: failed to unlink fname %s errno = %d (%s)\n", __func__, fname, errno, strerror(errno));
+            abort();
+        }
+    }
 	/* clear hash flag after inserting into dblist */
 	if (clear_hash_flag)
 		F_CLR(dbp, DB_AM_HASH);
