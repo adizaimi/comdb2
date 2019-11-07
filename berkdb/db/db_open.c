@@ -85,6 +85,7 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 	DB_ENV *dbenv;
 	int ret;
 	u_int32_t id;
+	int created_for_diskless = 0;
 
 	dbenv = dbp->dbenv;
 	id = TXN_INVALID;
@@ -168,7 +169,8 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 			return (ret);
 	} else if (dname == NULL && meta_pgno == PGNO_BASE_MD) {
 
-		if (gbl_diskless) {
+		if (gbl_diskless && fname) {
+			created_for_diskless = 1;
 			if ((ret = __os_exists(fname, NULL)) == 0) {
 				logmsg(LOGMSG_ERROR, "For diskless mode we should not have data file %s in the db directory \n", fname);
 				exit(1);
@@ -236,7 +238,7 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 		return (ret);
 	}
 
-	if (gbl_diskless && dname == NULL && meta_pgno == PGNO_BASE_MD) {
+	if (gbl_diskless && created_for_diskless) {
 		if (__os_unlink(dbenv, fname)) { /* cleanup the files we wrote for diskless */
 			logmsg(LOGMSG_ERROR, "%s: failed to unlink fname %s errno = %d (%s)\n", __func__, fname, errno, strerror(errno));
 			abort();
