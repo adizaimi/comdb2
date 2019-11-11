@@ -93,7 +93,7 @@ __qam_open(dbp, txn, name, base_pgno, mode, flags)
 
 	/* If the magic number is incorrect, that's a fatal error. */
 	if (qmeta->dbmeta.magic != DB_QAMMAGIC) {
-		__db_err(dbenv, "%s: unexpected file type or format", name);
+        __db_err(dbenv, "%s:%s: unexpected file type or format", __func__, name);
 		ret = EINVAL;
 		goto err;
 	}

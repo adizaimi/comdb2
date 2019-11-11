@@ -697,6 +697,6 @@ swap_retry:
 	return (0);
 
 bad_format:
-	__db_err(dbenv, "%s: unexpected file type or format", name);
+	__db_err(dbenv, "%s:%s: unexpected file type or format", __func__, name);
 	return (ret == 0 ? EINVAL : ret);
 }

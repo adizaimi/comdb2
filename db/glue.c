@@ -6281,7 +6281,7 @@ typedef struct {
         uint64_t token;
         int pagesize;
         int dummy;
-        char buf[1];
+        unsigned char buf[1];
 } net_pg_resp_t;
 #define NET_PG_RESP_LEN (8+4+4+4)
 
@@ -6367,7 +6367,7 @@ int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t
     return 0;
 }
  
-extern int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LEN], int pageno, char **buf, size_t *size);
+extern int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LEN], int pageno, unsigned char **buf, size_t *size);
 
 void net_get_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
                     int usertype, void *dta, int dtalen, uint8_t is_tcp)
@@ -6382,7 +6382,7 @@ void net_get_page_handler(void *ack_handle, void *usr_ptr, char *fromhost,
     resp->pagesize = request.pagesize;
     size_t size;
     /* get page content into resp->buf */
-    char *bptr = &(resp->buf[0]);
+    unsigned char *bptr = &(resp->buf[0]);
     int rc = bdb_fetch_page(thedb->bdb_env, request.fileid, request.pageno, &bptr, &size);
     if (rc) {
         abort();

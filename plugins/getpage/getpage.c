@@ -369,8 +369,10 @@ static int handle_getpage_request(comdb2_appsock_arg_t *arg)
         /* get page content into resp->buf */
         char *bptr = malloc(pagesize);
         rc = bdb_fetch_page(thedb->bdb_env, fileid, pageno, &bptr, &loc_sz);
-        if (rc || pagesize != loc_sz)
+        if (rc || pagesize != loc_sz) {
+            logmsg(LOGMSG_ERROR, "%s: failed to fetch page rc=%d loc_sz=%zu\n", __func__, rc, loc_sz);
             abort();
+        }
 
         rc = sbuf2fwrite(bptr, 1, pagesize, sb);
         free(bptr);

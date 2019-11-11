@@ -818,16 +818,14 @@ struct __db_mpoolfile {
 	MPOOLFILE      *mfp;		/* Underlying MPOOLFILE. */
 
 	u_int32_t	clear_len;	/* Cleared length on created pages. */
-	u_int8_t			/* Unique file ID. */
-			fileid[DB_FILE_ID_LEN];
-	int		ftype;		/* File type. */
+	u_int8_t	fileid[DB_FILE_ID_LEN];  /* Unique file ID. */
+	int		    ftype;		/* File type. */
 	int32_t		lsn_offset;	/* LSN offset in page. */
 	u_int32_t	gbytes, bytes;	/* Maximum file size. */
 	DBT	       *pgcookie;	/* Byte-string passed to pgin/pgout. */
-	MPOOL_PRIORITY		/* Cache priority. */
-			priority;
+	MPOOL_PRIORITY		priority;	/* Cache priority. */
 
-	void	       *addr;		/* Address of mmap'd region. */
+	void	    *addr;		/* Address of mmap'd region. */
 	size_t		len;		/* Length of mmap'd region. */
 
 	u_int32_t	config_flags;	/* Flags to DB_MPOOLFILE->set_flags. */
@@ -2126,7 +2124,8 @@ struct __db_env {
 	int (*clear_mintruncate_list) __P((DB_ENV *));
 	int (*build_mintruncate_list) __P((DB_ENV *));
 	int (*mintruncate_delete_log) __P((DB_ENV *, int lowfile));
-	int (*get_page) __P((DB_ENV *, unsigned char fileid[DB_FILE_ID_LEN], int pageno, char **buf, size_t *size));
+	int (*get_page) __P((DB_ENV *, unsigned char fileid[DB_FILE_ID_LEN], int pageno, unsigned char **buf, size_t *size));
+	int (*get_metapage) __P((DB_ENV *, char *fname, unsigned char **buf, size_t *size));
 
 	/*
 	 * Currently, the verbose list is a bit field with room for 32

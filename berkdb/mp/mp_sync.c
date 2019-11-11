@@ -2516,9 +2516,12 @@ __bhlru(p1, p2)
 	return (0);
 }
 
-/* page gets written in *buf, if caller has not already allocated space, we will alocate it and caller is responsible to free it */
-int
-__get_page(DB_ENV *dbenv, unsigned char fileid[DB_FILE_ID_LEN], db_pgno_t pgno, unsigned char **buf, size_t *size)
+
+/* get page for the given fname or fileid
+ * page gets written in *buf, if caller has not already allocated space,
+ * we will alocate it and caller is responsible to free it
+ */
+int __get_page(DB_ENV *dbenv, char *fname, unsigned char fileid[DB_FILE_ID_LEN], db_pgno_t pgno, unsigned char **buf, size_t *size)
 {
 	int ret;
 	PAGE *pagep;
@@ -2527,15 +2530,27 @@ __get_page(DB_ENV *dbenv, unsigned char fileid[DB_FILE_ID_LEN], db_pgno_t pgno, 
 	DB_MPOOLFILE *dbmfp = NULL;
 
 	MUTEX_THREAD_LOCK(dbenv, dbmp->mutexp);
+	// this can be slow: use a hash to get from fileid to dbmfp obj
+	// will need another hash to go from filename to dbmfp
 	for (dbmfp = TAILQ_FIRST(&dbmp->dbmfq); dbmfp != NULL;
 			dbmfp = TAILQ_NEXT(dbmfp, q)) {
-		if (memcmp(dbmfp->fileid, fileid, DB_FILE_ID_LEN) == 0)
+		if (fname) {
+			DB_MPOOL *dbmp = dbmfp->dbenv->mp_handle;
+			MPOOLFILE *mfp = dbmfp->mfp;
+			char *lname = (char*)R_ADDR(dbmp->reginfo, mfp->path_off);
+			logmsg(LOGMSG_USER, "%s: comparing fileid %llx with %llx (fname %s)\n", __func__, *(long long unsigned int*)fileid, *(long long unsigned int*)dbmfp->fileid, lname);
+			if (strcmp(fname, lname) == 0)
+				break;
+		}
+		else if (memcmp(dbmfp->fileid, fileid, DB_FILE_ID_LEN) == 0)
 			break;
 	}
 	MUTEX_THREAD_UNLOCK(dbenv, dbmp->mutexp);
 
-	if (!dbmfp)
+	if (!dbmfp) {
+        logmsg(LOGMSG_ERROR, "%s: can not find fileid %llx:%d\n", __func__, *(long long unsigned int*)fileid, pgno);
 		return 1;
+    }
 
 	ret = __memp_fget(dbmfp, &pgno, 0, &pagep);
 	if (ret) {
@@ -2549,12 +2564,13 @@ __get_page(DB_ENV *dbenv, unsigned char fileid[DB_FILE_ID_LEN], db_pgno_t pgno, 
 #define EXSZ 40
     char expanded[EXSZ*2+1];
     util_tohex(expanded, (const char *)pagep, EXSZ);
+
 	logmsg(LOGMSG_USER, "__get_page preout %llx:%d> %s\n", *(long long unsigned int*)fileid, pgno, expanded);
 
 	//dopage(dbp, pagep);
 	ret = __memp_fput(dbmfp, pagep, 0);
 	if (ret) {
-		fprintf(stderr, "%s: mempfput %s pgno %d %llx error=%d\n",
+		logmsg(LOGMSG_ERROR, "%s: mempfput %s pgno %d %llx error=%d\n",
 			__func__, dbmfp->mfp->stat.file_name, pgno, (long long unsigned int)fileid, ret);
 		return 1;
 	}

@@ -1008,8 +1008,7 @@ __fop_read_meta(dbenv, name, buf, size, fhp, errok, nbytesp)
 
 	if (nr != size) {
 		if (!errok)
-			__db_err(dbenv,
-			    "%s: unexpected file type or format", name);
+			__db_err(dbenv, "%s:%s: unexpected file type or format", __func__, name);
 		ret = EINVAL;
 	}
 
