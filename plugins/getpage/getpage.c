@@ -115,6 +115,16 @@ retry:
         goto retry;
     }
 
+    if (dbmetasize == 0) {
+        int loc_sz = 0;
+        if ((rc = sbuf2fread((char *)&loc_sz, 1, sizeof(loc_sz), sb)) != sizeof(loc_sz)) {
+            logmsg(LOGMSG_ERROR, "%s: I/O error should be reading out sz of page since we don't know it rc=%d\n", __func__, rc);
+            abort();
+            pgetter_disconnect(&metapgetter);
+            goto retry;
+        }
+        dbmetasize = ntohl(loc_sz);
+    }
     if ((rc = sbuf2fread((char *)buf, 1, dbmetasize, sb)) != dbmetasize) {
         count++;
         printf("^^^^^ AZ: %s() page no resp rc=%d count=%d\n", __func__, rc, count);
@@ -184,9 +194,8 @@ static int handle_getmetapage_request(comdb2_appsock_arg_t *arg)
         }
 
 
-
-        unsigned char *bptr;
-        if (1) {
+        unsigned char *bptr = NULL;
+        if (0) {
             //int llen = strlen(thedb->basedir) + 1 + flen; //flen includes \0 at the end
             char *bdb_trans(const char infile[], char outfile[]);
             char l[PATH_MAX];
@@ -213,13 +222,26 @@ static int handle_getmetapage_request(comdb2_appsock_arg_t *arg)
             close(fin);
         } else {
             /* get page content into resp->buf */
-            bptr = malloc(dbmetasize);
+            if (dbmetasize)
+                bptr = malloc(dbmetasize);
             size_t loc_sz;
             rc = bdb_fetch_metapage(thedb->bdb_env, fname, &bptr, &loc_sz);
             if (rc || (dbmetasize != 0 && dbmetasize != loc_sz)) {
                 logmsg(LOGMSG_ERROR, "%s: failed to fetch page rc=%d dbmetasize=%d loc_sz=%zu\n", __func__, rc, dbmetasize, loc_sz);
                 abort();
             }
+
+            if (dbmetasize == 0) { // send the real size
+                int lltmp = htonl(loc_sz);
+                rc = sbuf2fwrite((char *)&lltmp, 1, sizeof(lltmp), sb);
+                if (rc != sizeof(lltmp)) {
+                    abort();
+                    arg->error = -1;
+                    return APPSOCK_RETURN_ERR;
+                }
+            }
+
+            dbmetasize = loc_sz;
         }
 
         rc = sbuf2fwrite((char *)bptr, 1, dbmetasize, sb);

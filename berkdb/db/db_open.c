@@ -176,21 +176,21 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 				exit(1);
 			}
 			int sizetoget = dbp->pgsize;
-			u_int8_t *bptr = alloca(sizetoget);
+			u_int8_t *bptr = alloca(65536);
 			send_get_metapage(fname, bptr, sizetoget);
 
 			char *bdb_trans(const char infile[], char outfile[]);
-			char l[PATH_MAX];
-			bdb_trans(fname, l);
+			char lfname[PATH_MAX];
+			bdb_trans(fname, lfname);
 
-			int fout = open(l, O_CREAT|O_WRONLY, mode);
+			int fout = open(lfname, O_CREAT|O_WRONLY, mode);
 			if (fout < 0) {
-				logmsg(LOGMSG_ERROR, "%s: failed to open fname %s errno = %d (%s)\n", __func__, l, errno, strerror(errno));
+				logmsg(LOGMSG_ERROR, "%s: failed to open fname '%s' errno = %d (%s)\n", __func__, lfname, errno, strerror(errno));
 				abort();
 			}
 
 			if((ret = write(fout, bptr, sizetoget)) != sizetoget) {
-				logmsg(LOGMSG_ERROR, "%s: failed write metapage for fname %s fout %d ret = %d\n", __func__, l, fout, ret);
+				logmsg(LOGMSG_ERROR, "%s: failed write metapage for fname %s fout %d ret = %d\n", __func__, lfname, fout, ret);
 				abort();
 			}
 		}

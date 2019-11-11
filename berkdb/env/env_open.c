@@ -41,6 +41,7 @@ static const char revid[] = "$Id: env_open.c,v 11.144 2003/09/13 18:39:34 bostic
 #include "logmsg.h"
 #include "locks_wrap.h"
 
+extern int gbl_diskless;
 static int __db_tmp_open __P((DB_ENV *, u_int32_t, char *, DB_FH **));
 static int __dbenv_config __P((DB_ENV *, const char *, u_int32_t));
 static int __dbenv_refresh __P((DB_ENV *, u_int32_t, int));
@@ -549,7 +550,7 @@ foundlsn:
 
 
 			}
-			else {
+			else if (!gbl_diskless) {
 				ret = __db_apprec(dbenv, NULL, NULL, 1,
 						LF_ISSET(DB_RECOVER | DB_RECOVER_FATAL));
 			}
