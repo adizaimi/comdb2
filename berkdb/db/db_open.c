@@ -43,8 +43,6 @@ static const char revid[] = "$Id: db_open.c,v 11.236 2003/09/27 00:29:03 sue Exp
 #include <string.h>
 #include "logmsg.h"
 
-extern int gbl_diskless;
-extern int send_get_metapage(const char *fname, uint8_t *buf, int dbmetasize);
 
 #if defined (DEBUG_STACK_AT_DB_OPEN_CLOSE)
 #include <tohex.h>
@@ -168,34 +166,6 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 		    (ret = __lock_id(dbenv, (u_int32_t *)dbp->fileid)) != 0)
 			return (ret);
 	} else if (dname == NULL && meta_pgno == PGNO_BASE_MD) {
-
-		if (gbl_diskless && fname) {
-			created_for_diskless = 1;
-			if ((ret = __os_exists(fname, NULL)) == 0) {
-				logmsg(LOGMSG_ERROR, "For diskless mode we should not have data file %s in the db directory \n", fname);
-				exit(1);
-			}
-			int sizetoget = dbp->pgsize;
-			u_int8_t *bptr = alloca(65536);
-			send_get_metapage(fname, bptr, sizetoget);
-
-			char *bdb_trans(const char infile[], char outfile[]);
-			char lfname[PATH_MAX];
-			bdb_trans(fname, lfname);
-
-			int fout = open(lfname, O_CREAT|O_WRONLY, mode);
-			if (fout < 0) {
-				logmsg(LOGMSG_ERROR, "%s: failed to open fname '%s' errno = %d (%s)\n", __func__, lfname, errno, strerror(errno));
-				abort();
-			}
-
-			if((ret = write(fout, bptr, sizetoget)) != sizetoget) {
-				logmsg(LOGMSG_ERROR, "%s: failed write metapage for fname %s fout %d ret = %d\n", __func__, lfname, fout, ret);
-				abort();
-			}
-		}
-
-
 		/* Open/create the underlying file.  Acquire locks. */
 		if ((ret =
 		    __fop_file_setup(dbp, txn, fname, mode, flags, &id)) != 0)
@@ -238,12 +208,6 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 		return (ret);
 	}
 
-	if (gbl_diskless && created_for_diskless) {
-		if (__os_unlink(dbenv, fname)) { /* cleanup the files we wrote for diskless */
-			logmsg(LOGMSG_ERROR, "%s: failed to unlink fname %s errno = %d (%s)\n", __func__, fname, errno, strerror(errno));
-			abort();
-		}
-	}
 	/* clear hash flag after inserting into dblist */
 	if (clear_hash_flag)
 		F_CLR(dbp, DB_AM_HASH);

@@ -31,6 +31,8 @@ static const char revid[] = "$Id: mp_fopen.c,v 11.120 2003/11/07 18:45:15 ubell 
 #include "dbinc_auto/rpc_client_ext.h"
 #endif
 
+extern int gbl_diskless;
+
 static int __memp_fclose_pp __P((DB_MPOOLFILE *, u_int32_t));
 static int __memp_fopen_pp __P((DB_MPOOLFILE *,
 		const char *, u_int32_t, int, size_t));
@@ -701,7 +703,10 @@ __memp_fopen(dbmfp, mfp, path, flags, mode, pagesize)
 	 * Supply a page size so os_open can decide whether to turn buffering
 	 * off if the DB_DIRECT_DB flag is set.
 	 */
-	if ((ret = __os_open_extend(dbenv, rpath,
+	if (gbl_diskless && strcmp(rpath, "XXX.logs") != 0) {
+        if ((ret = __os_calloc(dbenv, 1, sizeof(DB_FH), &dbmfp->fhp)) != 0)
+            return (ret);
+    } else if ((ret = __os_open_extend(dbenv, rpath,
 		    0, (u_int32_t)pagesize, oflags, mode, &dbmfp->fhp)) != 0) {
 		if (!LF_ISSET(DB_EXTENT))
 			 __db_err(dbenv, "%s: %s: %s", __func__, rpath, db_strerror(ret));

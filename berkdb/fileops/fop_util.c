@@ -30,6 +30,8 @@ static const char revid[] = "$Id: fop_util.c,v 1.83 2003/10/15 20:29:59 margo Ex
 #include "dbinc/txn.h"
 #include "logmsg.h"
 
+extern int gbl_diskless;
+extern int send_get_metapage(const char *fname, uint8_t *buf, int dbmetasize);
 static int __fop_set_pgsize __P((DB *, DB_FH *, const char *));
 
 /*
@@ -292,9 +294,19 @@ __fop_file_setup(dbp, txn, name, mode, flags, retidp)
 	if (F_ISSET(dbenv, DB_ENV_OSYNC))
 	    oflags |= DB_OSO_OSYNC;
 
+        int fetched_for_diskless = 0;
+		if (gbl_diskless && real_name) {
+			fetched_for_diskless = 1;
+			if ((ret = __os_exists(real_name, NULL)) == 0) {
+				logmsg(LOGMSG_ERROR, "For diskless mode we should not have data file %s in the db directory \n", real_name);
+				exit(1);
+			}
+			send_get_metapage(real_name, mbuf, sizeof(mbuf));
+		}
+
 retry:	if (!F_ISSET(dbp, DB_AM_COMPENSATE))
 		GET_ENVLOCK(dbenv, locker, &elock);
-	if ((ret = __os_exists(real_name, NULL)) == 0) {
+	if (fetched_for_diskless || (ret = __os_exists(real_name, NULL)) == 0) {
 		/*
 		 * If the file exists, there are 5 possible cases:
 		 * 1. DB_EXCL was specified so this is an error, unless
@@ -313,7 +325,7 @@ retry:	if (!F_ISSET(dbp, DB_AM_COMPENSATE))
 
 
 		/* We have to open the file. */
-reopen:		if ((ret = __os_open(dbenv, real_name, oflags, 0, &fhp)) != 0)
+reopen:		if (!fetched_for_diskless && (ret = __os_open(dbenv, real_name, oflags, 0, &fhp)) != 0)
 			goto err;
 
 		/* Case 2: DB_TRUNCATE: we must do the creation in place. */
@@ -327,20 +339,22 @@ reopen:		if ((ret = __os_open(dbenv, real_name, oflags, 0, &fhp)) != 0)
 			goto creat2;
 		}
 
-		/* Cases 1,3-5: we need to read the meta-data page. */
-		ret = __fop_read_meta(dbenv, real_name, mbuf, sizeof(mbuf), fhp,
-		    LF_ISSET(DB_FCNTL_LOCKING) && txn == NULL ? 1 : 0, &len);
+        if (!fetched_for_diskless) {
+            /* Cases 1,3-5: we need to read the meta-data page. */
+            ret = __fop_read_meta(dbenv, real_name, mbuf, sizeof(mbuf), fhp,
+                LF_ISSET(DB_FCNTL_LOCKING) && txn == NULL ? 1 : 0, &len);
 
-		/* Case 3: 0-length, no txns. */
-		if (ret != 0 && len == 0 && txn == NULL) {
-			if (LF_ISSET(DB_EXCL)) {
-				/* Case 1b: DB_EXCL and 0-lenth file exists. */
-				ret = EEXIST;
-				goto err;
-			}
-			tmpname = (char *)name;
-			goto creat2;
-		}
+            /* Case 3: 0-length, no txns. */
+            if (ret != 0 && len == 0 && txn == NULL) {
+                if (LF_ISSET(DB_EXCL)) {
+                    /* Case 1b: DB_EXCL and 0-lenth file exists. */
+                    ret = EEXIST;
+                    goto err;
+                }
+                tmpname = (char *)name;
+                goto creat2;
+            }
+        }
 
 		/* Case 5: Invalid file. */
 		if (ret != 0)
@@ -635,7 +649,8 @@ done:	/*
 		__os_free(dbenv, real_tmpname);
 	if (recp_name != NULL)
 		__os_free(dbenv, recp_name);
-	CLOSE_HANDLE(dbp, fhp, recp);
+    if (!fetched_for_diskless)
+        CLOSE_HANDLE(dbp, fhp, recp);
 	return (ret);
 }
 

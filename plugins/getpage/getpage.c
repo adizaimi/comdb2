@@ -195,7 +195,7 @@ static int handle_getmetapage_request(comdb2_appsock_arg_t *arg)
 
 
         unsigned char *bptr = NULL;
-        if (0) {
+        if (1) {
             //int llen = strlen(thedb->basedir) + 1 + flen; //flen includes \0 at the end
             char *bdb_trans(const char infile[], char outfile[]);
             char l[PATH_MAX];
