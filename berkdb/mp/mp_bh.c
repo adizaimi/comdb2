@@ -43,7 +43,7 @@ char *bdb_trans(const char infile[], char outfile[]);
 extern int gbl_test_badwrite_intvl;
 extern int gbl_diskless;
 extern int gbl_ready;
-extern int __memp_net_pgread(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t *buf, size_t pagesize, size_t *niop);
+extern int send_get_page(unsigned char fileid[DB_FILE_ID_LEN], int pageno, u_int8_t *buf, size_t pagesize, size_t *niop);
 
 static int __memp_pgwrite
 __P((DB_ENV *, DB_MPOOLFILE *, DB_MPOOL_HASH *, BH *));
@@ -449,7 +449,7 @@ __memp_pgread(dbmfp, hp, bhp, can_create, is_recovery_page)
         if(gbl_diskless ) {
             logmsg(LOGMSG_USER, "AZ: WOULD CALL  __memp_net_pgread filename %s, fileid %llx, page %d, pagesize %d\n", 
                    flname, *(unsigned long long int*)fileid, pgno, (int)pagesize);
-            if ((ret = __memp_net_pgread(fileid, pgno, bhp->buf, pagesize, &nr)))
+            if ((ret = send_get_page(fileid, pgno, bhp->buf, pagesize, &nr)))
                 goto err;
         }
         else if ((ret = __os_io(dbenv, DB_IO_READ,

@@ -3483,10 +3483,9 @@ static int process_user_message(netinfo_type *netinfo_ptr,
     int rc = read_user_data(host_node_ptr, &usertype, &seqnum, &needack,
                             &datalen, &data, &malloced);
 
-    if (usertype >= USER_TYPE_GET_PAGE)
-      logmsg(LOGMSG_DEBUG, "process_user_message from %s, ut=%d\n",
-           host_node_ptr->host, usertype);
 #if 0
+    logmsg(LOGMSG_DEBUG, "process_user_message from %s, ut=%d\n",
+           host_node_ptr->host, usertype);
 #endif
 
     if (rc != 0)

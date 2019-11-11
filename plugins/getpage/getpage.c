@@ -316,7 +316,8 @@ retry:
     return 0;
 }
 
-extern int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LEN], int pageno, char **buf, size_t *size);
+extern int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LEN], int pageno, unsigned char **buf, size_t *size);
+
 
 /* proper ssl exchange needs to be set up between the nodes
  * messages should be compressed by ssl layer as well */
@@ -367,14 +368,14 @@ static int handle_getpage_request(comdb2_appsock_arg_t *arg)
 
         size_t loc_sz;
         /* get page content into resp->buf */
-        char *bptr = malloc(pagesize);
+        unsigned char *bptr = malloc(pagesize);
         rc = bdb_fetch_page(thedb->bdb_env, fileid, pageno, &bptr, &loc_sz);
         if (rc || pagesize != loc_sz) {
             logmsg(LOGMSG_ERROR, "%s: failed to fetch page rc=%d loc_sz=%zu\n", __func__, rc, loc_sz);
             abort();
         }
 
-        rc = sbuf2fwrite(bptr, 1, pagesize, sb);
+        rc = sbuf2fwrite((char *)bptr, 1, pagesize, sb);
         free(bptr);
         if (rc != pagesize || sbuf2flush(sb) < 0) {
             logmsg(LOGMSG_ERROR, "%s: failed to send page load rc=%d\n", __func__, rc);
