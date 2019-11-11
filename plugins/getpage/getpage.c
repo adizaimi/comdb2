@@ -28,6 +28,10 @@
 __thread SBUF2 *pgetter = NULL;
 __thread SBUF2 *metapgetter = NULL;
 
+extern int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LEN], int pageno, unsigned char **buf, size_t *size);
+extern int bdb_fetch_metapage(bdb_state_type *bdb_state, char *fname, unsigned char **buf, size_t *size);
+
+
 static inline void pgetter_disconnect(SBUF2 **psb)
 {
     sbuf2close(*psb);
@@ -59,7 +63,7 @@ static int pgetter_connect(SBUF2 **psb, const char *str)
 
 int send_get_metapage(const char *fname, uint8_t *buf, int dbmetasize)
 {
-    printf("^^^^^ AZ: %s() entering, fname %s\n", __func__, fname);
+    printf("^^^^^ AZ: %s() entering, fname=%s dbmetasize=%d\n", __func__, fname, dbmetasize);
     int count = 0;
 
 retry:
@@ -118,7 +122,7 @@ retry:
         goto retry;
     }
 
-    printf("^^^^^ AZ: %s() got resp %s after count=%d\n", __func__, line, count);
+    printf("^^^^^ AZ: %s() got resp '%s' after count=%d\n", __func__, line, count);
 
     {
 #define EXSZ 40
@@ -172,38 +176,53 @@ static int handle_getmetapage_request(comdb2_appsock_arg_t *arg)
 
         logmsg(LOGMSG_ERROR, "%s:REQ fname=%s dbmetasize=%d\n", __func__, fname, dbmetasize);
 
+        // respond with request str to confirm receipt
         if (sbuf2printf(sb, "METAPAGE for %s size=%d\n", fname, dbmetasize) < 0 || sbuf2flush(sb) < 0) {
             logmsg(LOGMSG_ERROR, "%s: failed to send done ack text\n", __func__);
             arg->error = -1;
             return APPSOCK_RETURN_ERR;
         }
 
-        //int llen = strlen(thedb->basedir) + 1 + flen; //flen includes \0 at the end
-        char *bdb_trans(const char infile[], char outfile[]);
-        char l[PATH_MAX];
-        bdb_trans(fname, l);
-        printf("full path of fname is %s \n", l);
-        //rc = sprintf(l, "%s/%s", thedb->basedir, fname);
-        //if (rc != llen - 1)
+
+
+        unsigned char *bptr;
+        if (1) {
+            //int llen = strlen(thedb->basedir) + 1 + flen; //flen includes \0 at the end
+            char *bdb_trans(const char infile[], char outfile[]);
+            char l[PATH_MAX];
+            bdb_trans(fname, l);
+            printf("full path of fname is %s \n", l);
+            //rc = sprintf(l, "%s/%s", thedb->basedir, fname);
+            //if (rc != llen - 1)
             //abort();
 
-        /* get page content into resp->buf */
-        char *bptr = malloc(dbmetasize);
-        int fin = open(l, O_RDONLY);
-        if (fin < 0) {
-            logmsg(LOGMSG_ERROR, "%s: failed to open fname %s errno = %d (%s)\n", __func__, l, errno, strerror(errno));
-            arg->error = -1;
-            return APPSOCK_RETURN_ERR;
+            /* get page content into resp->buf */
+            bptr = malloc(dbmetasize);
+            int fin = open(l, O_RDONLY);
+            if (fin < 0) {
+                logmsg(LOGMSG_ERROR, "%s: failed to open fname %s errno = %d (%s)\n", __func__, l, errno, strerror(errno));
+                arg->error = -1;
+                return APPSOCK_RETURN_ERR;
+            }
+
+            if((rc = read(fin, bptr, dbmetasize)) != dbmetasize) {
+                logmsg(LOGMSG_ERROR, "%s: failed read metapage from fname %s fin %d rc = %d %s\n", __func__, fname, fin, rc, strerror(errno));
+                arg->error = -1;
+                return APPSOCK_RETURN_ERR;
+            }
+            close(fin);
+        } else {
+            /* get page content into resp->buf */
+            bptr = malloc(dbmetasize);
+            size_t loc_sz;
+            rc = bdb_fetch_metapage(thedb->bdb_env, fname, &bptr, &loc_sz);
+            if (rc || (dbmetasize != 0 && dbmetasize != loc_sz)) {
+                logmsg(LOGMSG_ERROR, "%s: failed to fetch page rc=%d dbmetasize=%d loc_sz=%zu\n", __func__, rc, dbmetasize, loc_sz);
+                abort();
+            }
         }
 
-        if((rc = read(fin, bptr, dbmetasize)) != dbmetasize) {
-            logmsg(LOGMSG_ERROR, "%s: failed read metapage from fname %s fin %d rc = %d %s\n", __func__, fname, fin, rc, strerror(errno));
-            arg->error = -1;
-            return APPSOCK_RETURN_ERR;
-        }
-        close(fin);
-
-        rc = sbuf2fwrite(bptr, 1, dbmetasize, sb);
+        rc = sbuf2fwrite((char *)bptr, 1, dbmetasize, sb);
         free(bptr);
         if (rc != dbmetasize || sbuf2flush(sb) < 0) {
             logmsg(LOGMSG_ERROR, "%s: failed to send page load rc=%d\n", __func__, rc);
@@ -295,7 +314,7 @@ retry:
         goto retry;
     }
 
-    printf("^^^^^ AZ: %s() got resp %s after count=%d\n", __func__, line, count);
+    printf("^^^^^ AZ: %s() got resp '%s' after count=%d\n", __func__, line, count);
 
     {
 #define EXSZ 40
@@ -315,8 +334,6 @@ retry:
     *niop = pagesize;
     return 0;
 }
-
-extern int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LEN], int pageno, unsigned char **buf, size_t *size);
 
 
 /* proper ssl exchange needs to be set up between the nodes
