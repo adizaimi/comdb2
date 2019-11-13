@@ -767,7 +767,7 @@ __memp_fopen(dbmfp, mfp, path, flags, mode, pagesize)
 	 * but still run where offsets are 64-bits, and they pay us a lot of
 	 * money.
 	 */
-	if ((ret = __os_ioinfo(
+	if (!gbl_diskless && (ret = __os_ioinfo(
 	    dbenv, rpath, dbmfp->fhp, &mbytes, &bytes, NULL)) != 0) {
 		__db_err(dbenv, "%s: %s: %s", __func__, rpath, db_strerror(ret));
 		goto err;
@@ -778,7 +778,7 @@ __memp_fopen(dbmfp, mfp, path, flags, mode, pagesize)
 	 * don't use timestamps, otherwise there'd be no chance of any
 	 * other process joining the party.
 	 */
-	if (!F_ISSET(dbmfp, MP_FILEID_SET) &&
+	if (!gbl_diskless && !F_ISSET(dbmfp, MP_FILEID_SET) &&
 	    (ret = __os_fileid(dbenv, rpath, 0, dbmfp->fileid)) != 0)
 		goto err;
 
@@ -936,7 +936,7 @@ alloc:	/* Allocate and initialize a new MPOOLFILE. */
 		 * page size, round down to a page, we'll take care of the
 		 * partial page outside the mpool system.
 		 */
-		if (bytes % pagesize != 0) {
+		if (!gbl_diskless && bytes % pagesize != 0) {
 			if (LF_ISSET(DB_ODDFILESIZE))
 				bytes -= (u_int32_t)(bytes % pagesize);
 			else {

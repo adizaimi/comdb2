@@ -560,10 +560,6 @@ extern int gbl_diskless;
 static void
 trickle_do_work(struct thdpool *thdpool, void *work, void *thddata, int thd_op)
 {
-    if (gbl_diskless) {
-        return;
-    }
-
 	struct writable_range *range;
 	DB_ENV *dbenv;
 	db_sync_op op;
@@ -1530,8 +1526,8 @@ done:
          * flush, and because we have to flush files that might not even have
          * had dirty buffers in the cache, so we have to walk the files list.
          */
-        if (ret == 0 && (op == DB_SYNC_CACHE || op == DB_SYNC_FILE)) {
-            if (dbmfp == NULL) {
+        if (ret == 0 && (op == DB_SYNC_CACHE || op == DB_SYNC_FILE) && !gbl_diskless) {
+            if (dbmfp == NULL ) {
                 int start, end;
                 start = comdb2_time_epochms();
                 ret = __memp_sync_files(dbenv, dbmp);

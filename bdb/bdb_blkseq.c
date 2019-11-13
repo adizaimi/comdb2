@@ -203,6 +203,10 @@ int bdb_blkseq_recover(DB_ENV *dbenv, u_int32_t rectype, llog_blkseq_args *args,
     bdb_state_type *bdb_state;
     uint8_t stripe;
 
+    extern int gbl_diskless;
+    if (gbl_diskless)
+        return 0;
+
     bdb_state = dbenv->app_private;
 
     // printf("at "PR_LSN", blkseq\n", PARM_LSNP(lsn));

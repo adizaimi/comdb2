@@ -2858,7 +2858,7 @@ static DB_ENV *dbenv_open(bdb_state_type *bdb_state)
      * that may precede the recovery point in the log.  Now would be a good time
      * -
      * the environment is open, but we haven't started replication yet. */
-    if (bdb_state->attr->private_blkseq_enabled) {
+    if (!gbl_diskless && bdb_state->attr->private_blkseq_enabled) {
         rc = bdb_recover_blkseq(bdb_state);
         if (rc) {
             logmsg(LOGMSG_ERROR, "bdb_recover_blkseq rc %d\n", rc);

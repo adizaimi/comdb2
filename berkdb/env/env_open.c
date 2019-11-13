@@ -550,7 +550,7 @@ foundlsn:
 
 
 			}
-			else if (!gbl_diskless) {
+			else {
 				ret = __db_apprec(dbenv, NULL, NULL, 1,
 						LF_ISSET(DB_RECOVER | DB_RECOVER_FATAL));
 			}
