@@ -57,7 +57,7 @@ BERK_DEF_ATTR(latch_max_wait, "Block at most this many microseconds before retur
 BERK_DEF_ATTR(latch_poll_us, "Poll latch this many microseconds before retrying", BERK_ATTR_TYPE_INTEGER, 1000)
 BERK_DEF_ATTR(latch_max_poll, "Poll latch this many times before returning deadlock", BERK_ATTR_TYPE_INTEGER, 5)
 BERK_DEF_ATTR(latch_timed_mutex, "Use a timed mutex", BERK_ATTR_TYPE_BOOLEAN, 1)
-BERK_DEF_ATTR(log_cursor_cache, "Cache log cursors", BERK_ATTR_TYPE_BOOLEAN, 0)
+BERK_DEF_ATTR(log_cursor_cache, "Cache log cursors", BERK_ATTR_TYPE_BOOLEAN, 1)
 BERK_DEF_ATTR(recovery_processor_poll_interval_us, "Recovery processor wakes this often to check workers", BERK_ATTR_TYPE_INTEGER, 1000)
 BERK_DEF_ATTR(lsnerr_logflush, "Flush log on lsn error", BERK_ATTR_TYPE_BOOLEAN, 1)
 BERK_DEF_ATTR(tracked_locklist_init, "Initial allocation count for tracked locks", BERK_ATTR_TYPE_INTEGER, 10)

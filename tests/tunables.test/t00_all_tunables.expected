@@ -398,7 +398,7 @@
 (name='lockerid_node_step', description='Stepup for preallocated lids', type='INTEGER', value='128', read_only='N')
 (name='locks_check_waiters', description='Light a flag if a lockid has waiters', type='BOOLEAN', value='ON', read_only='N')
 (name='log_applied_lsns', description='Log applied LSNs to log', type='BOOLEAN', value='OFF', read_only='N')
-(name='log_cursor_cache', description='Cache log cursors', type='BOOLEAN', value='OFF', read_only='N')
+(name='log_cursor_cache', description='Cache log cursors', type='BOOLEAN', value='ON', read_only='N')
 (name='log_debug_ctrace_threshold', description='Limit trace about log file deletion to this many events.', type='INTEGER', value='20', read_only='N')
 (name='log_delete_after_backup', description='Set log deletion policy to disable log deletion (can be set by backups). (Default: off)', type='INTEGER', value='0', read_only='Y')
 (name='log_delete_before_startup', description='Set log deletion policy to disable logs older than database startup time. (Default: off)', type='INTEGER', value='0', read_only='Y')
