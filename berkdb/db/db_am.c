@@ -47,6 +47,171 @@ extern int gbl_berk_track_cursors;
 extern int gbl_skip_cget_in_db_put;
 
 /*
+ * __db_cursor_pair_reset --
+ *	Internal routine to create a cursor.
+ *
+ * PUBLIC: int __db_cursor_pair_reset
+ * PUBLIC:     __P((DB *, DB_TXN *, DBTYPE, db_pgno_t, int, u_int32_t, DBC **, u_int32_t));
+ */
+int __db_cursor_pair_reset(dbp, txn, dbtype, root, is_opd, lockerid, dbcp, flags)
+    DB *dbp;
+    DB_TXN *txn;
+    DBTYPE dbtype;
+    db_pgno_t root;
+    int is_opd;
+    u_int32_t lockerid;
+    DBC **dbcp;
+    u_int32_t flags;
+{
+    DBC *dbc = *dbcp;
+    DBC_INTERNAL *cp;
+    DB_ENV *dbenv;
+    dbenv = dbp->dbenv;
+    int ret = 0;
+    /* Set pausible flag in cursor. */
+    if (LF_ISSET(DB_PAUSIBLE)) {
+        F_SET(dbc, DBC_PAUSIBLE);
+    } else {
+        F_CLR(dbc, DBC_PAUSIBLE);
+    }
+
+    /* Set page-order flag in cursor. */
+    if (LF_ISSET(DB_PAGE_ORDER)) {
+        F_SET(dbc, DBC_PAGE_ORDER);
+    }
+
+    /* Set discard-page flag in cursor. */
+    if (LF_ISSET(DB_DISCARD_PAGES)) {
+        F_SET(dbc, DBC_DISCARD_PAGES);
+    }
+#ifndef TESTSUITE
+#ifndef __linux__
+    if (gbl_berk_track_cursors)
+        stack_pc_getlist(NULL, dbc->stackinfo.stack, MAXSTACKDEPTH,
+                &dbc->stackinfo.nframes);
+    else
+#else
+        dbc->stackinfo.nframes = 0;
+#endif
+#endif
+
+    /* Refresh the DBC structure. */
+    dbc->dbtype = dbtype;
+    RESET_RET_MEM(dbc);
+
+    if ((dbc->txn = txn) == NULL) {
+        /*
+         * There are certain cases in which we want to create a
+         * new cursor with a particular locker ID that is known
+         * to be the same as (and thus not conflict with) an
+         * open cursor.
+         *
+         * The most obvious case is cursor duplication;  when we
+         * call DBC->c_dup or __db_c_idup, we want to use the original
+         * cursor's locker ID.
+         *
+         * Another case is when updating secondary indices.  Standard
+         * CDB locking would mean that we might block ourself:  we need
+         * to open an update cursor in the secondary while an update
+         * cursor in the primary is open, and when the secondary and
+         * primary are subdatabases or we're using env-wide locking,
+         * this is disastrous.
+         *
+         * In these cases, our caller will pass a nonzero locker ID
+         * into this function.  Use this locker ID instead of dbc->lid
+         * as the locker ID for our new cursor.
+         */
+
+        if (lockerid != DB_LOCK_INVALIDID) {
+#ifdef  LULU2
+            fprintf(stdout,
+                    "SC: tid %d locker %lu lid %lu addr %lx "
+                    "[pp_allocated %u] -> locker %lu\n", dbc->tid,
+                    dbc->locker, dbc->lid, dbc, dbc->pp_allocated,
+                    lockerid);
+#endif
+            dbc->locker = lockerid;
+        } else {
+#ifdef LULU2
+            fprintf(stdout,
+                    "SI: tid %d locker %lu lid %lu addr %lx "
+                    "[pp_allocated %u] -> locker %lu\n", dbc->tid,
+                    dbc->locker, dbc->lid, dbc, dbc->pp_allocated,
+                    dbc->lid);
+#endif
+            dbc->locker = dbc->lid;
+        }
+#ifdef LULU
+        fprintf(stdout,
+                "[%d] __db_cursor_int: cursor get lockid %u, lock is "
+                "%u\n", pthread_self(), dbc->locker, dbc->lid);
+#endif
+
+
+    } else {
+#ifdef  LULU2
+        fprintf(stdout,
+                "ST: tid %d locker %lu lid %lu addr %lx [pp_allocated "
+                "%u] -> locker %lu\n", dbc->tid, dbc->locker, dbc->lid, dbc,
+                dbc->pp_allocated, txn->txnid);
+#endif
+
+        dbc->locker = txn->txnid;
+        txn->cursors++;
+    }
+#if 0
+    ctrace("LL %d open %d\n", pthread_self(), dbc->locker);
+#endif
+
+    /*
+     * These fields change when we are used as a secondary index, so
+     * if the DB is a secondary, make sure they're set properly just
+     * in case we opened some cursors before we were associated.
+     *
+     * __db_c_get is used by all access methods, so this should be safe.
+     */
+    if (F_ISSET(dbp, DB_AM_SECONDARY))
+        dbc->c_get = __db_c_secondary_get_pp;
+
+    if (is_opd)
+        F_SET(dbc, DBC_OPD);
+    if (F_ISSET(dbp, DB_AM_RECOVER))
+        F_SET(dbc, DBC_RECOVER);
+    if (F_ISSET(dbp, DB_AM_COMPENSATE))
+        F_SET(dbc, DBC_COMPENSATE);
+
+    /* Refresh the DBC internal structure. */
+    cp = dbc->internal;
+    cp->opd = NULL;
+
+    cp->indx = 0;
+    cp->page = NULL;
+    cp->pgno = PGNO_INVALID;
+    cp->root = root;
+
+    switch (dbtype) {
+        case DB_BTREE:
+        case DB_RECNO:
+            if ((ret = __bam_c_refresh(dbc)) != 0)
+                goto err;
+            break;
+        case DB_HASH:
+        case DB_QUEUE:
+            break;
+        case DB_UNKNOWN:
+        default:
+            ret = __db_unknown_type(dbenv, "DB->cursor", dbp->type);
+            abort();
+            goto err;
+    }
+
+err:
+    return ret;
+
+}
+
+
+/*
  * __db_cursor_int --
  *	Internal routine to create a cursor.
  *

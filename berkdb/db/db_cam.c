@@ -45,6 +45,10 @@ static int __db_c_del_secondary __P((DBC *));
 static int __db_c_pget_recno __P((DBC *, DBT *, DBT *, u_int32_t));
 static int __db_wrlock_err __P((DB_ENV *));
 
+
+
+
+
 #define	CDB_LOCKING_INIT(dbp, dbc)					\
 	/*								\
 	 * If we are running CDB, this had better be either a write	\
@@ -67,6 +71,96 @@ static int __db_wrlock_err __P((DB_ENV *));
 	if (F_ISSET(dbc, DBC_WRITECURSOR))				\
 		(void)__lock_downgrade(					\
 		    (dbp)->dbenv, &(dbc)->mylock, DB_LOCK_IWRITE, 0);
+
+static int
+__db_c_clean_no_close(dbc)
+	DBC *dbc;
+{
+	int ret, t_ret;
+
+	DB *dbp;
+	DB_ENV *dbenv;
+	DBC_INTERNAL *cp;
+	DBC *opd;
+
+	dbp = dbc->dbp;
+	dbenv = dbp->dbenv;
+	cp = dbc->internal;
+	opd = cp->opd;
+	ret = 0;
+
+
+
+	/* Call the access specific cursor close routine. */
+	if ((t_ret =
+	    dbc->c_am_close(dbc, PGNO_INVALID, NULL)) != 0 && ret == 0)
+		ret = t_ret;
+
+	/*
+	 * Release the lock after calling the access method specific close
+	 * routine, a Btree cursor may have had pending deletes.
+	 */
+	if (CDB_LOCKING(dbenv)) {
+		/*
+		 * Also, be sure not to free anything if mylock.off is
+		 * INVALID;  in some cases, such as idup'ed read cursors
+		 * and secondary update cursors, a cursor in a CDB
+		 * environment may not have a lock at all.
+		 */
+		if (LOCK_ISSET(dbc->mylock)) {
+			if ((t_ret = __lock_put(
+			    dbenv, &dbc->mylock)) != 0 && ret == 0)
+				ret = t_ret;
+		}
+
+		/* For safety's sake, since this is going on the free queue. */
+		memset(&dbc->mylock, 0, sizeof(dbc->mylock));
+		if (opd != NULL)
+			memset(&opd->mylock, 0, sizeof(opd->mylock));
+	}
+
+	if (dbc->txn != NULL)
+		dbc->txn->cursors--;
+
+	return ret;
+}
+
+
+void
+__db_c_movetofree(dbc)
+	DBC *dbc;
+{
+	DB *dbp = dbc->dbp;
+	DB_ENV *dbenv;
+	dbenv = dbp->dbenv;
+	DBC *opd;
+	DBC_INTERNAL *cp;
+	cp = dbc->internal;
+	opd = cp->opd;
+	MUTEX_THREAD_LOCK(dbenv, dbp->mutexp);
+
+	if (opd != NULL) {
+		F_CLR(opd, DBC_ACTIVE);
+		TAILQ_REMOVE(&dbp->active_queue, opd, links);
+	}
+	F_CLR(dbc, DBC_ACTIVE);
+	TAILQ_REMOVE(&dbp->active_queue, dbc, links);
+
+	MUTEX_THREAD_UNLOCK(dbenv, dbp->mutexp);
+
+	/* Move the cursor(s) to the free queue. */
+	MUTEX_THREAD_LOCK(dbenv, dbp->free_mutexp);
+	if (opd != NULL) {
+		if (dbc->txn != NULL)
+			dbc->txn->cursors--;
+		TAILQ_INSERT_TAIL(&dbp->free_queue, opd, links);
+		opd = NULL;
+	}
+	TAILQ_INSERT_TAIL(&dbp->free_queue, dbc, links);
+	MUTEX_THREAD_UNLOCK(dbenv, dbp->free_mutexp);
+}
+
+
 int
 __db_c_close_ll(dbc, countmein)
 	DBC *dbc;
@@ -77,6 +171,11 @@ __db_c_close_ll(dbc, countmein)
 	DBC_INTERNAL *cp;
 	DB_ENV *dbenv;
 	int ret, t_ret;
+
+	if (dbc->pair_c) {
+		__db_c_movetofree(dbc->pair_c);
+		dbc->pair_c = NULL;
+	}
 
 #ifdef LULU2
 	fprintf(stdout,
@@ -724,12 +823,22 @@ __db_c_idup(dbc_orig, dbcp, flags)
 	dbp = dbc_orig->dbp;
 	dbc_n = *dbcp;
 
-	/* Pausible must be set before the cursor is on the active queue */
-	if ((ret = __db_cursor_int(dbp, dbc_orig->txn, dbc_orig->dbtype,
-	    dbc_orig->internal->root, F_ISSET(dbc_orig, DBC_OPD),
-	    dbc_orig->locker, &dbc_n,
-	    F_ISSET(dbc_orig, DBC_PAUSIBLE) ? DB_PAUSIBLE : 0)) != 0)
-		return (ret);
+	if (dbc_orig->pair_c && flags & DB_NEXT) {
+		printf("AZ: using cache of pair_c\n");
+		dbc_n = dbc_orig->pair_c;
+		__db_cursor_pair_reset(dbp, dbc_orig->txn, dbc_orig->dbtype,
+				dbc_orig->internal->root, F_ISSET(dbc_orig, DBC_OPD),
+				dbc_orig->locker, &dbc_n,
+				F_ISSET(dbc_orig, DBC_PAUSIBLE) ? DB_PAUSIBLE : 0);
+	}
+	else {
+		/* Pausible must be set before the cursor is on the active queue */
+		if ((ret = __db_cursor_int(dbp, dbc_orig->txn, dbc_orig->dbtype,
+						dbc_orig->internal->root, F_ISSET(dbc_orig, DBC_OPD),
+						dbc_orig->locker, &dbc_n,
+						F_ISSET(dbc_orig, DBC_PAUSIBLE) ? DB_PAUSIBLE : 0)) != 0)
+			return (ret);
+	}
 #if USE_BTPF
 	btpf_copy_dbc(dbc_orig, dbc_n);
 #endif
@@ -755,6 +864,8 @@ __db_c_idup(dbc_orig, dbcp, flags)
 		case DB_RECNO:
 			if ((ret = __bam_c_dup(dbc_orig, dbc_n)) != 0)
 				goto err;
+			if (!dbc_orig->pair_c && flags & DB_NEXT)
+				dbc_orig->pair_c = dbc_n;
 			break;
 		case DB_HASH:
 			if ((ret = __ham_c_dup(dbc_orig, dbc_n)) != 0)
@@ -1027,6 +1138,7 @@ __db_c_get_dup(dbc_arg, dbc_dup, key, data, flags)
 	if (F_ISSET(dbc_arg, DBC_TRANSIENT))
 		dbc_n = dbc_arg;
 	else {
+		/* AZ: dup happens here, no need to clean */
 		ret = __db_c_idup(dbc_arg, &dbc_n, tmp_flags);
 		if (tmp_dirty)
 			F_CLR(dbc_arg, DBC_DIRTY_READ);
@@ -1960,8 +2072,14 @@ __db_c_cleanup(dbc, dbc_n, failed)
 	 * We might want to consider adding a flag to the cursor, so that any
 	 * subsequent operations other than close just return an error?
 	 */
-	if ((t_ret = __db_c_close(dbc_n)) != 0 && ret == 0)
-		ret = t_ret;
+	if (dbc_n == dbc->pair_c) {
+		/* AZ: don't clean if this is my pair cursor */
+		if ((t_ret = __db_c_clean_no_close(dbc_n)) != 0 && ret == 0)
+			ret = t_ret;
+	} else {
+		if ((t_ret = __db_c_close(dbc_n)) != 0 && ret == 0)
+			ret = t_ret;
+	}
 
 	return (ret);
 }

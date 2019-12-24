@@ -1775,6 +1775,7 @@ struct cursor_track {
 struct __dbc {
 	DB *dbp;			/* Related DB access method. */
 	DB_TXN	 *txn;			/* Associated transaction. */
+	DBC *pair_c;			/* paired cursor cached. */
 
 	/*
 	 * Active/free cursor queues.
