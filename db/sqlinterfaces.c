@@ -109,6 +109,7 @@
 #include "perf.h"
 
 #include "dohsql.h"
+#include "comdb2_query_preparer.h"
 
 /* delete this after comdb2_api.h changes makes it through */
 #define SQLHERR_MASTER_QUEUE_FULL -108
@@ -124,8 +125,9 @@ extern int gbl_fdb_track;
 extern int gbl_return_long_column_names;
 extern int gbl_stable_rootpages_test;
 extern int gbl_verbose_normalized_queries;
-
+extern int gbl_group_concat_mem_limit;
 extern int gbl_expressions_indexes;
+extern int gbl_old_column_names;
 
 /* Once and for all:
 
@@ -167,6 +169,11 @@ int gbl_bpfunc_auth_gen = 1;
 
 struct thdpool *gbl_sqlengine_thdpool = NULL;
 
+int gbl_thdpool_queue_only = 0;
+int gbl_random_sql_work_delayed = 0;
+int gbl_random_sql_work_rejected = 0;
+
+comdb2_query_preparer_t *query_preparer_plugin;
 void rcache_init(size_t, size_t);
 void rcache_destroy(void);
 void sql_reset_sqlthread(struct sql_thread *thd);
@@ -179,7 +186,6 @@ static char *get_query_cost_as_string(struct sql_thread *thd,
 
 void handle_sql_intrans_unrecoverable_error(struct sqlclntstate *clnt);
 
-void comdb2_set_sqlite_vdbe_tzname(Vdbe *p);
 void comdb2_set_sqlite_vdbe_dtprec(Vdbe *p);
 static int execute_sql_query_offload(struct sqlthdstate *,
                                      struct sqlclntstate *);
@@ -640,6 +646,20 @@ void sql_dlmalloc_init(void)
     m.xShutdown = sql_mem_shutdown;
     m.pAppData = NULL;
     sqlite3_config(SQLITE_CONFIG_MALLOC, &m);
+
+    if (query_preparer_plugin && query_preparer_plugin->do_post_init) {
+        query_preparer_plugin->do_post_init(&m);
+    }
+}
+
+/* Called once from comdb2. Do all static intialization here */
+void sqlinit(void)
+{
+    Pthread_mutex_init(&gbl_sql_lock, NULL);
+    sql_dlmalloc_init();
+    /* initialize global structures in sqlite */
+    if (sqlite3_initialize())
+        abort();
 }
 
 static int comdb2_authorizer_for_sqlite(
@@ -798,7 +818,8 @@ int sqlite3_can_get_column_type_and_data(
   return 0;
 }
 
-static pthread_mutex_t open_serial_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t open_serial_lock = PTHREAD_MUTEX_INITIALIZER;
+
 int sqlite3_open_serial(const char *filename, sqlite3 **ppDb,
                         struct sqlthdstate *thd)
 {
@@ -1046,6 +1067,11 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
     }
 
     clear_cost(thd);
+
+    if (gbl_old_column_names && query_preparer_plugin &&
+        query_preparer_plugin->do_post_exec_cleanup) {
+        query_preparer_plugin->do_post_exec_cleanup(clnt);
+    }
 }
 
 void sql_set_sqlengine_state(struct sqlclntstate *clnt, char *file, int line,
@@ -3008,6 +3034,21 @@ static void normalize_stmt_and_store(
   }
 }
 
+const char *comdb2_column_name(struct sqlclntstate *clnt, sqlite3_stmt *stmt,
+                               int index)
+{
+    if (gbl_old_column_names == 0 || clnt->old_columns_count == 0) {
+        return sqlite3_column_name(stmt, index);
+    }
+
+    if (index > (clnt->old_columns_count - 1)) {
+        logmsg(LOGMSG_ERROR, "%s:%d bad column index %d\n", __func__, __LINE__,
+               index);
+        return 0;
+    }
+    return clnt->old_columns[index];
+}
+
 /**
  * Get a sqlite engine, either from cache or building a new one
  * Locks tables to prevent any schema changes for them
@@ -3052,8 +3093,15 @@ static int get_prepared_stmt_int(struct sqlthdstate *thd,
         thd->authState.flags = flags;
         thd->authState.numDdls = 0;
         rec->prepFlags = flags;
+
         clnt->prep_rc = rc = sqlite3_prepare_v3(thd->sqldb, rec->sql, -1,
                                                 sqlPrepFlags, &rec->stmt, &tail);
+
+        if (gbl_old_column_names && (sqlite3_column_count(rec->stmt) > 0) &&
+            query_preparer_plugin && query_preparer_plugin->do_prepare) {
+            query_preparer_plugin->do_prepare(thd, clnt, rec->sql);
+        }
+
         thd->authState.flags = 0;
         clnt->no_transaction = 0;
         if (rc == SQLITE_OK) {
@@ -6427,3 +6475,4 @@ void end_internal_sql_clnt(struct sqlclntstate *clnt)
     clnt->dbtran.mode = TRANLEVEL_INVALID;
     cleanup_clnt(clnt);
 }
+
