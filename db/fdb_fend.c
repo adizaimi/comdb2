@@ -3470,31 +3470,32 @@ static fdb_tbl_ent_t *fdb_cursor_table_entry(BtCursor *pCur)
 const char *fdb_parse_comdb2_remote_dbname(const char *zDatabase,
                                            const char **fqDbname)
 {
-    const char *dbName = NULL;
+    const char *dbName;
     const char *temp_dbname = "temp";
     const char *local_dbname = "main";
 
+    if (!zDatabase) {
+        *fqDbname = NULL;
+        return NULL;
+    }
+
     dbName = zDatabase;
 
-    if (zDatabase) {
-        if ((strcasecmp(zDatabase, temp_dbname) == 0)) {
-            dbName = temp_dbname;
-        }
-        /* extract location hint, if any */
-        else if ((*fqDbname = strchr(dbName, '_')) != NULL) {
-            dbName = (++(*fqDbname));
-            *fqDbname = zDatabase;
-        } else {
-            *fqDbname = zDatabase;
-        }
-
-        /* NOTE: _ notation is invalidated if dbname is the saem as local */
-        if (strcasecmp(thedb->envname, dbName) == 0) /* local name */
-        {
-            dbName = local_dbname;
-            *fqDbname = NULL;
-        }
+    if ((strcasecmp(zDatabase, temp_dbname) == 0)) {
+        dbName = temp_dbname;
+    }
+    /* extract location hint, if any */
+    else if ((*fqDbname = strchr(dbName, '_')) != NULL) {
+        dbName = (++(*fqDbname));
+        *fqDbname = zDatabase;
     } else {
+        *fqDbname = zDatabase;
+    }
+
+    /* NOTE: _ notation is invalidated if dbname is the same as local */
+    if (strcasecmp(thedb->envname, dbName) == 0) /* local name */
+    {
+        dbName = local_dbname;
         *fqDbname = NULL;
     }
 
