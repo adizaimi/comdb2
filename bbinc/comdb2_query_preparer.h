@@ -18,10 +18,9 @@
 #define __INCLUDED_QUERY_PREPARER_H
 
 struct comdb2_query_preparer {
-    int (*do_post_init)(sqlite3_mem_methods *);
     int (*do_prepare)(struct sqlthdstate *, struct sqlclntstate *,
                       const char *);
-    int (*do_post_exec_cleanup)(struct sqlclntstate *);
+    int (*do_cleanup)(struct sqlclntstate *);
 };
 typedef struct comdb2_query_preparer comdb2_query_preparer_t;
 

@@ -122,7 +122,6 @@ extern int gbl_allow_pragma;
 extern int gbl_use_appsock_as_sqlthread;
 extern int g_osql_max_trans;
 extern int gbl_fdb_track;
-extern int gbl_return_long_column_names;
 extern int gbl_stable_rootpages_test;
 extern int gbl_verbose_normalized_queries;
 extern int gbl_group_concat_mem_limit;
@@ -646,10 +645,6 @@ void sql_dlmalloc_init(void)
     m.xShutdown = sql_mem_shutdown;
     m.pAppData = NULL;
     sqlite3_config(SQLITE_CONFIG_MALLOC, &m);
-
-    if (query_preparer_plugin && query_preparer_plugin->do_post_init) {
-        query_preparer_plugin->do_post_init(&m);
-    }
 }
 
 /* Called once from comdb2. Do all static intialization here */
@@ -1069,8 +1064,8 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
     clear_cost(thd);
 
     if (gbl_old_column_names && query_preparer_plugin &&
-        query_preparer_plugin->do_post_exec_cleanup) {
-        query_preparer_plugin->do_post_exec_cleanup(clnt);
+        query_preparer_plugin->do_cleanup) {
+        query_preparer_plugin->do_cleanup(clnt);
     }
 }
 
@@ -3099,7 +3094,9 @@ static int get_prepared_stmt_int(struct sqlthdstate *thd,
 
         if (gbl_old_column_names && (sqlite3_column_count(rec->stmt) > 0) &&
             query_preparer_plugin && query_preparer_plugin->do_prepare) {
-            query_preparer_plugin->do_prepare(thd, clnt, rec->sql);
+            rc = query_preparer_plugin->do_prepare(thd, clnt, rec->sql);
+            if (rc)
+                return rc;
         }
 
         thd->authState.flags = 0;
