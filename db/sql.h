@@ -1195,9 +1195,11 @@ struct query_stats {
 int get_query_stats(struct query_stats *stats);
 
 int clear_fingerprints(void);
-
-void add_fingerprint(const char *, const char *, int64_t, int64_t, int64_t,
-                     struct reqlogger *logger, unsigned char *fingerprint_out);
+void calc_fingerprint(const char *zNormSql, size_t *pnNormSql,
+                      unsigned char fingerprint[FINGERPRINTSZ]);
+void add_fingerprint(struct sqlclntstate *, sqlite3_stmt *, const char *,
+                     const char *, int64_t, int64_t, int64_t,
+                     struct reqlogger *, unsigned char *fingerprint_out);
 
 long long run_sql_return_ll(const char *query, struct errstat *err);
 long long run_sql_thd_return_ll(const char *query, struct sql_thread *thd,

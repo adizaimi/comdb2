@@ -936,10 +936,47 @@ static void add_steps(struct sqlclntstate *clnt, double steps)
     clnt->plugin.add_steps(clnt, steps);
 }
 
+/*
+** NOTE: This function checks if zSql starts with one of the SQL (meta)
+**       command names from the azMeta array.  The azMeta array must have
+**       a final element with a NULL value.  The return value will either
+**       be zero upon failing to find a match -OR- one plus the matching
+**       index upon finding a match.
+*/
+static int is_meta_sql(const char *zSql, const char *azMeta[])
+{
+    size_t len = strlen(zSql);
+    for (int i = 0; azMeta[i]; i++) {
+        size_t metaLen = strlen(azMeta[i]);
+        if (strncasecmp(zSql, azMeta[i], metaLen) == 0) {
+            if (len == metaLen) {
+                return i + 1; /* end-of-string */
+            } else {
+                char nextCh = zSql[metaLen];
+                if ((nextCh == ';') || isspace(nextCh)) {
+                    return i + 1; /* command delimiter */
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+static int is_stored_proc_sql(const char *zSql)                                                                                                                          
+{
+    /*
+    ** WARNING: The last element of this array must be NULL.
+    */
+    static const char *azMeta[] = { "EXEC", "EXECUTE", NULL };
+    return is_meta_sql(zSql, azMeta);
+}
+
+
 /* Save copy of sql statement and performance data.  If any other code
    should run after a sql statement is completed it should end up here. */
 static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
-                               struct sqlclntstate *clnt, int stmt_rc)
+                               struct sqlclntstate *clnt, sqlite3_stmt *stmt,
+                               int stmt_rc)
 {
     struct rawnodestats *rawnodestats;
 
@@ -998,8 +1035,8 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
 
     if (gbl_fingerprint_queries) {
         if (h->sql && clnt->zNormSql && sqlite3_is_success(clnt->prep_rc)) {
-            add_fingerprint(h->sql, clnt->zNormSql, h->cost, h->time,
-                            clnt->nrows, logger, fingerprint);
+            add_fingerprint(clnt, stmt, h->sql, clnt->zNormSql, h->cost,
+                            h->time, clnt->nrows, logger, fingerprint);
             have_fingerprint = 1;
         } else {
             reqlog_reset_fingerprint(logger, FINGERPRINTSZ);
@@ -3742,7 +3779,7 @@ static void sqlite_done(struct sqlthdstate *thd, struct sqlclntstate *clnt,
         distributed = 1;
     }
 
-    sql_statement_done(thd->sqlthd, thd->logger, clnt, outrc);
+    sql_statement_done(thd->sqlthd, thd->logger, clnt, stmt, outrc);
 
     if (stmt && !((Vdbe *)stmt)->explain && ((Vdbe *)stmt)->nScan > 1 &&
         (BDB_ATTR_GET(thedb->bdb_attr, PLANNER_WARN_ON_DISCREPANCY) == 1 ||
