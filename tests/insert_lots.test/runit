@@ -17,11 +17,21 @@ fi
 # Number of insert_records function calls
 nins=0
 
-
 failexit()
 {
     echo "Failed $1"
     exit -1
+}
+
+
+assertthdpoolcntzero()
+{
+    node=$1
+    cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} --host $node 'exec procedure sys.cmd.send("get_verify_thdpool_status")' &> assertthdpoolcntzero.out
+    grep "Current num threads       : 0"  assertthdpoolcntzero.out
+    if [ $? -ne 0 ] ; then
+        failexit "nonzero count of current threads running verify, see assertthdpoolcntzero.out"
+    fi
 }
 
 assertcnt ()
@@ -114,8 +124,40 @@ assertcnt $((THRDS * CNT * ITERATIONS))
 
 cdb2sql --tabs ${CDB2_OPTIONS} $dbnm default "truncate t1"
 
+#TODO: split this test in two via testopts
 TRANSIZE=2800
 time ${TESTSBUILDDIR}/insert_lots_mt $dbnm $THRDS $CNT $ITERATIONS $TRANSIZE> ins2.out
 assertcnt $((THRDS * CNT * ITERATIONS))
+
+node=`cdb2sql ${CDB2_OPTIONS} -s --tabs $dbnm default 'SELECT comdb2_host()'`
+
+### testing cancelling verify behavior ###
+cdb2sql ${CDB2_OPTIONS} ${DBNAME} --host $node "exec procedure sys.cmd.verify('t1', 'parallel', 'verbose')" &> verify_t1.out &
+pid=$!
+sleep 0.5
+kill -9 $pid
+sleep 2.5
+assertthdpoolcntzero $node
+
+cdb2sql ${CDB2_OPTIONS} ${DBNAME} --host $node "exec procedure sys.cmd.verify('t1', 'parallel')" &> verify_t1.out &
+pid=$!
+sleep 0.5
+kill -9 $pid
+sleep 2.5
+assertthdpoolcntzero $node
+
+cdb2sql ${CDB2_OPTIONS} ${DBNAME} --host $node "exec procedure sys.cmd.verify('t1', 'verbose')" &> verify_t1.out &
+pid=$!
+sleep 0.5
+kill -9 $pid
+sleep 2.5
+assertthdpoolcntzero $node
+
+cdb2sql ${CDB2_OPTIONS} ${DBNAME} --host $node "exec procedure sys.cmd.verify('t1')" &> verify_t1.out &
+pid=$!
+sleep 0.5
+kill -9 $pid
+sleep 2.5
+assertthdpoolcntzero $node
 
 echo "Success"
