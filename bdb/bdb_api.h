@@ -1438,12 +1438,6 @@ unsigned long long increment_seq(unsigned long long crt);
 void bdb_get_cur_lsn_str(bdb_state_type *bdb_state, uint64_t *lsnbytes,
                          char *lsnstr, size_t len);
 
-unsigned long long bdb_temp_table_new_rowid(struct temp_table *tbl);
-
-int bdb_temp_table_put(bdb_state_type *bdb_state, struct temp_table *tbl,
-                       void *key, int keylen, void *data, int dtalen,
-                       void *unpacked, int *bdberr);
-
 void bdb_get_cur_lsn_str(bdb_state_type *bdb_state, uint64_t *lsnbytes,
                          char *lsnstr, size_t len);
 

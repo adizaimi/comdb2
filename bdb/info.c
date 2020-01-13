@@ -1633,7 +1633,9 @@ void bdb_process_user_command(bdb_state_type *bdb_state, char *line, int lline,
             }
         }
 
-        bdb_temp_table_insert_test(bdb_state, recsz, maxins);
+        //bdb_temp_table_insert_test(bdb_state, recsz, maxins);
+        void compare_dynarray_temparray(int, int);
+        compare_dynarray_temparray(recsz, maxins);
     } 
     else if (tokcmp(tok, ltok, "reptrcy") == 0) {
         logmsg(LOGMSG_USER, "turning on replication trace\n");

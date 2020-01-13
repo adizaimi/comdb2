@@ -67,9 +67,9 @@ gen_series_test()
 }
 
 echo $CDB2_CONFIG
-THRDS=20
-CNT=10000
-ITERATIONS=5
+THRDS=10
+CNT=1000
+ITERATIONS=3
 TRANSIZE=0
 
 gen_series_test

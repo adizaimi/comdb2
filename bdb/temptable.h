@@ -53,6 +53,13 @@ struct temp_cursor *bdb_temp_table_cursor(bdb_state_type *bdb_state,
 int bdb_temp_table_close_cursor(bdb_state_type *bdb_state,
                                 struct temp_cursor *cursor, int *bdberr);
 
+unsigned long long bdb_temp_table_new_rowid(struct temp_table *tbl);
+
+int bdb_temp_table_put(bdb_state_type *bdb_state, struct temp_table *tbl,
+                       void *key, int keylen, void *data, int dtalen,
+                       void *unpacked, int *bdberr);
+
+
 int bdb_temp_table_insert(bdb_state_type *bdb_state, struct temp_cursor *cursor,
                           void *key, int keylen, void *data, int dtalen,
                           int *bdberr);

@@ -23,8 +23,9 @@
 #include "dyn_array.h"
 #include "temptable.h"
 #include "ix_return_codes.h"
+#include "time_accounting.h"
 
-#define MAX_ARR_SZ 1024*2024
+#define MAX_ARR_SZ 10*2024
 size_t gbl_max_inmem_array_size = MAX_ARR_SZ;
 void hexdump(loglvl lvl, const char *key, int keylen);
 
@@ -173,6 +174,7 @@ static inline int do_transfer(dyn_array_t *arr)
     assert(arr->temp_table == NULL);
     assert(arr->temp_table_cur == NULL);
 
+    dyn_array_sort(arr); // sort before transfering
     arr->temp_table = create_temp_table(arr);
     if (!arr->temp_table)
         return 1;
@@ -199,13 +201,21 @@ static inline int do_transfer(dyn_array_t *arr)
  */
 static inline int init_internal_buffers(dyn_array_t *arr)
 {
-    arr->capacity = 512;
+    assert(arr->capacity == 0);
+    assert(arr->items == 0);
+    assert(arr->buffer_capacity == 0);
+    assert(arr->buffer_curr_offset == 0);
+
+    arr->capacity = 1024;
     arr->kv = malloc(sizeof(*arr->kv) * arr->capacity);
-    if (!arr->kv)
+    if (!arr->kv) {
+        abort();
         return 1;
-    arr->buffer_capacity = 16*1024;
+    }
+    arr->buffer_capacity = 32*1024;
     arr->buffer = malloc(arr->buffer_capacity);
     if (!arr->buffer) {
+        abort();
         free(arr->kv);
         arr->kv = NULL;
         return 1;
@@ -221,10 +231,11 @@ static inline int append_to_array(dyn_array_t *arr, void *key, int keylen, void 
         abort();
     }
     if (arr->capacity == 0) {
-        assert(arr->items == 0);
         if(init_internal_buffers(arr))
             return 1;
     }
+    assert(arr->capacity);
+    assert(arr->buffer_capacity);
     if (arr->items + 1 >= arr->capacity) {
         arr->capacity *= 2;
         void *n = realloc(arr->kv, sizeof(*arr->kv) * arr->capacity);
@@ -357,14 +368,121 @@ void dyn_array_get_kv(dyn_array_t *arr, void **key, void **data, int *datalen)
         *data = NULL;
 }
 
-int test_dyn_array()
+typedef struct oplog_key {
+    uint16_t tbl_idx;
+    uint8_t stripe;
+    unsigned long long genid;
+    uint8_t is_rec; // 1 for record because it needs to go after blobs
+    uint32_t seq;   // record and blob will share the same seq
+} oplog_key_t;
+
+
+#define CMP_KEY_MEMBER(k1, k2, var)                                            \
+    if (k1->var < k2->var) {                                                   \
+        return -1;                                                             \
+    }                                                                          \
+    if (k1->var > k2->var) {                                                   \
+        return 1;                                                              \
+    }
+
+
+int loc_osql_bplog_key_cmp(void *usermem, int key1len, const void *key1,
+                       int key2len, const void *key2)
+{
+    assert(sizeof(oplog_key_t) == key1len);
+    assert(sizeof(oplog_key_t) == key2len);
+
+#ifdef _SUN_SOURCE
+    oplog_key_t t1, t2;
+    memcpy(&t1, key1, key1len);
+    memcpy(&t2, key2, key2len);
+    oplog_key_t *k1 = &t1;
+    oplog_key_t *k2 = &t2;
+#else
+    oplog_key_t *k1 = (oplog_key_t *)key1;
+    oplog_key_t *k2 = (oplog_key_t *)key2;
+#endif
+
+    CMP_KEY_MEMBER(k1, k2, tbl_idx);
+    CMP_KEY_MEMBER(k1, k2, stripe);
+    CMP_KEY_MEMBER(k1, k2, genid);
+    CMP_KEY_MEMBER(k1, k2, is_rec);
+    CMP_KEY_MEMBER(k1, k2, seq);
+
+    return 0;
+}
+
+void test_one_iter_dyn_arr(int rec)
 {
     dyn_array_t arr = {0};
     dyn_array_init(&arr, NULL);
-    for (int i = 10; i > 1; i--)
-        dyn_array_append(&arr, &i, sizeof(i), NULL, 0);
+    dyn_array_set_cmpr(&arr, loc_osql_bplog_key_cmp);
+
+    oplog_key_t key = {0};
+    char *value[345];
+
+    for (int i = 0; i < rec; i++) {
+        key.seq = rand();
+        key.tbl_idx = (rand() % 3) + 1;
+        key.is_rec = (rand() % 2);
+        key.genid = rand();
+        dyn_array_append(&arr, &key, sizeof(key), value, sizeof(value));
+    }
 
     dyn_array_sort(&arr);
-    dyn_array_dump(&arr);
-    abort();
+    //dyn_array_dump(&arr);
+    dyn_array_close(&arr);
 }
+extern void *get_bdb_env(void);
+
+void test_one_iter_temp_arr(int rec)
+{
+    oplog_key_t key = {0};
+    char *value[345];
+    int rc;
+    int bdberr;
+    struct temp_table *newtbl = bdb_temp_array_create(get_bdb_env(), &bdberr);
+    bdb_temp_table_set_cmp_func(newtbl, loc_osql_bplog_key_cmp);
+
+    for (int i = 0; i < rec; i++) {
+        key.seq = rand();
+        key.tbl_idx = (rand() % 3) + 1;
+        key.is_rec = (rand() % 2);
+        key.genid = rand();
+        //rc = bdb_temp_table_insert(thedb->bdb_env, cur, &ditk, sizeof(ditk),
+                                   //data, datalen, &err);
+
+        rc = bdb_temp_table_put(get_bdb_env(), newtbl, &key,
+                sizeof(key), value, sizeof(value), NULL,
+                &bdberr);
+        if (rc) abort();
+    }
+    bdb_temp_table_close(get_bdb_env(), newtbl, &bdberr);
+}
+
+void test_dyn_array(int rec, int iter)
+{
+    for(int i=0; i < iter; i++) {
+        srand(5);
+        test_one_iter_dyn_arr(rec);
+    }    
+}
+
+void test_temp_array(int rec, int iter)
+{
+    for(int i=0; i < iter; i++) {
+        srand(5);
+        test_one_iter_temp_arr(rec);
+    }
+}
+
+void compare_dynarray_temparray(int rec, int iter)
+{
+    reset_time_accounting(CHR_TMPA);
+    reset_time_accounting(CHR_TMPB);
+    ACCUMULATE_TIMING(CHR_TMPA, test_dyn_array(rec, iter););
+    ACCUMULATE_TIMING(CHR_TMPB, test_temp_array(rec, iter););
+    print_time_accounting(CHR_TMPA);
+    print_time_accounting(CHR_TMPB);
+}
+

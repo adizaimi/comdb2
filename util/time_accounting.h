@@ -21,7 +21,7 @@
 
 #ifndef NDEBUG
 
-enum { CHR_IXADDK, CHR_DATADD, CHR_TMPSVOP, CHR_MAX } CHR_ENUM;
+enum { CHR_IXADDK, CHR_DATADD, CHR_TMPSVOP, CHR_TMPA, CHR_TMPB, CHR_MAX } CHR_ENUM;
 
 /* NB: this construct is ment to encompass a function call like this:
  * ACCUMULATE_TIMING(CHR_FUNCTOMEASURE
@@ -49,6 +49,7 @@ enum { CHR_IXADDK, CHR_DATADD, CHR_TMPSVOP, CHR_MAX } CHR_ENUM;
 void accumulate_time(int el, int us);
 
 void print_time_accounting(int el);
+void reset_time_accounting(int el);
 void print_all_time_accounting();
 
 #else
@@ -61,6 +62,9 @@ void print_all_time_accounting();
     do {                                                                       \
     } while (0);
 #define print_time_accounting(el)                                              \
+    do {                                                                       \
+    } while (0);
+#define reset_time_accounting(el)                                              \
     do {                                                                       \
     } while (0);
 #endif

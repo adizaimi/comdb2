@@ -20,7 +20,7 @@
 #include "time_accounting.h"
 
 #ifndef NDEBUG
-const char *CHR_NAMES[] = {"ix_addk", "dat_add", "temp_table_saveop"};
+const char *CHR_NAMES[] = {"ix_addk", "dat_add", "temp_table_saveop", "dyn_arr", "tmp_arr"};
 
 uint64_t gbl_chron_times[CHR_MAX];
 
