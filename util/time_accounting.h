@@ -21,7 +21,7 @@
 
 #ifndef NDEBUG
 
-enum { CHR_IXADDK, CHR_DATADD, CHR_TMPSVOP, CHR_MAX } CHR_ENUM;
+enum { CHR_IXADDK, CHR_DATADD, CHR_TMPSVOP, CHR_HSHLCK, CHR_HSHLCK_W, CHR_MAX} CHR_ENUM;
 
 /* NB: this construct is ment to encompass a function call like this:
  * ACCUMULATE_TIMING(CHR_FUNCTOMEASURE
@@ -34,6 +34,18 @@ enum { CHR_IXADDK, CHR_DATADD, CHR_TMPSVOP, CHR_MAX } CHR_ENUM;
  * call print_time_accounting(CHR_FUNCTOMEASURE);
  */
 
+#define ACCUMULATE_TIMING_PRE()                                                \
+        struct timeval __tv1;                                                  \
+        gettimeofday(&__tv1, NULL);                                            \
+
+#define ACCUMULATE_TIMING_POST(NAME)                                           \
+        struct timeval __tv2;                                                  \
+        gettimeofday(&__tv2, NULL);                                            \
+        int __sec_part = (__tv2.tv_sec - __tv1.tv_sec) * 1000000;              \
+        int __usec_part = (__tv2.tv_usec - __tv1.tv_usec);                     \
+        accumulate_time(NAME, __sec_part + __usec_part);                       \
+    
+    
 #define ACCUMULATE_TIMING(NAME, CODE)                                          \
     do {                                                                       \
         struct timeval __tv1;                                                  \

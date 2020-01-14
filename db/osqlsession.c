@@ -33,6 +33,7 @@
 
 #include <uuid/uuid.h>
 #include "str0.h"
+#include "time_accounting.h"
 
 static void _destroy_session(osql_sess_t **prq, int phase);
 
@@ -347,6 +348,7 @@ int osql_sess_rcvop(unsigned long long rqid, uuid_t uuid, int type, void *data,
                                     rqid == OSQL_RQID_USE_UUID, &perr);
 
     /* get the session */
+    ACCUMULATE_TIMING_PRE();
     osql_sess_t *sess = osql_repository_get(rqid, uuid, is_msg_done);
     if (!sess) {
         /* in the current implementation we tolerate redundant ops from session
@@ -369,6 +371,7 @@ int osql_sess_rcvop(unsigned long long rqid, uuid_t uuid, int type, void *data,
             logmsg(LOGMSG_ERROR, "%s: osql_repository_put rc =%d\n", __func__,
                    rc);
         }
+        ACCUMULATE_TIMING_POST(CHR_HSHLCK);
 
         /* sqlite aborted the transaction, skip all the work here
            master not needed */
@@ -393,6 +396,9 @@ int osql_sess_rcvop(unsigned long long rqid, uuid_t uuid, int type, void *data,
             logmsg(LOGMSG_ERROR,
                    "%s:%d osql_repository_put failed with rc %d\n", __func__,
                    __LINE__, rc);
+        }
+        if (is_msg_done) {
+            ACCUMULATE_TIMING_POST(CHR_HSHLCK);
         }
         comdb2uuidstr(uuid, us);
         logmsg(LOGMSG_INFO,
@@ -429,6 +435,9 @@ int osql_sess_rcvop(unsigned long long rqid, uuid_t uuid, int type, void *data,
     if ((rc = osql_repository_put(sess, is_msg_done)) != 0) {
         logmsg(LOGMSG_ERROR, "%s: osql_repository_put rc =%d\n", __func__, rc);
     }
+        if (is_msg_done) {
+            ACCUMULATE_TIMING_POST(CHR_HSHLCK);
+        }
 
     if (rc_out)
         return rc_out;
