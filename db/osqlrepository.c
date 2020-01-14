@@ -31,6 +31,7 @@
 #include "locks_wrap.h"
 #include "tohex.h"
 #include "comdb2_atomic.h"
+#include "time_accounting.h"
 
 struct osql_repository {
 
@@ -124,6 +125,7 @@ int osql_repository_add(osql_sess_t *sess, int *replaced)
         return -1;
     }
 
+    ACCUMULATE_TIMING_PRE();
     /* insert it into the hash table */
     Pthread_rwlock_wrlock(&theosql->hshlck);
 
@@ -141,6 +143,7 @@ int osql_repository_add(osql_sess_t *sess, int *replaced)
         logmsg(LOGMSG_WARN, "%s: osql session cancelled due to schema change\n",
                 __func__);
         Pthread_rwlock_unlock(&theosql->hshlck);
+        ACCUMULATE_TIMING_POST(CHR_HSHLCK_W);
         return RC_INTERNAL_RETRY; /* POSITIVE */
     }
 
@@ -170,6 +173,7 @@ int osql_repository_add(osql_sess_t *sess, int *replaced)
             logmsg(LOGMSG_ERROR, "%s:%d osql_sess_try_terminate rc %d\n",
                    __func__, __LINE__, rc);
             Pthread_rwlock_unlock(&theosql->hshlck);
+            ACCUMULATE_TIMING_POST(CHR_HSHLCK_W);
             return -1;
         }
         if (rc == 0) {
@@ -180,6 +184,7 @@ int osql_repository_add(osql_sess_t *sess, int *replaced)
         } else {
             /* old request was already processed, ignore new ones */
             Pthread_rwlock_unlock(&theosql->hshlck);
+            ACCUMULATE_TIMING_POST(CHR_HSHLCK_W);
             *replaced = 1;
             logmsg(LOGMSG_INFO,
                    "%s: rqid=%llx, uuid=%s was completed/dispatched\n",
@@ -208,6 +213,7 @@ int osql_repository_add(osql_sess_t *sess, int *replaced)
 #endif
 
     Pthread_rwlock_unlock(&theosql->hshlck);
+    ACCUMULATE_TIMING_POST(CHR_HSHLCK_W);
 
     return rc;
 }
@@ -226,6 +232,7 @@ int osql_repository_rem(osql_sess_t *sess, int lock, const char *func, const cha
     }
     int rc = 0;
 
+    ACCUMULATE_TIMING_PRE();
     if (lock) {
         Pthread_rwlock_wrlock(&theosql->hshlck);
     }
@@ -279,6 +286,7 @@ int osql_repository_rem(osql_sess_t *sess, int lock, const char *func, const cha
 
         if (lock) {
             Pthread_rwlock_unlock(&theosql->hshlck);
+        ACCUMULATE_TIMING_POST(CHR_HSHLCK);
             lock = 0;
         }
 
@@ -299,6 +307,7 @@ int osql_repository_rem(osql_sess_t *sess, int lock, const char *func, const cha
 
     if (lock) {
         Pthread_rwlock_unlock(&theosql->hshlck);
+        ACCUMULATE_TIMING_POST(CHR_HSHLCK_W);
     }
 
     return 0;
@@ -396,6 +405,7 @@ int osql_repository_printcrtsessions(void)
     maxops = get_osql_maxtransfer();
     logmsg(LOGMSG_USER, "Maximum transaction size: %d bplog entries\n", maxops);
 
+    ACCUMULATE_TIMING_PRE();
     Pthread_rwlock_rdlock(&stat->hshlck);
 
     logmsg(LOGMSG_USER, "Begin osql session info:\n");
@@ -406,6 +416,7 @@ int osql_repository_printcrtsessions(void)
         logmsg(LOGMSG_USER, "Done osql info.\n");
 
     Pthread_rwlock_unlock(&stat->hshlck);
+        ACCUMULATE_TIMING_POST(CHR_HSHLCK);
 
     return rc;
 }
@@ -433,21 +444,25 @@ int osql_repository_terminatenode(char *host)
 
     osql_repository_t *theosql = stat;
 
+    ACCUMULATE_TIMING_PRE();
     /* insert it into the hash table */
     Pthread_rwlock_wrlock(&theosql->hshlck);
 
     if ((rc = hash_for(theosql->rqs, osql_session_testterminate, host))) {
         logmsg(LOGMSG_ERROR, "hash_for failed with rc = %d\n", rc);
         Pthread_rwlock_unlock(&theosql->hshlck);
+        ACCUMULATE_TIMING_POST(CHR_HSHLCK);
         return -1;
     }
     if ((rc = hash_for(theosql->rqsuuid, osql_session_testterminate, host))) {
         logmsg(LOGMSG_ERROR, "hash_for failed with rc = %d\n", rc);
         Pthread_rwlock_unlock(&theosql->hshlck);
+        ACCUMULATE_TIMING_POST(CHR_HSHLCK);
         return -1;
     }
 
     Pthread_rwlock_unlock(&theosql->hshlck);
+    ACCUMULATE_TIMING_POST(CHR_HSHLCK_W);
 
     return 0;
 }
@@ -494,6 +509,7 @@ bool osql_repository_session_exists(unsigned long long rqid, uuid_t uuid)
     osql_sess_t *sess = NULL;
     int out_rc = 0;
 
+    ACCUMULATE_TIMING_PRE();
     Pthread_rwlock_rdlock(&theosql->hshlck);
 
     if (rqid == OSQL_RQID_USE_UUID)
@@ -508,6 +524,7 @@ bool osql_repository_session_exists(unsigned long long rqid, uuid_t uuid)
     out_rc = !!sess;
 
     Pthread_rwlock_unlock(&theosql->hshlck);
+        ACCUMULATE_TIMING_POST(CHR_HSHLCK);
 
     return out_rc;
 }
@@ -518,10 +535,12 @@ void osql_repository_for_each(void *arg, int (*func)(void *, void *))
     if (!theosql)
         return;
 
+    ACCUMULATE_TIMING_PRE();
     Pthread_rwlock_rdlock(&theosql->hshlck);
 
     hash_for(theosql->rqs, func, arg);
     hash_for(theosql->rqsuuid, func, arg);
 
     Pthread_rwlock_unlock(&theosql->hshlck);
+        ACCUMULATE_TIMING_POST(CHR_HSHLCK);
 }
