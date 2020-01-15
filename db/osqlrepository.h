@@ -64,7 +64,7 @@ void osql_repository_destroy(void);
  * of a schema change)
  *
  */
-int osql_repository_cancelled(void);
+int osql_repository_cancelled();
 
 /**
  * Go through all the sessions executing on node

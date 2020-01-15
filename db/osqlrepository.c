@@ -38,24 +38,35 @@ typedef struct osql_repository {
     hash_t *rqsuuid;
     pthread_mutex_t hshlck; /* protect the hash */
     struct dbenv *dbenv;    /* dbenv */
-    int cancelall; /* set this if we want to prevent new blocksqls */
 
 } osql_repository_t;
 
-static osql_repository_t *theosql_obj = NULL;
+#define MAXOSQLREP 8
+static osql_repository_t *theosql_obj[MAXOSQLREP] = {0};
+int osql_cancelall; /* set this if we want to prevent new blocksqls */
 
-static inline osql_repository_t *get_theosql(void)
+
+static inline osql_repository_t *get_theosql(long long int rqid, void *uuid)
 {
-    return theosql_obj;
+    uint8_t o;
+    if (rqid == OSQL_RQID_USE_UUID)
+        o = (((uint8_t*)uuid)[15]) % MAXOSQLREP;
+    else
+        o = rqid % MAXOSQLREP;
+
+    assert(0 <= o || o < MAXOSQLREP);
+    return theosql_obj[o];
 }
 
-/**
- * Init repository
- * Returns 0 if success
- */
-int osql_repository_init(void)
+static inline osql_repository_t *get_theosql_sess(osql_sess_t *sess)
 {
+    return get_theosql(sess->rqid, sess->uuid);
+}
 
+
+
+static int init_repository(osql_repository_t **theosql_obj)
+{
     osql_repository_t *tmp = NULL;
 
     tmp = (osql_repository_t *)calloc(sizeof(osql_repository_t), 1);
@@ -78,10 +89,26 @@ int osql_repository_init(void)
         return -1;
     }
 
-    theosql_obj = tmp;
+    *theosql_obj = tmp;
 
     return 0;
 }
+
+
+/**
+ * Init repository
+ * Returns 0 if success
+ */
+int osql_repository_init(void)
+{
+    for(int i; i < MAXOSQLREP; i++) {
+        int ret = init_repository(&theosql_obj[i]);
+        if (ret) //cleanup
+            return -1;
+    }
+    return 0;
+}
+
 
 /**
  * Destroy repository
@@ -89,7 +116,9 @@ int osql_repository_init(void)
  */
 void osql_repository_destroy(void)
 {
-    theosql_obj = NULL;
+    for(int i; i < MAXOSQLREP; i++) {
+        theosql_obj[i] = NULL;
+    }
 }
 
 #ifdef TRACK_OSQL_SESSIONS
@@ -116,9 +145,8 @@ int osql_repository_add(osql_sess_t *sess, int *replaced)
 {
     osql_sess_t *sess_chk;
     uuid_t uuid;
-    unsigned long long rqid;
     int rc = 0;
-    osql_repository_t *theosql = get_theosql();
+    osql_repository_t *theosql = get_theosql_sess(sess);
     if (theosql == NULL) {
         return -1;
     }
@@ -145,9 +173,8 @@ int osql_repository_add(osql_sess_t *sess, int *replaced)
         return RC_INTERNAL_RETRY; /* POSITIVE */
     }
 
-    /* how about we check if this session is added again due to an early replay
-     */
-    rqid = osql_sess_getrqid(sess);
+    /* check if this session is added again due to an early replay */
+    unsigned long long rqid = osql_sess_getrqid(sess);
     osql_sess_getuuid(sess, uuid);
     if (rqid == OSQL_RQID_USE_UUID)
         sess_chk = hash_find_readonly(theosql->rqsuuid, &uuid);
@@ -224,7 +251,7 @@ int gbl_abort_on_missing_osql_session = 0;
  */
 int osql_repository_rem(osql_sess_t *sess, int lock, const char *func, const char *callfunc, int line)
 {
-    osql_repository_t *theosql = get_theosql();
+    osql_repository_t *theosql = get_theosql_sess(sess);
     if (theosql == NULL) {
         return -1;
     }
@@ -319,7 +346,7 @@ int osql_repository_rem(osql_sess_t *sess, int lock, const char *func, const cha
 osql_sess_t *osql_repository_get(unsigned long long rqid, uuid_t uuid,
                                  int keep_repository_lock)
 {
-    osql_repository_t *theosql = get_theosql();
+    osql_repository_t *theosql = get_theosql(rqid, uuid);
     if (theosql == NULL) {
         return NULL;
     }
@@ -353,7 +380,7 @@ osql_sess_t *osql_repository_get(unsigned long long rqid, uuid_t uuid,
  */
 int osql_repository_put(osql_sess_t *sess, int release_repository_lock)
 {
-    osql_repository_t *theosql = get_theosql();
+    osql_repository_t *theosql = get_theosql_sess(sess);
     if (theosql == NULL) {
         return -1;
     }
@@ -372,11 +399,7 @@ int osql_repository_put(osql_sess_t *sess, int release_repository_lock)
  */
 void osql_set_cancelall(int disable)
 {
-    osql_repository_t *theosql = get_theosql();
-    if (!theosql)
-        return;
-
-    XCHANGE32(theosql->cancelall, disable);
+    XCHANGE32(osql_cancelall, disable);
     if (disable)
         osql_repository_cancelall();
 }
@@ -387,34 +410,36 @@ void osql_set_cancelall(int disable)
  */
 int osql_repository_printcrtsessions(void)
 {
-    osql_repository_t *stat = get_theosql();
     int rc = 0;
-    int maxops = 0;
+    for(int i; i < MAXOSQLREP; i++) {
+        osql_repository_t *stat = theosql_obj[i];
+        int maxops = 0;
 
-    if (!stat) {
-        if (gbl_ready) {
-            logmsg(LOGMSG_ERROR, "%s: called w/ NULL stat\n", __func__);
-            return -1;
+        if (!stat) {
+            if (gbl_ready) {
+                logmsg(LOGMSG_ERROR, "%s: called w/ NULL stat\n", __func__);
+                return -1;
+            }
+
+            return 0;
         }
 
-        return 0;
-    }
+        maxops = get_osql_maxtransfer();
+        logmsg(LOGMSG_USER, "Maximum transaction size: %d bplog entries\n", maxops);
 
-    maxops = get_osql_maxtransfer();
-    logmsg(LOGMSG_USER, "Maximum transaction size: %d bplog entries\n", maxops);
+        ACCUMULATE_TIMING_PRE();
+        Pthread_mutex_lock(&stat->hshlck);
 
-    ACCUMULATE_TIMING_PRE();
-    Pthread_mutex_lock(&stat->hshlck);
+        logmsg(LOGMSG_USER, "Begin osql session info:\n");
+        if ((rc = hash_for(stat->rqs, osql_sess_getcrtinfo, NULL))) {
+            logmsg(LOGMSG_USER, "hash_for failed with rc = %d\n", rc);
+            rc = -1;
+        } else
+            logmsg(LOGMSG_USER, "Done osql info.\n");
 
-    logmsg(LOGMSG_USER, "Begin osql session info:\n");
-    if ((rc = hash_for(stat->rqs, osql_sess_getcrtinfo, NULL))) {
-        logmsg(LOGMSG_USER, "hash_for failed with rc = %d\n", rc);
-        rc = -1;
-    } else
-        logmsg(LOGMSG_USER, "Done osql info.\n");
-
-    Pthread_mutex_unlock(&stat->hshlck);
+        Pthread_mutex_unlock(&stat->hshlck);
         ACCUMULATE_TIMING_POST(CHR_HSHLCK);
+    }
 
     return rc;
 }
@@ -429,38 +454,40 @@ int osql_repository_printcrtsessions(void)
  */
 int osql_repository_terminatenode(char *host)
 {
-    osql_repository_t *stat = get_theosql();
-    int rc = 0;
-    if (!stat) {
-        if (gbl_ready) {
-            logmsg(LOGMSG_ERROR, "%s: called w/ NULL stat\n", __func__);
+    for(int i; i < MAXOSQLREP; i++) {
+        osql_repository_t *stat = theosql_obj[i];
+        int rc = 0;
+        if (!stat) {
+            if (gbl_ready) {
+                logmsg(LOGMSG_ERROR, "%s: called w/ NULL stat\n", __func__);
+                return -1;
+            }
+
+            return 0;
+        }
+
+        osql_repository_t *theosql = stat;
+
+        ACCUMULATE_TIMING_PRE();
+        /* insert it into the hash table */
+        Pthread_mutex_lock(&theosql->hshlck);
+
+        if ((rc = hash_for(theosql->rqs, osql_session_testterminate, host))) {
+            logmsg(LOGMSG_ERROR, "hash_for failed with rc = %d\n", rc);
+            Pthread_mutex_unlock(&theosql->hshlck);
+            ACCUMULATE_TIMING_POST(CHR_HSHLCK);
+            return -1;
+        }
+        if ((rc = hash_for(theosql->rqsuuid, osql_session_testterminate, host))) {
+            logmsg(LOGMSG_ERROR, "hash_for failed with rc = %d\n", rc);
+            Pthread_mutex_unlock(&theosql->hshlck);
+            ACCUMULATE_TIMING_POST(CHR_HSHLCK);
             return -1;
         }
 
-        return 0;
-    }
-
-    osql_repository_t *theosql = stat;
-
-    ACCUMULATE_TIMING_PRE();
-    /* insert it into the hash table */
-    Pthread_mutex_lock(&theosql->hshlck);
-
-    if ((rc = hash_for(theosql->rqs, osql_session_testterminate, host))) {
-        logmsg(LOGMSG_ERROR, "hash_for failed with rc = %d\n", rc);
         Pthread_mutex_unlock(&theosql->hshlck);
-        ACCUMULATE_TIMING_POST(CHR_HSHLCK);
-        return -1;
+        ACCUMULATE_TIMING_POST(CHR_HSHLCK_W);
     }
-    if ((rc = hash_for(theosql->rqsuuid, osql_session_testterminate, host))) {
-        logmsg(LOGMSG_ERROR, "hash_for failed with rc = %d\n", rc);
-        Pthread_mutex_unlock(&theosql->hshlck);
-        ACCUMULATE_TIMING_POST(CHR_HSHLCK);
-        return -1;
-    }
-
-    Pthread_mutex_unlock(&theosql->hshlck);
-    ACCUMULATE_TIMING_POST(CHR_HSHLCK_W);
 
     return 0;
 }
@@ -481,14 +508,13 @@ inline int osql_repository_cancelall(void)
  * of a schema change)
  *
  */
-int osql_repository_cancelled(void)
+int osql_repository_cancelled()
 {
-    osql_repository_t *theosql = get_theosql();
     /* Becomes null when the db is exiting. */
-    if (!theosql)
+    if (!theosql_obj[0])
         return 1;
 
-    int cancelall = ATOMIC_LOAD32(theosql->cancelall);
+    int cancelall = ATOMIC_LOAD32(osql_cancelall);
     return cancelall;
 }
 
@@ -499,7 +525,7 @@ int osql_repository_cancelled(void)
  */
 bool osql_repository_session_exists(unsigned long long rqid, uuid_t uuid)
 {
-    osql_repository_t *theosql = get_theosql();
+    osql_repository_t *theosql = get_theosql(rqid, uuid);
     if (theosql == NULL) {
         return 0;
     }
@@ -522,23 +548,25 @@ bool osql_repository_session_exists(unsigned long long rqid, uuid_t uuid)
     out_rc = !!sess;
 
     Pthread_mutex_unlock(&theosql->hshlck);
-        ACCUMULATE_TIMING_POST(CHR_HSHLCK);
+    ACCUMULATE_TIMING_POST(CHR_HSHLCK);
 
     return out_rc;
 }
 
 void osql_repository_for_each(void *arg, int (*func)(void *, void *))
 {
-    osql_repository_t *theosql = get_theosql();
-    if (!theosql)
-        return;
+    for(int i; i < MAXOSQLREP; i++) {
+        osql_repository_t *theosql = theosql_obj[i];
+        if (!theosql)
+            return;
 
-    ACCUMULATE_TIMING_PRE();
-    Pthread_mutex_lock(&theosql->hshlck);
+        ACCUMULATE_TIMING_PRE();
+        Pthread_mutex_lock(&theosql->hshlck);
 
-    hash_for(theosql->rqs, func, arg);
-    hash_for(theosql->rqsuuid, func, arg);
+        hash_for(theosql->rqs, func, arg);
+        hash_for(theosql->rqsuuid, func, arg);
 
-    Pthread_mutex_unlock(&theosql->hshlck);
+        Pthread_mutex_unlock(&theosql->hshlck);
         ACCUMULATE_TIMING_POST(CHR_HSHLCK);
+    }
 }
