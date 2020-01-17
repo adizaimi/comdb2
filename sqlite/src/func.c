@@ -1080,8 +1080,8 @@ static void comdb2GenidInfoFunc(
     return;
   }
 
-  uint64_t genid = atoll(sqlite3_value_text(argv[0]));
-  const char info[100] = {0};
+  uint64_t genid = atoll((const char*)sqlite3_value_text(argv[0]));
+  char info[100] = {0};
 
   comdb2_genidinfo(genid, info, sizeof(info));
   sqlite3_result_text(context, strdup(info), -1, free);

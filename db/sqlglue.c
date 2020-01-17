@@ -11481,7 +11481,7 @@ void comdb2_genidinfo(uint64_t genid, char *info, int len)
                                        unsigned long long genid);
     extern int is_bde_env_genid48(bdb_state_type * bdb_state);
     if (is_bde_env_genid48(thedb->bdb_env)) {
-        snprintf(info, len - 1, "counter=0x%llx, updateid=%d, stripe=%d",
+        snprintf(info, len - 1, "counter=0x%" PRIu64 ", updateid=%d, stripe=%d",
                  genid >> 16, get_updateid_from_genid(thedb->bdb_env, ngenid),
                  get_dtafile_from_genid(ngenid));
     }
