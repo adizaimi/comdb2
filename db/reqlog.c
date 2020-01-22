@@ -2129,7 +2129,7 @@ static LISTC_T(struct nodestats) clntlru;
 pthread_rwlock_t clientstats_lk = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t clntlru_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-int gbl_max_clientstats_cache = 10000;
+int gbl_max_clientstats_cache = 0;
 
 void init_clientstats_table()
 {
@@ -2157,6 +2157,7 @@ static nodestats_t *add_clientstats(unsigned checksum,
                                     const char *task_and_stack, int task_len,
                                     int stack_len, int node, int fd)
 {
+    printf("AZ: add_clientstats\n");
     int nclntstats;
     nodestats_t *old_entry = NULL;
     nodestats_t *entry = NULL;
@@ -2178,6 +2179,7 @@ static nodestats_t *add_clientstats(unsigned checksum,
     {
         entry_chk = hash_find(clientstats, entry);
         if (entry_chk) {
+            printf("AZ: found entry_chk in clientstats, discarding entry\n");
             free(entry);
             entry = entry_chk;
             Pthread_mutex_lock(&entry->mtx);
@@ -2189,6 +2191,7 @@ static nodestats_t *add_clientstats(unsigned checksum,
             }
             Pthread_mutex_unlock(&entry->mtx);
         } else {
+            printf("AZ: creating and adding entry\n");
             entry->task = entry->mem;
             entry->stack = entry->mem + task_len;
             entry->host = intern(nodeat(node));
@@ -2216,9 +2219,11 @@ static nodestats_t *add_clientstats(unsigned checksum,
             Pthread_mutex_lock(&clntlru_mtx);
             while ((nclntstats = hash_get_num_entries(clientstats) + 1) >
                    gbl_max_clientstats_cache) {
+                printf("AZ: nclntstats=%d\n", nclntstats);
                 old_entry = listc_rtl(&clntlru); // get+remove oldest from list
                 if (old_entry) {
                     hash_del(clientstats, old_entry);
+                    printf("AZ: deleted oldest entry from hash\n");
                     Pthread_mutex_destroy(&old_entry->mtx);
                     Pthread_mutex_destroy(&old_entry->rawtotals.lk);
                     if (old_entry->rawtotals.fingerprints) {
@@ -2320,6 +2325,7 @@ static int release_clientstats(unsigned checksum, int node)
 struct rawnodestats *get_raw_node_stats(const char *task, const char *stack,
                                         char *host, int fd)
 {
+    printf("AZ: get_raw_node_stats\n");
     struct nodestats *nodestats = NULL;
     unsigned checksum;
     int namelen, node;
@@ -2344,6 +2350,7 @@ struct rawnodestats *get_raw_node_stats(const char *task, const char *stack,
     memcpy(tmp + task_len, stack, stack_len);
     checksum = crc32c((const uint8_t *)tmp, namelen);
     if ((nodestats = find_clientstats(checksum, node, fd)) == NULL) {
+        printf("AZ: get_raw_node_stats, task not found in clntstats %s\n", task);
         nodestats =
             add_clientstats(checksum, tmp, task_len, stack_len, node, fd);
         if (nodestats == NULL) {
