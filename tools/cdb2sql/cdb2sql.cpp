@@ -1700,9 +1700,10 @@ int main(int argc, char *argv[])
         {"type", required_argument, NULL, 't'},
         {"host", required_argument, NULL, 'n'},
         {"minretries", required_argument, NULL, 'R'},
+        {"setarvg0", required_argument, NULL, 'S'},
         {0, 0, 0, 0}};
 
-    while ((c = bb_getopt_long(argc, argv, (char *) "hsvr:p:c:f:g:t:n:R:",
+    while ((c = bb_getopt_long(argc, argv, (char *) "hsvr:p:c:f:g:t:n:R:S:",
                                long_options, &opt_indx)) != -1) {
         switch (c) {
         case 0:
@@ -1712,6 +1713,10 @@ int main(int argc, char *argv[])
             break;
         case 's':
             scriptmode = 1;
+            break;
+        case 'S':
+            argv[0] = optarg;
+            setenv("CDB2_ARGV0", optarg, 1);
             break;
         case 'v':
             setenv("CDB2_DEBUG", "1", 1);

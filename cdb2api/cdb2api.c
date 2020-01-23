@@ -349,6 +349,10 @@ static char *proc_cmdline_getargv0(void)
 {
     char procname[64];
     static char argv0[PATH_MAX];
+    char *env_argv0 = getenv("CDB2_ARGV0");
+    if (env_argv0) {
+        return(env_argv0);
+    }
 
     snprintf(procname, sizeof(procname), "/proc/self/cmdline");
     SBUF2 *s = sbuf2openread(procname);
