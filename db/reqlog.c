@@ -2129,7 +2129,7 @@ static LISTC_T(struct nodestats) clntlru;
 pthread_rwlock_t clientstats_lk = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t clntlru_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-int gbl_max_clientstats_cache = 0;
+int gbl_max_clientstats_cache = 4;
 
 void init_clientstats_table()
 {
@@ -2179,19 +2179,21 @@ static nodestats_t *add_clientstats(unsigned checksum,
     {
         entry_chk = hash_find(clientstats, entry);
         if (entry_chk) {
-            printf("AZ: found entry_chk in clientstats, discarding entry\n");
+            printf("AZ: found entry_chk in clientstats, discarding unnecessary entry\n");
             free(entry);
             entry = entry_chk;
             Pthread_mutex_lock(&entry->mtx);
             entry->ref++;
+            printf("AZ: add clients ref = %d checksum %d\n", entry->ref, checksum);
             if (entry->ref == 1) {
+            printf("AZ: add clients ref = 1 so listc_rfl on checksum %d\n", checksum);
                 Pthread_mutex_lock(&clntlru_mtx);
                 listc_rfl(&clntlru, entry);
                 Pthread_mutex_unlock(&clntlru_mtx);
             }
             Pthread_mutex_unlock(&entry->mtx);
         } else {
-            printf("AZ: creating and adding entry\n");
+            printf("AZ: creating and adding entry ref = 1, checksum %d\n", checksum);
             entry->task = entry->mem;
             entry->stack = entry->mem + task_len;
             entry->host = intern(nodeat(node));
@@ -2223,7 +2225,7 @@ static nodestats_t *add_clientstats(unsigned checksum,
                 old_entry = listc_rtl(&clntlru); // get+remove oldest from list
                 if (old_entry) {
                     hash_del(clientstats, old_entry);
-                    printf("AZ: deleted oldest entry from hash\n");
+                    printf("AZ: deleted oldest entry from hash and list, checksum %d\n", old_entry->checksum);
                     Pthread_mutex_destroy(&old_entry->mtx);
                     Pthread_mutex_destroy(&old_entry->rawtotals.lk);
                     if (old_entry->rawtotals.fingerprints) {
@@ -2262,7 +2264,9 @@ static nodestats_t *find_clientstats(unsigned checksum, int node, int fd)
         if (entry) {
             Pthread_mutex_lock(&entry->mtx);
             entry->ref++;
+            printf("AZ: find ref = %d checksum %d \n", entry->ref, checksum);
             if (entry->ref == 1) {
+            printf("AZ: find ref = 1 so doing listc_rfl on checksum %d\n", checksum);
                 Pthread_mutex_lock(&clntlru_mtx);
                 listc_rfl(&clntlru, entry);
                 Pthread_mutex_unlock(&clntlru_mtx);
@@ -2302,6 +2306,7 @@ static int release_clientstats(unsigned checksum, int node)
         if ((entry = hash_find_readonly(clientstats, &key)) != NULL) {
             Pthread_mutex_lock(&entry->mtx);
             entry->ref--;
+            printf("AZ: release ref = %d checksum %d \n", entry->ref, checksum);
             if (entry->ref < 0) {
                 logmsg(LOGMSG_ERROR,
                        "key released more often than found, ref %d\n",
@@ -2309,6 +2314,7 @@ static int release_clientstats(unsigned checksum, int node)
                 entry->ref = 0;
             }
             if (entry->ref == 0) {
+            printf("AZ: find ref = 0 so doing listc_abl on checksum %d\n", checksum);
                 Pthread_mutex_lock(&clntlru_mtx);
                 listc_abl(&clntlru, entry);
                 Pthread_mutex_unlock(&clntlru_mtx);
