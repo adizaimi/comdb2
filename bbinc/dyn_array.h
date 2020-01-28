@@ -25,11 +25,13 @@ typedef struct bdb_state_tag bdb_state_type;
 
 /* The design for our key value dynamic array relies on two arrays: 
  *
- * kv_info  -> [a b c ...            ]
- * buffer   -> [key_a data_a key_b data_b ..  ]
+ * kv         -> [a b c ...            ]
+ * keybuffer  -> [key_a key_b ..  ]
+ * databuffer -> [data_a data_b ..  ]
  *
  * the first stores meta-information about the key value pair,
- * second we keep a buffer with the actual content of key and data.
+ * second we keep a buffer with the actual content of key which will
+ * most likely reside in memory, and another buffer to store data.
  * This layout allows for quick random access of elements: dyn_arr[x],
  * since in pracice keys and values can be of different sizes.
  * When we sort, we only reorder the kv_info portion so that the data part
@@ -59,7 +61,8 @@ typedef struct {
  */
 typedef struct dyn_array_t {
     kv_info_t *kv;
-    void *buffer;
+    void *keybuffer;
+    void *databuffer;
     //comparator function, if not set will use memcmp
     int (*compar)(void *usermem, int key1len,
                                  const void *key1, int key2len,
@@ -68,12 +71,16 @@ typedef struct dyn_array_t {
     void *temp_table_cur;
     bdb_state_type *bdb_env; // needed to spill to temptables
     int items;               // actual number of items in dyn array
-    int capacity;            // key array capacity
-    int buffer_capacity;
-    int buffer_curr_offset;  // also serves as size used
-    int cursor;              // object itself maintains this cursor
+    int capacity;            // kv array capacity
+    int keybuffer_capacity;     // capacity of key array
+    int keybuffer_curr_offset;  // also serves as size used
+    int databuffer_capacity;    // capacity of data array
+    int databuffer_curr_offset; // also serves as size used
+    int cursor;                 // object itself maintains this cursor
+    int databufferfd;           // fd for file buffer of data
     bool using_temp_table:1;
     bool is_initialized:1;
+    bool data_using_file:1;
 } dyn_array_t;
 
 

@@ -16,17 +16,20 @@
 
 
 #include <stdio.h>
+#include <unistd.h>
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 #include "logmsg.h"
 #include "dyn_array.h"
 #include "temptable.h"
 #include "ix_return_codes.h"
 #include "time_accounting.h"
+#include "util.h"
 
-#define MAX_ARR_SZ 10*2024
-size_t gbl_max_inmem_array_size = MAX_ARR_SZ;
+size_t gbl_max_inmem_array_size = 512*1024;
+size_t gbl_max_data_array_size = 512*1024;
 void hexdump(loglvl lvl, const char *key, int keylen);
 
 #if (defined _GNU_SOURCE || defined __GNU__ || defined __linux__)
@@ -37,10 +40,10 @@ dyn_array_keyval_cmpr_asc(const void *p1, const void *p2, void *p3)
     const kv_info_t *kv1 = p1;
     const kv_info_t *kv2 = p2;
     dyn_array_t *arr = p3;
-    char *buffer = arr->buffer;
+    char *keybuffer = arr->keybuffer;
     int res = 0;
-    void *key1 = &buffer[kv1->key_start];
-    void *key2 = &buffer[kv2->key_start];
+    void *key1 = &keybuffer[kv1->key_start];
+    void *key2 = &keybuffer[kv2->key_start];
     if (arr->compar) {
         res = arr->compar(NULL, kv1->key_len, key1, kv2->key_len, key2);
     } else {
@@ -57,10 +60,10 @@ dyn_array_keyval_cmpr_asc(const void *p1, const void *p2)
     const kv_info_t *kv1 = p1;
     const kv_info_t *kv2 = p2;
     dyn_array_t *arr = kv1->arr;
-    char *buffer = arr->buffer;
+    char *keybuffer = arr->keybuffer;
     int res = 0;
-    void *key1 = &buffer[kv1->key_start];
-    void *key2 = &buffer[kv2->key_start];
+    void *key1 = &keybuffer[kv1->key_start];
+    void *key2 = &keybuffer[kv2->key_start];
     if (arr->compar) {
         res = arr->compar(NULL, kv1->key_len, key1, kv2->key_len, key2);
     } else {
@@ -87,10 +90,15 @@ void dyn_array_close(dyn_array_t *arr)
             assert(arr->capacity > 0);
             free(arr->kv);
         }
-        if (arr->buffer) {
-            assert(arr->buffer_capacity > 0);
-            free(arr->buffer);
+        if (arr->keybuffer) {
+            assert(arr->keybuffer_capacity > 0);
+            free(arr->keybuffer);
         }
+        if (arr->databuffer) {
+            free(arr->databuffer);
+        }
+        if (arr->databufferfd)
+            close(arr->databufferfd);
     }
     memset(arr, 0, sizeof(dyn_array_t));
 }
@@ -155,10 +163,19 @@ static inline void transfer_to_temp_table(dyn_array_t *arr)
 {
     for (int i = 0; i < arr->items; i++) {
         //logmsg(LOGMSG_ERROR, "AZ: %d: ", i); 
-        char *buffer = arr->buffer;
+        char *keybuffer = arr->keybuffer;
         kv_info_t *kv = &arr->kv[i];
-        void *key = &buffer[kv->key_start];
-        void *data = &buffer[kv->data_start];
+        void *key = &keybuffer[kv->key_start];
+        void *data = NULL;
+        if(kv->data_len > 0) {
+            if (!arr->data_using_file)
+                data = &((char*)arr->databuffer)[kv->data_start];
+            else {
+                pread(arr->databufferfd, arr->databuffer, kv->data_len, kv->data_start);
+                data = arr->databuffer;
+            }
+        }
+
         //printf("%d: %d %d\n", i, *(int *)key, kv->key_len);
         int bdberr;
         int rc = bdb_temp_table_insert(arr->bdb_env, arr->temp_table_cur,
@@ -169,7 +186,7 @@ static inline void transfer_to_temp_table(dyn_array_t *arr)
 
 static inline int do_transfer(dyn_array_t *arr) 
 {
-    //logmsg(LOGMSG_ERROR, "time to spill to temp table");
+    logmsg(LOGMSG_ERROR, "do_transfer: spill to temp table");
     assert(arr->using_temp_table == 0);
     assert(arr->temp_table == NULL);
     assert(arr->temp_table_cur == NULL);
@@ -182,29 +199,40 @@ static inline int do_transfer(dyn_array_t *arr)
     arr->using_temp_table = 1;
     transfer_to_temp_table(arr);
     free(arr->kv);
-    if(arr->buffer)
-        free(arr->buffer);
-    arr->kv = NULL;
-    arr->buffer = NULL;
-    arr->capacity = 0;
+    if(arr->keybuffer)
+        free(arr->keybuffer);
+    if(arr->databufferfd) {
+        close(arr->databufferfd);
+    }
+    if(arr->databuffer)
+        free(arr->databuffer);
     arr->items = 0;
-    arr->buffer_capacity = 0;
-    arr->buffer_curr_offset = 0;
+    arr->capacity = 0;
+    arr->kv = NULL;
+    arr->keybuffer = NULL;
+    arr->databuffer = NULL;
+    arr->keybuffer_capacity = 0;
+    arr->databuffer_capacity = 0;
+    arr->keybuffer_curr_offset = 0;
+    arr->databuffer_curr_offset = 0;
+    arr->databufferfd = 0;
     return 0;
 }
 
 
 /* a dynamic array element consists of a kv_info_t element which
- * stores the key length and start position in the buffer array
- * and data length and start position in the buffer array 
+ * stores the key length and start position in the keybuffer array
+ * and data length and start position in the keybuffer array 
  * (start position is redundant because it is = key_start + key_len)
  */
 static inline int init_internal_buffers(dyn_array_t *arr)
 {
-    assert(arr->capacity == 0);
     assert(arr->items == 0);
-    assert(arr->buffer_capacity == 0);
-    assert(arr->buffer_curr_offset == 0);
+    assert(arr->capacity == 0);
+    assert(arr->keybuffer_capacity == 0);
+    assert(arr->keybuffer_curr_offset == 0);
+    assert(arr->databuffer_capacity == 0);
+    assert(arr->databuffer_curr_offset == 0);
 
     arr->capacity = 1024;
     arr->kv = malloc(sizeof(*arr->kv) * arr->capacity);
@@ -212,21 +240,45 @@ static inline int init_internal_buffers(dyn_array_t *arr)
         abort();
         return 1;
     }
-    arr->buffer_capacity = 32*1024;
-    arr->buffer = malloc(arr->buffer_capacity);
-    if (!arr->buffer) {
+    arr->keybuffer_capacity = 16*1024;
+    arr->keybuffer = malloc(arr->keybuffer_capacity);
+    if (!arr->keybuffer) {
         abort();
         free(arr->kv);
         arr->kv = NULL;
         return 1;
     }
+    arr->databuffer_capacity = 32*1024;
+    arr->databuffer = malloc(arr->databuffer_capacity);
+    if (!arr->databuffer) {
+        abort();
+        free(arr->kv);
+        arr->kv = NULL;
+        free(arr->keybuffer);
+        arr->keybuffer = NULL;
+        return 1;
+    }
     return 0;
 }
 
-/* key and data get appended at the end of the buffer
+static inline int resize_buffer(void **buffer, int *capacity, int new_offset, size_t element_sz)
+{
+    //printf("AZ: resize_buffer capacity =%d, new_offset = %d\n", *capacity, new_offset);
+    if (*capacity <= new_offset) {
+        while (*capacity <= new_offset)
+            *capacity *= 2;
+        void *n = realloc(*buffer, *capacity * element_sz);
+        if (!n) return 1;
+        *buffer = n;
+    }
+    return 0;
+}
+
+/* key and data get appended at the end of the keybuffer
  */
 static inline int append_to_array(dyn_array_t *arr, void *key, int keylen, void *data, int datalen)
 {
+    int rc = 0;
     if (arr->using_temp_table) {
         abort();
     }
@@ -235,47 +287,60 @@ static inline int append_to_array(dyn_array_t *arr, void *key, int keylen, void 
             return 1;
     }
     assert(arr->capacity);
-    assert(arr->buffer_capacity);
-    if (arr->items + 1 >= arr->capacity) {
-        arr->capacity *= 2;
-        void *n = realloc(arr->kv, sizeof(*arr->kv) * arr->capacity);
-        if (!n) return 1;
-        arr->kv = n;
-    }
+    assert(arr->keybuffer_capacity);
+    assert(arr->databuffer_capacity);
+    rc = resize_buffer((void**)&arr->kv, &arr->capacity, arr->items + 1, sizeof(*arr->kv));
+    if (rc) abort();
 
-    int new_offset = arr->buffer_curr_offset + keylen + datalen;
-    if (arr->buffer_capacity <= new_offset) {
-        while (arr->buffer_capacity <= new_offset)
-            arr->buffer_capacity *= 2;
-        void *n = realloc(arr->buffer, arr->buffer_capacity);
-        if (!n) return 1;
-        arr->buffer = n;
-    }
+    rc = resize_buffer(&arr->keybuffer, &arr->keybuffer_capacity, arr->keybuffer_curr_offset + keylen, sizeof(char));
+    if (rc) abort();
 
-    // assert(arr->buffer_capacity > new_offset);
-    if (arr->buffer_capacity <= new_offset)
+    // assert(arr->keybuffer_capacity > new_offset);
+    if (arr->keybuffer_capacity <= arr->keybuffer_curr_offset + keylen)
         abort();
 
-
-    char *buffer = arr->buffer;
-    void *keyloc = &buffer[arr->buffer_curr_offset];
+    char *keybuffer = arr->keybuffer;
+    void *keyloc = &keybuffer[arr->keybuffer_curr_offset];
     memcpy(keyloc, key, keylen);
     kv_info_t *kv = &arr->kv[arr->items++];
-    kv->key_start = arr->buffer_curr_offset;
+    kv->key_start = arr->keybuffer_curr_offset;
     kv->key_len = keylen;
-    arr->buffer_curr_offset += keylen;
+    arr->keybuffer_curr_offset += keylen;
     kv->data_len = datalen;
+    //printf("AZ: write kv at key_start =%d, keybuffer_curr_offset = %d\n", kv->key_start, arr->keybuffer_curr_offset);
 #if !(defined _GNU_SOURCE || defined __GNU__ || defined __linux__)
     kv->arr = arr;
 #endif
 
     if(datalen > 0) {
-        void *dataloc = &buffer[arr->buffer_curr_offset];
-        memcpy(dataloc, data, datalen);
-        kv->data_start = arr->buffer_curr_offset;
-        arr->buffer_curr_offset += datalen;
-        if (arr->buffer_curr_offset >= arr->buffer_capacity)
-            abort();
+        if (!arr->data_using_file &&
+            arr->databuffer_curr_offset + datalen >= gbl_max_data_array_size) {
+            char *tmpfile = comdb2_location("tmp", "tempfile_XXXXXX");
+            arr->databufferfd = mkstemp(tmpfile);
+            if (arr->databufferfd == -1) {
+                logmsg(LOGMSG_ERROR, "mkstemp rc=%d err=%s tmpfile=%s\n",
+                       errno, strerror(errno), tmpfile);
+            } else {
+                unlink(tmpfile);
+                write(arr->databufferfd, arr->databuffer, arr->databuffer_curr_offset);
+                //dont free(arr->databuffer); -- will do so at close
+                arr->data_using_file = 1;
+            }
+        }
+        if (!arr->data_using_file) {
+            rc = resize_buffer(&arr->databuffer, &arr->databuffer_capacity, arr->databuffer_curr_offset + datalen, sizeof(char));
+            if (rc) return rc;
+            if(arr->databuffer_capacity <= arr->databuffer_curr_offset + datalen)
+                abort();
+
+            char *databuffer = arr->databuffer;
+            void *dataloc = &databuffer[arr->databuffer_curr_offset];
+            memcpy(dataloc, data, datalen);
+        } else {
+            write(arr->databufferfd, data, datalen);
+        }
+        kv->data_start = arr->databuffer_curr_offset;
+        arr->databuffer_curr_offset += datalen;
     }
     return 0;
 }
@@ -284,7 +349,7 @@ int dyn_array_append(dyn_array_t *arr, void *key, int keylen, void *data, int da
 {
     assert(arr->is_initialized);
     if (!arr->using_temp_table && 
-        arr->buffer_curr_offset + keylen + datalen > gbl_max_inmem_array_size &&
+        arr->keybuffer_curr_offset > gbl_max_inmem_array_size &&
         arr->bdb_env) { // if no bdb_env we keep appending to memory
         int rc = do_transfer(arr);
         if (rc) return rc;
@@ -301,9 +366,9 @@ void dyn_array_dump(dyn_array_t *arr)
 {
     assert(arr->is_initialized);
     for (int i = 0; i < arr->items; i++) {
-        char *buffer = arr->buffer;
+        char *keybuffer = arr->keybuffer;
         kv_info_t *kv = &arr->kv[i];
-        void *key = &buffer[kv->key_start];
+        void *key = &keybuffer[kv->key_start];
         logmsg(LOGMSG_USER, "%d: %d %d\n", i, *(int *)key, kv->key_len);
     }
 }
@@ -342,9 +407,9 @@ void dyn_array_get_key(dyn_array_t *arr, void **key)
     }
     if (arr->cursor >= arr->items) 
         abort();
-    char *buffer = arr->buffer;
+    char *keybuffer = arr->keybuffer;
     kv_info_t *tmp = &arr->kv[arr->cursor];
-    *key = &buffer[tmp->key_start];
+    *key = &keybuffer[tmp->key_start];
 }
 
 void dyn_array_get_kv(dyn_array_t *arr, void **key, void **data, int *datalen)
@@ -358,12 +423,18 @@ void dyn_array_get_kv(dyn_array_t *arr, void **key, void **data, int *datalen)
     }
     if (arr->cursor >= arr->items) 
         abort();
-    char *buffer = arr->buffer;
+    char *keybuffer = arr->keybuffer;
     kv_info_t *tmp = &arr->kv[arr->cursor];
-    *key = &buffer[tmp->key_start];
+    *key = &keybuffer[tmp->key_start];
     *datalen = tmp->data_len;
-    if(tmp->data_len > 0)
-        *data = &buffer[tmp->data_start];
+    if(tmp->data_len > 0) {
+        if (!arr->data_using_file)
+            *data = &((char*)arr->databuffer)[tmp->data_start];
+        else {
+            pread(arr->databufferfd, arr->databuffer, tmp->data_len, tmp->data_start);
+            *data = arr->databuffer;
+        }
+    }
     else 
         *data = NULL;
 }
