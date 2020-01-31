@@ -120,6 +120,17 @@ void dyn_array_set_cmpr(dyn_array_t *arr,
     arr->compar = compar;
 }
 
+static inline void copy_leftovers(dyn_array_t *arr)
+{
+    if (arr->databufferfd > 0 && arr->databuffer_curr_offset) {
+        int rc = write(arr->databufferfd, arr->databuffer,
+                       arr->databuffer_curr_offset);
+        if (rc < 0)
+            abort();
+    }
+    arr->databuffer_curr_offset = 0;
+}
+
 int dyn_array_sort(dyn_array_t *arr)
 {
     assert(arr->is_initialized);
@@ -132,6 +143,7 @@ int dyn_array_sort(dyn_array_t *arr)
     if (arr->items <= 1) {
         return 0; // nothing to sort
     }
+    copy_leftovers(arr);
 
 #if (defined _GNU_SOURCE || defined __GNU__ || defined __linux__)
     qsort_r(arr->kv, arr->items, sizeof(kv_info_t), dyn_array_keyval_cmpr_asc, arr);
@@ -168,10 +180,11 @@ static inline void transfer_to_temp_table(dyn_array_t *arr)
         void *key = &keybuffer[kv->key_start];
         void *data = NULL;
         if(kv->data_len > 0) {
-            if (!arr->data_using_file)
+            if (!arr->databufferfd)
                 data = &((char*)arr->databuffer)[kv->data_start];
             else {
-                pread(arr->databufferfd, arr->databuffer, kv->data_len, kv->data_start);
+                int rc = pread(arr->databufferfd, arr->databuffer, kv->data_len, kv->data_start);
+                if (rc < 0) abort();
                 data = arr->databuffer;
             }
         }
@@ -274,6 +287,19 @@ static inline int resize_buffer(void **buffer, int *capacity, int new_offset, si
     return 0;
 }
 
+static inline void open_temp_file(dyn_array_t *arr)
+{
+    char *tmpfile = comdb2_location("tmp", "tempfile_XXXXXX");
+    arr->databufferfd = mkstemp(tmpfile);
+    if (arr->databufferfd == -1) {
+        logmsg(LOGMSG_ERROR, "mkstemp rc=%d err=%s tmpfile=%s\n",
+                errno, strerror(errno), tmpfile);
+    } else {
+        unlink(tmpfile); // on close will be deleted
+    }
+}
+
+
 /* key and data get appended at the end of the keybuffer
  */
 static inline int append_to_array(dyn_array_t *arr, void *key, int keylen, void *data, int datalen)
@@ -313,34 +339,42 @@ static inline int append_to_array(dyn_array_t *arr, void *key, int keylen, void 
 #endif
 
     if(datalen > 0) {
-        if (!arr->data_using_file &&
-            arr->databuffer_curr_offset + datalen >= gbl_max_data_array_size) {
-            char *tmpfile = comdb2_location("tmp", "tempfile_XXXXXX");
-            arr->databufferfd = mkstemp(tmpfile);
-            if (arr->databufferfd == -1) {
-                logmsg(LOGMSG_ERROR, "mkstemp rc=%d err=%s tmpfile=%s\n",
-                       errno, strerror(errno), tmpfile);
-            } else {
-                unlink(tmpfile);
-                write(arr->databufferfd, arr->databuffer, arr->databuffer_curr_offset);
-                //dont free(arr->databuffer); -- will do so at close
-                arr->data_using_file = 1;
+        // append to databufferfd tmpfile every time databuffer is full
+        if (arr->databuffer_curr_offset + datalen >= gbl_max_data_array_size) {
+            if (arr->databufferfd == 0) {
+                open_temp_file(arr);
+            }
+            if (arr->databufferfd > 0) { // spill databuffer to tmpfile
+                rc = write(arr->databufferfd, arr->databuffer, arr->databuffer_curr_offset);
+                if (rc != arr->databuffer_curr_offset)
+                    abort();
+                arr->data_file_offset += arr->databuffer_curr_offset;
+                arr->databuffer_curr_offset = 0;
             }
         }
-        if (!arr->data_using_file) {
+        if (arr->databuffer_curr_offset + datalen < gbl_max_data_array_size) {
             rc = resize_buffer(&arr->databuffer, &arr->databuffer_capacity, arr->databuffer_curr_offset + datalen, sizeof(char));
             if (rc) return rc;
             if(arr->databuffer_capacity <= arr->databuffer_curr_offset + datalen)
                 abort();
+        }
 
+        if (datalen >= gbl_max_data_array_size) { // cant fit in buffer
+            assert(arr->databuffer_curr_offset == 0);
+            assert(arr->databufferfd > 0);
+            rc = write(arr->databufferfd, data, datalen);
+            if (rc != datalen)
+                abort();
+            kv->data_start = arr->data_file_offset;
+            arr->data_file_offset += datalen;
+        }
+        else {
             char *databuffer = arr->databuffer;
             void *dataloc = &databuffer[arr->databuffer_curr_offset];
             memcpy(dataloc, data, datalen);
-        } else {
-            write(arr->databufferfd, data, datalen);
+            kv->data_start = arr->data_file_offset + arr->databuffer_curr_offset;
+            arr->databuffer_curr_offset += datalen;
         }
-        kv->data_start = arr->databuffer_curr_offset;
-        arr->databuffer_curr_offset += datalen;
     }
     return 0;
 }
@@ -382,6 +416,8 @@ int dyn_array_first(dyn_array_t *arr)
     }
     if (arr->items < 1)
         return IX_EMPTY;
+
+    copy_leftovers(arr);
     arr->cursor = 0;
     return IX_OK;
 }
@@ -428,10 +464,26 @@ void dyn_array_get_kv(dyn_array_t *arr, void **key, void **data, int *datalen)
     *key = &keybuffer[tmp->key_start];
     *datalen = tmp->data_len;
     if(tmp->data_len > 0) {
-        if (!arr->data_using_file)
+        if (!arr->databufferfd)
             *data = &((char*)arr->databuffer)[tmp->data_start];
         else {
-            pread(arr->databufferfd, arr->databuffer, tmp->data_len, tmp->data_start);
+            if (tmp->data_len > arr->databuffer_curr_offset) {
+                free(arr->databuffer);
+                arr->databuffer_curr_offset = tmp->data_len;
+                arr->databuffer = malloc(arr->databuffer_curr_offset);
+            } else if (arr->databuffer_curr_offset > gbl_max_data_array_size) {
+                // not sure if we want to shrink this since it may regrow
+                // and also will go away soon
+                /*
+                free(arr->databuffer);
+                arr->databuffer_curr_offset = gbl_max_data_array_size;
+                arr->databuffer = malloc(arr->databuffer_curr_offset);
+                */
+            } 
+            if (!arr->databuffer) abort();
+            int rc = pread(arr->databufferfd, arr->databuffer, tmp->data_len, tmp->data_start);
+            if (rc < 0)
+                abort();
             *data = arr->databuffer;
         }
     }

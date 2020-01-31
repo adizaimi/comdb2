@@ -78,9 +78,9 @@ typedef struct dyn_array_t {
     int databuffer_curr_offset; // also serves as size used
     int cursor;                 // object itself maintains this cursor
     int databufferfd;           // fd for file buffer of data
+    int data_file_offset;       // offset in data file
     bool using_temp_table:1;
     bool is_initialized:1;
-    bool data_using_file:1;
 } dyn_array_t;
 
 
