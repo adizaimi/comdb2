@@ -23,8 +23,8 @@
 #include <limits.h>
 
 #include "cdb2_constants.h"
-#define MAXCACHE 32
 
+#define DEBUG_NODEMAP
 #ifdef DEBUG_NODEMAP
 #define MAXCACHE 10
 #else
@@ -69,7 +69,7 @@ static int nodeix_global(const char *node)
         if (nodes[i].node == node) {
             if (lnumnodes < MAXCACHE) {
 #ifdef DEBUG_NODEMAP
-                printf("added local, have enough room\n");
+                logmsg(LOGMSG_USER, "nodeix_global: added local, have enough room\n");
 #endif
                 lnodes[lnumnodes].node = node;
                 lnodes[lnumnodes].ix = i;
@@ -86,7 +86,7 @@ static int nodeix_global(const char *node)
                     }
                 }
 #ifdef DEBUG_NODEMAP
-                printf("added local, evicted node %d ix %d (lix %d) ref %d\n",
+                logmsg(LOGMSG_USER, "nodeix_global: added local, evicted node %s ix %d (lix %d) ref %d\n",
                        lnodes[minix].node, lnodes[minix].ix, minix,
                        lnodes[minix].ref);
 #endif
@@ -130,12 +130,12 @@ int nodeix(const char *node)
     for (int i = 0; i < lnumnodes; i++) {
         if (lnodes[i].node == node) {
             lnodes[i].ref++;
-            // printf("found local %s->%d\n", node, lnodes[i].ix);
+            logmsg(LOGMSG_USER, "nodeix: found local %s:%d\n", node, lnodes[i].ix);
             return lnodes[i].ix;
         }
     }
     ix = nodeix_global(node);
-    // printf("found global %s->%d\n", node, ix);
+    logmsg(LOGMSG_USER, "nodeix: found global %s:%d\n", node, ix);
     return ix;
 }
 
