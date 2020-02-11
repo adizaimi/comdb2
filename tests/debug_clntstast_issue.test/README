@@ -1,0 +1,2 @@
+Test clntstats ability to cleanup, change the argv of requests
+to exercise lookups into structures tracking nodes and connections.
