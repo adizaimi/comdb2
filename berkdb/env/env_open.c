@@ -462,7 +462,7 @@ __dbenv_open(dbenv, db_home, flags, mode)
 			goto err;
 
 		/* Perform recovery for any previous run. */
-		if (LF_ISSET(DB_RECOVER | DB_RECOVER_FATAL)) {
+		if (!gbl_diskless && LF_ISSET(DB_RECOVER | DB_RECOVER_FATAL)) {
 			extern int gbl_recovery_lsn_file, gbl_recovery_lsn_offset, 
 				   gbl_recovery_timestamp;
 			DB_LSN maxlsn={0}, lsn;

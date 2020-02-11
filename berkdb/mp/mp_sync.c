@@ -1921,8 +1921,6 @@ typedef struct fileid_page_env
 	int *active_threads;
 } fileid_page_env_t;
 
-void touch_page(DB_MPOOLFILE *mpf, db_pgno_t pgno);
-
 static void
 load_fileids(struct thdpool *thdpool, void *work, void *thddata, int thd_op)
 {

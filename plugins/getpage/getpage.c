@@ -398,7 +398,7 @@ static int handle_getpage_request(comdb2_appsock_arg_t *arg)
         util_tohex(expanded, (const char *)fileid, DB_FILE_ID_LEN);
         logmsg(LOGMSG_ERROR, "%s:REQ fileid=%s pageno=%d pagesize=%d\n", __func__, expanded, pageno, pagesize);
 
-        if (sbuf2printf(sb, "PAGE for %llx:%d size=%d\n", fileid, pageno, pagesize) < 0 || sbuf2flush(sb) < 0) {
+        if (sbuf2printf(sb, "PAGE for %llx:%d size=%d\n", *(long long int *)fileid, pageno, pagesize) < 0 || sbuf2flush(sb) < 0) {
             logmsg(LOGMSG_ERROR, "%s: failed to send done ack text\n", __func__);
             arg->error = -1;
             return APPSOCK_RETURN_ERR;

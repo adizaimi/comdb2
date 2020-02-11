@@ -30,7 +30,7 @@ typedef struct DB_Connection {
     time_t last_failed; // when was the last time a connection failed
 } DB_Connection;
 
-int gbl_verbose_physrep = 0;
+int gbl_verbose_physrep = 1;
 static DB_Connection ***local_rep_dbs = NULL;
 static size_t tiers = 0;
 static size_t curr_tier = 0;
