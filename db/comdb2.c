@@ -134,6 +134,7 @@ void berk_memp_sync_alarm_ms(int);
 #include <hostname_support.h>
 #include "string_ref.h"
 #include "sql_stmt_cache.h"
+#include "phys_rep.h"
 
 #define tokdup strndup
 
@@ -3868,6 +3869,26 @@ static int init(int argc, char **argv)
     if (gbl_sbuftimeout)
         bdb_attr_set(thedb->bdb_attr, BDB_ATTR_SBUFTIMEOUT, gbl_sbuftimeout);
 
+    if (gbl_diskless) {
+        // to sure that there was a replicate_from line in the lrl
+        // because we will use same node as replication to get the data pages
+        if (!gbl_physrep_dbname || !thedb->sibling_hostname[1]) {
+            logmsg(LOGMSG_FATAL, "Diskless replicant needs replicate_from in the lrl.\n");
+            return -1;
+        }
+
+        /*
+        char buf[1024] = "";
+        snprintf(buf, sizeof(buf), "scp -r %s:%s/logs %s",
+                 thedb->sibling_hostname[1], thedb->basedir, thedb->basedir);
+        int lrc = system(buf);
+        if (lrc) {
+            logmsg(LOGMSG_ERROR, "ERROR: %s:%d system(%s) returns rc = %d\n",
+                   __FILE__,__LINE__, buf, lrc);
+        }
+        */
+
+    }
     /* open up the bdb_env now that we have set all the attributes */
     if (open_bdb_env(thedb)) {
         logmsg(LOGMSG_FATAL, "failed to open bdb_env for %s\n", dbname);

@@ -1307,11 +1307,15 @@ static int read_lrl_option(struct dbenv *dbenv, char *line,
                        hosts[ii]);
             }
             gbl_is_physical_replicant = 1;
+            // for gbl_diskless mode put one of the hosts in thedb->sibling_hostname[1]
+            // later contact one of the nodes and get dbinfo for cluster info
+            dbenv->sibling_hostname[1] = intern(hosts[ii]);
             free(hosts[ii]);
         }
         cdb2_close(hndl);
         logmsg(LOGMSG_INFO, "Physical replicant replicating from %s on %s\n",
                dbname, type);
+        gbl_physrep_dbname = intern(dbname);
         free(dbname);
         free(type);
         start_replication();

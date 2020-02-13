@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "phys_rep.h"
 #include "comdb2.h"
 #include "comdb2_plugin.h"
 #include "comdb2_appsock.h"
@@ -43,8 +44,8 @@ static int pgetter_connect(SBUF2 **psb, const char *str)
     printf("^^^^^ AZ: pgetter_connect() entering\n");
     SBUF2 *sb = *psb; 
     int use_cache = 0;
-    *psb = sb = connect_remote_db("getpage", thedb->envname, "getpage",
-                                  "node1", use_cache);
+    *psb = sb = connect_remote_db("getpage", gbl_physrep_dbname, "getpage",
+                                  thedb->sibling_hostname[1], use_cache);
     if (!sb) {
         logmsg(LOGMSG_ERROR, "%s unable to connect to %s\n", __func__,
                thedb->master);

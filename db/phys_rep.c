@@ -31,6 +31,7 @@ typedef struct DB_Connection {
 } DB_Connection;
 
 int gbl_verbose_physrep = 1;
+char *gbl_physrep_dbname = NULL;
 static DB_Connection ***local_rep_dbs = NULL;
 static size_t tiers = 0;
 static size_t curr_tier = 0;
@@ -195,7 +196,7 @@ repl_loop:
             logmsg(LOGMSG_ERROR, "sql_cmd buffer is not long enough!\n");
 
         if ((rc = cdb2_run_statement(repl_db, sql_cmd)) != CDB2_OK) {
-            logmsg(LOGMSG_ERROR, "Couldn't query the database, retrying\n");
+            logmsg(LOGMSG_ERROR, "Couldn't query the database rc=%d, retrying\n", rc);
             close_repl_connection();
             continue;
         }

@@ -34,7 +34,7 @@ if [[ -n "$CLUSTER" ]]; then
     fi
 fi
 
-# use copycomdb2 to create a physical replicant
+# use copycomdb2 to create a physical replicant, will put replicate_from in DEST_DBDIR.lrl
 
 ${COPYCOMDB2_EXE} -x ${COMDB2_EXE} -H $destdb $cl $rmt${DBDIR}/${DBNAME}.lrl $DEST_DBDIR $DEST_DBDIR
 

@@ -6,6 +6,7 @@
 extern int gbl_is_physical_replicant;
 extern unsigned int gbl_deferred_phys_update;
 extern int gbl_deferred_phys_flag;
+extern char *gbl_physrep_dbname;
 
 int add_replicant_host(char *hostname, char *dbname, size_t tier);
 int remove_replicant_host(char *hostname);
