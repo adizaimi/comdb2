@@ -379,6 +379,22 @@ static int register_self()
         if ((rc = cdb2_open(&cluster, cnct->dbname, cnct->hostname,
                             CDB2_DIRECT_CPU)) == 0) {
 
+            extern int gbl_diskless;
+            if (gbl_diskless) {
+                if ((rc = cdb2_run_statement(cluster, "select lsn from comdb2_transaction_logs(NULL, NULL, 4) limit 1")) == CDB2_OK) {
+                    while ((rc = cdb2_next_record(cluster)) == CDB2_OK) {
+                        char *answ = (char *)cdb2_column_value(cluster, 0);
+                        int file = atoi(&answ[1]);
+                        int offset = atoi(1 + strchr(&answ[1],':'));
+                        extern void set_last_lsn(int file, int offset);
+                        set_last_lsn(file, offset);
+                    }
+                } else {
+                    logmsg(LOGMSG_ERROR, "%s query statement returned %d\n",
+                            __func__, rc);
+                }
+            }
+
             cnct->last_cnct = time(NULL);
             cnct->is_up = 1;
             curr_cnct = cnct;
@@ -399,6 +415,10 @@ static int register_self()
                 logmsg(LOGMSG_ERROR, "%s query statement returned %d\n",
                        __func__, rc);
             }
+
+
+
+
             cdb2_close(cluster);
         } else {
             logmsg(LOGMSG_ERROR,

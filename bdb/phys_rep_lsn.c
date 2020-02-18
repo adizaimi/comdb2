@@ -15,10 +15,21 @@ int matchable_log_type(int rectype);
 
 extern int gbl_verbose_physrep;
 int gbl_physrep_exit_on_invalid_logstream = 0;
+extern int gbl_diskless;
+static LOG_INFO diskless_log_info;
+
+void set_last_lsn(int file, int offset)
+{
+    diskless_log_info.file = file;
+    diskless_log_info.offset = offset;
+}
 
 LOG_INFO get_last_lsn(bdb_state_type *bdb_state)
 {
     int rc;
+    if (gbl_diskless) {
+        return diskless_log_info;
+    }
 
     /* get db internals */
     DB_LOGC *logc;

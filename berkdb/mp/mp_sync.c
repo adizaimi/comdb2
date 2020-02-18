@@ -1116,6 +1116,7 @@ __memp_sync_int(dbenv, dbmfp, trickle_max, op, wrotep, restartable,
 	DB_LSN *ckp_lsnp;
 	int fixed;
 {
+    if (gbl_diskless) return 0;
 	BH *bhp;
 	BH_TRACK *bharray;
 	BH **bhparray;
