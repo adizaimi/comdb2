@@ -443,6 +443,7 @@ __db_dispatch(dbenv, dtab, dtabsize, db, lsnp, redo, info)
 	 * didn't specify a recovery routine, then we expect that they've
 	 * followed all our rules and registered new recovery functions.
 	 */
+    printf("AZ: redo %d\n", redo);
 	switch (redo) {
 	case DB_TXN_LOGICAL_BACKWARD_ROLL:
 		switch (rectype) {

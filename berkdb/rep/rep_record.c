@@ -3884,6 +3884,7 @@ worker_thd(struct thdpool *pool, void *work, void *thddata, int op)
 				rc = __db_dispatch(dbenv, dbenv->recover_dtab,
 					dbenv->recover_dtab_size, &tmpdbt, &rr->lsn,
 					DB_TXN_APPLY, rq->processor->txninfo);
+                if (rc) logmsg(LOGMSG_ERROR, "%d:dispatch rc=%d\n", __LINE__, rc);
 			} else
 				rc = 0;
 		} else {
@@ -3896,6 +3897,7 @@ worker_thd(struct thdpool *pool, void *work, void *thddata, int op)
 					dbenv->recover_dtab_size, &rr->logdbt,
 					&rr->lsn, DB_TXN_APPLY,
 					rq->processor->txninfo);
+                if (rc) logmsg(LOGMSG_ERROR, "%d:dispatch rc=%d\n", __LINE__, rc);
 			} else
 				rc = 0;
 		}
