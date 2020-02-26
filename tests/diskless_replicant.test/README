@@ -1,0 +1,2 @@
+Test ability of diskless replicant to get pages from cluster
+and respond to queries without having any btrees stored on local disk
