@@ -1557,7 +1557,6 @@ __db_open_arg(dbp, txn, fname, dname, type, flags)
 		}
 		ok_flags = 0;
 		break;
-	case DB_DISKLESS_BTREE:
 	case DB_BTREE:
 		ok_flags = DB_OK_BTREE;
 		break;

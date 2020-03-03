@@ -3658,7 +3658,8 @@ int open_bdb_env(struct dbenv *dbenv)
         }
 
         /* get the max rec len, or a sane default */
-        gbl_maxreclen = get_max_reclen(dbenv);
+        if (!gbl_diskless)
+            gbl_maxreclen = get_max_reclen(dbenv);
         if (gbl_maxreclen < 0)
             gbl_maxreclen = 512;
         net_set_pool_size(dbenv->handle_sibling, (gbl_maxreclen + 300) * 1024);

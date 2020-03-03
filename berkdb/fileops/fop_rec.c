@@ -44,6 +44,10 @@ __fop_create_recover(dbenv, dbtp, lsnp, op, info)
 	__fop_create_args *argp;
 	char *real_name;
 	int ret;
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        return 0;
+    }
 
 	real_name = NULL;
 	COMPQUIET(info, NULL);
@@ -90,6 +94,10 @@ __fop_remove_recover(dbenv, dbtp, lsnp, op, info)
 	__fop_remove_args *argp;
 	char *real_name;
 	int ret;
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        return 0;
+    }
 
 	real_name = NULL;
 	COMPQUIET(info, NULL);
@@ -128,6 +136,11 @@ __fop_write_recover(dbenv, dbtp, lsnp, op, info)
 {
 	__fop_write_args *argp;
 	int ret;
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        return 0;
+    }
+
 
 	COMPQUIET(info, NULL);
 	REC_PRINT(__fop_write_print);
@@ -168,6 +181,10 @@ __fop_rename_recover(dbenv, dbtp, lsnp, op, info)
 	char *real_new, *real_old, *src;
 	int ret;
 	u_int8_t *fileid, mbuf[DBMETASIZE];
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        return 0;
+    }
 
 	real_new = NULL;
 	real_old = NULL;
@@ -258,6 +275,10 @@ __fop_file_remove_recover(dbenv, dbtp, lsnp, op, info)
 	size_t len;
 	u_int8_t mbuf[DBMETASIZE];
 	u_int32_t cstat;
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        return 0;
+    }
 
 	fhp = NULL;
 	is_real = is_tmp = 0;

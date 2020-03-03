@@ -1,2 +1,2 @@
 table t1 alltypes.csc2
-verbose_physrep
+verbose_physrep on

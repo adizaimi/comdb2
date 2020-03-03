@@ -469,16 +469,19 @@ __dbreg_id_to_db_int_int(dbenv, txn, dbpp, ndx, inc, tryopen, lsnp,
 	    (dbenv->recovery_pass == DB_TXN_BACKWARD_ROLL ||
 		in_recovery_verify)) {
 		ret = __dbreg_id_to_db_in_recovery(dbenv, ndx, txn, lsnp, dbpp);
-		if (ret)
+		if (ret) {
 			__db_err(dbenv,
 "No range defined for fileid %d lsn "PR_LSN", ret %d\n",
 			    ndx, PARM_LSNP(lsnp), ret);
+            abort();
+        }
 		goto err;
 	}
 
 	if (ndx < 0) {
 		ret = ENOENT;
 
+        abort();
 		goto err;
 	}
 
@@ -493,6 +496,7 @@ __dbreg_id_to_db_int_int(dbenv, txn, dbpp, ndx, inc, tryopen, lsnp,
 		if (!tryopen || F_ISSET(dblp, DBLOG_RECOVER)) {
 			ret = ENOENT;
 
+            abort();
 			goto err;
 		}
 
@@ -511,6 +515,8 @@ __dbreg_id_to_db_int_int(dbenv, txn, dbpp, ndx, inc, tryopen, lsnp,
 			 * case this will fail too.  Then it's up to the
 			 * caller to reopen the file.
 			 */
+fprintf(stderr, "id to fname  %d ret %d\n", ndx, ret);
+            abort();
 			return (ENOENT);
 
 		/*
@@ -536,8 +542,10 @@ __dbreg_id_to_db_int_int(dbenv, txn, dbpp, ndx, inc, tryopen, lsnp,
 
 		if ((ret = __dbreg_do_open(dbenv, txn, dblp,
 		    fname->ufid, name, fname->s_type,
-		    ndx, fname->meta_pgno, NULL, 0)) != 0)
+		    ndx, fname->meta_pgno, NULL, 0)) != 0) {
+            abort();
 			return (ret);
+        }
 
 		*dbpp = dblp->dbentry[ndx].dbp;
 		return (0);
@@ -548,6 +556,7 @@ __dbreg_id_to_db_int_int(dbenv, txn, dbpp, ndx, inc, tryopen, lsnp,
 	 */
 	if (dblp->dbentry[ndx].deleted) {
 		ret = DB_DELETED;
+            abort();
 		goto err;
 	}
 
@@ -555,6 +564,7 @@ __dbreg_id_to_db_int_int(dbenv, txn, dbpp, ndx, inc, tryopen, lsnp,
 	if ((*dbpp = dblp->dbentry[ndx].dbp) == NULL) {
 		ret = ENOENT;
 
+            abort();
 		goto err;
 	}
 
@@ -698,6 +708,8 @@ __dbreg_fid_to_fname(dblp, fid, have_lock, fnamep)
 			ret = 0;
 			break;
 		}
+fprintf(stderr, "id -> fname  %d %d\n", lid , fnp->id);
+    abort();
 	}
 	if (!have_lock)
 		MUTEX_UNLOCK(dbenv, &lp->fq_mutex);

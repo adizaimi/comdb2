@@ -83,18 +83,9 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 	DB_ENV *dbenv;
 	int ret;
 	u_int32_t id;
-	int created_for_diskless = 0;
 
 	dbenv = dbp->dbenv;
 	id = TXN_INVALID;
-
-	if (type == DB_DISKLESS_BTREE) {
-		F_SET(dbp, DB_AM_INMEM);
-		if (dbp->pgsize == 0)
-			dbp->pgsize = DB_DEF_IOSIZE;
-        logmsg(LOGMSG_ERROR, "AZ: have diskless in mem %s\n", fname);
-        type = DB_UNKNOWN;
-    }
 
 	DB_TEST_RECOVERY(dbp, DB_TEST_PREOPEN, ret, fname);
 

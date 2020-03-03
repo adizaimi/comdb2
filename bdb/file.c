@@ -4358,8 +4358,7 @@ logmsg(LOGMSG_ERROR, "AZ: dtanum=%d, strnum=%d\n", dtanum, strnum);
                 db_flags |= DB_DATAFILE;
                 int iter = 0;
                 if(gbl_diskless) {
-                    //dta_type = DB_DISKLESS_BTREE;
-                    fprintf(stderr, "AZ: skipping opening %s dta_type=%d\n", tmpname, dta_type);
+                    fprintf(stderr, "AZ: should skip opening %s dta_type=%d\n", tmpname, dta_type);
                 }
 
                 do {

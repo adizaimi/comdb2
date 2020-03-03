@@ -132,6 +132,7 @@ int __os_open(DB_ENV *dbenv, const char *name, u_int32_t flags, int mode,
     char buf[PATH_MAX];
     const char *pbuf = bdb_trans(name, buf);
     int rc = ___os_open(dbenv, pbuf, flags, 0664, fhpp);
+    printf("AZ:___os_open(%s:%s) = %d\n", name, pbuf, rc);
     clogf("___os_open(%s:%s) = %d\n", name, pbuf, rc);
     if (rc && strncmp(name, "XXX.logs", 7) != 0)
         abort();

@@ -294,15 +294,19 @@ __fop_file_setup(dbp, txn, name, mode, flags, retidp)
 	if (F_ISSET(dbenv, DB_ENV_OSYNC))
 	    oflags |= DB_OSO_OSYNC;
 
-        int fetched_for_diskless = 0;
-		if (gbl_diskless && real_name) {
-			fetched_for_diskless = 1;
-			if ((ret = __os_exists(real_name, NULL)) == 0) {
-				logmsg(LOGMSG_ERROR, "For diskless mode we should not have data file %s in the db directory \n", real_name);
-				abort();
-			}
-			send_get_metapage(real_name, mbuf, sizeof(mbuf));
+	int fetched_for_diskless = 0;
+	if (gbl_diskless && real_name) {
+		fetched_for_diskless = 1;
+		if ((ret = __os_exists(real_name, NULL)) == 0) {
+			logmsg(LOGMSG_ERROR, "For diskless mode we should not have data file %s in the db directory \n", real_name);
+			abort();
 		}
+		send_get_metapage(real_name, mbuf, sizeof(mbuf));
+	}
+	else if (gbl_diskless) {
+	    printf("AZ: looks like we will open file: %s\n", name);
+	    abort();
+	}
 
 retry:	if (!F_ISSET(dbp, DB_AM_COMPENSATE))
 		GET_ENVLOCK(dbenv, locker, &elock);

@@ -67,6 +67,10 @@ __bam_split_recover(dbenv, dbtp, lsnp, op, info)
 	db_pgno_t pgno, root_pgno;
 	u_int32_t ptype;
 	int cmp, l_update, p_update, r_update, rc, ret, ret_l, rootsplit = 0, t_ret;
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        return 0;
+    }
 
 	DBT split_key;
 	PAGE *argp_lp = NULL;
@@ -776,6 +780,11 @@ __bam_cdel_recover(dbenv, dbtp, lsnp, op, info)
 	u_int32_t indx;
 	int cmp_n, cmp_p, modified, ret;
 
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        return 0;
+    }
+
 	pagep = NULL;
 	COMPQUIET(info, NULL);
 
@@ -1181,6 +1190,10 @@ __bam_prefix_recover(dbenv, dbtp, lsnp, op, info)
     int check_page = gbl_check_page_in_recovery;
 	int cmp_n, cmp_p, ret;
 	int modified;
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        return 0;
+    }
 
 	REC_PRINT(__bam_prefix_print);
 	REC_INTRO(__bam_prefix_read, 1);

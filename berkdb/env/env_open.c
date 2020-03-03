@@ -418,6 +418,9 @@ __dbenv_open(dbenv, db_home, flags, mode)
 		if ((ret = __dbreg_init_recover(dbenv, &dbenv->recover_dtab,
 		    &dbenv->recover_dtab_size)) != 0)
 			goto err;
+        /* cant put this here because the record type will be illegal and crash
+         extern int gbl_diskless;
+         if (!gbl_diskless)  */
 		if ((ret = __fop_init_recover(dbenv, &dbenv->recover_dtab,
 		    &dbenv->recover_dtab_size)) != 0)
 			goto err;

@@ -168,9 +168,46 @@ static int bdb_scdone_int(bdb_state_type *bdb_state_in, DB_TXN *txnid,
     return 0;
 }
 
+#include <sys/types.h>
+#include <unistd.h>
+
 int handle_scdone(DB_ENV *dbenv, u_int32_t rectype, llog_scdone_args *scdoneop,
                   DB_LSN *lsn, db_recops op)
 {
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+
+        pid_t p = getpid();
+        char cmd[256];
+        sprintf(cmd, "cat /proc/%d/cmdline | tr '\\0' '\\n' > /dev/shm/cmdline%d.txt", p, p);
+        system(cmd);
+        sprintf(cmd, "cat /dev/shm/cmdline%d.txt", p);
+        /* Open the command for reading. */
+        FILE *fp = popen(cmd, "r");
+        if (fp == NULL) {
+            printf("Failed to run command\n" );
+            exit(1);
+        }
+
+        char *args[10] = {0};
+        int i = 0;
+        /* Read the output a line at a time - output it. */
+        while (i < 9 && fgets(cmd, sizeof(cmd), fp) != NULL) {
+            args[i] = strdup(cmd);
+            printf("%s", args[i]);
+            i++;
+        }
+        printf(" restarting ... \n");
+
+        /*
+        char *b[] = {"/bin/ls", "/dev/shm/", 0};
+        execv(b[0], b);
+        */
+        execv(args[0], args);
+        printf("errror = %d %s\n", errno, strerror(errno));
+        return 0;
+    }
+
     int rc = 0;
     const char *table = (const char *)scdoneop->table.data;
     const char *newtable = NULL;

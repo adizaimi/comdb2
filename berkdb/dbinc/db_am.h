@@ -93,6 +93,8 @@ extern void __bb_dbreg_print_dblist_stdout(DB_ENV *dbenv);
          ret = 0;					                           \
 			goto done;					                        \
 		}							                              \
+        printf("AZ: failing to apply dbreg\n"); \
+        abort() ;\
 		goto out;						                        \
 	}								                              \
 	if ((ret = __db_cursor(file_dbp, NULL, &dbc, 0)) != 0)		\

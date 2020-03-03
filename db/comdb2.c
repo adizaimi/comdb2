@@ -5585,7 +5585,8 @@ int main(int argc, char **argv)
     if (!gbl_watchdog_disable_at_start)
         watchdog_enable();
 
-    llmeta_dump_mapping(thedb);
+    if (!gbl_diskless)
+        llmeta_dump_mapping(thedb);
 
     init_lua_dbtypes();
 

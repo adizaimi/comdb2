@@ -677,6 +677,9 @@ __db_dispatch(dbenv, dtab, dtabsize, db, lsnp, redo, info)
 				    (u_long)rectype);
 				return (EINVAL);
 			}
+            extern int gbl_diskless;
+            if (gbl_diskless)
+                printf("AZ: rectype = %d\n", rectype);
 			/* let's do this only on the replicants, for now */
 			return (dtab[rectype](dbenv, db, lsnp, redo, info));
 		}

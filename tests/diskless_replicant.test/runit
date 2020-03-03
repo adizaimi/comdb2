@@ -154,7 +154,7 @@ start_diskless_replicant() {
 wait_for_catchup() {
     local c_lsn=$($CDB2SQL_EXE -tabs $CDB2_OPTIONS $DBNAME default "select lsn from comdb2_transaction_logs(NULL, NULL, 4) limit 1" | cut -f2 -d":" | cut -f1 -d"}")
     local r_lsn=$($CDB2SQL_EXE -tabs $CDB2_OPTIONS $repname local "select lsn from comdb2_transaction_logs(NULL, NULL, 4) limit 1" | cut -f2 -d":" | cut -f1 -d"}")
-    while [ "$r_lsn" -lt "$c_lsn" ] ; do 
+    while [ -z "$r_lsn" ] || [ "$r_lsn" -lt "$c_lsn" ] ; do 
         sleep 0.5
         r_lsn=$($CDB2SQL_EXE -tabs $CDB2_OPTIONS $repname local "select lsn from comdb2_transaction_logs(NULL, NULL, 4) limit 1" | cut -f2 -d":" | cut -f1 -d"}")
     done
