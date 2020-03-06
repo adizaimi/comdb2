@@ -708,8 +708,6 @@ __dbreg_fid_to_fname(dblp, fid, have_lock, fnamep)
 			ret = 0;
 			break;
 		}
-fprintf(stderr, "id -> fname  %d %d\n", lid , fnp->id);
-    abort();
 	}
 	if (!have_lock)
 		MUTEX_UNLOCK(dbenv, &lp->fq_mutex);

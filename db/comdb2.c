@@ -859,6 +859,15 @@ int getdbidxbyname_ll(const char *p_name)
     return (tbl) ? tbl->dbs_idx : -1;
 }
 
+void release_all_pages()
+{
+    extern void bdb_dump_cache(bdb_state_type *bdb_state, FILE *out);
+    bdb_dump_cache(thedb->bdb_env, stderr);
+    extern void bdb_release_all_pages(bdb_state_type *bdb_state);
+    bdb_release_all_pages(thedb->bdb_env);
+    bdb_dump_cache(thedb->bdb_env, stderr);
+}
+
 /* get the index offset of table tablename in thedb->dbs array
  * notice that since the caller does not hold the lock, accessing
  * thedb->dbs[idx] can result in undefined behavior if that table

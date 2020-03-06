@@ -2581,3 +2581,32 @@ int __get_page(DB_ENV *dbenv, char *fname, unsigned char fileid[DB_FILE_ID_LEN],
 
 	return 0;
 }
+
+//release all pages in the bufferpool so we can reload them from scratch
+void __release_all_pages(dbenv)
+	DB_ENV *dbenv;
+{
+	DB_MPOOL *dbmp = dbenv->mp_handle;
+	MPOOL *mp = dbmp->reginfo[0].primary;
+    int i;
+
+	/* Dump the memory pools. */
+	for (i = 0; i < mp->nreg; ++i) {
+        REGINFO *reginfo = &dbmp->reginfo[i];
+        MPOOL *c_mp = reginfo->primary;
+
+        DB_MPOOL_HASH *hp;
+        int bucket;
+		for (hp = R_ADDR(reginfo, c_mp->htab),
+		    bucket = 0; bucket < c_mp->htab_buckets; ++hp, ++bucket) {
+            BH *bhp;
+			MUTEX_LOCK(dbenv, &hp->hash_mutex);
+			for (bhp = SH_TAILQ_FIRST(&hp->hash_bucket, __bh);
+                 bhp != NULL; bhp = SH_TAILQ_NEXT(bhp, hq, __bh)) {
+				printf("AZ, setting bhp->pgno %d to -1\n", bhp->pgno);
+				bhp->pgno = -1;
+            }
+			MUTEX_UNLOCK(dbenv, &hp->hash_mutex);
+		}
+	}
+}

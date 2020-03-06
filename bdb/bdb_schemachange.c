@@ -177,12 +177,13 @@ int handle_scdone(DB_ENV *dbenv, u_int32_t rectype, llog_scdone_args *scdoneop,
     extern int gbl_diskless;
     if (gbl_diskless) {
 
+        /*
         pid_t p = getpid();
         char cmd[256];
         sprintf(cmd, "cat /proc/%d/cmdline | tr '\\0' '\\n' > /dev/shm/cmdline%d.txt", p, p);
         system(cmd);
         sprintf(cmd, "cat /dev/shm/cmdline%d.txt", p);
-        /* Open the command for reading. */
+        // Open the command for reading.
         FILE *fp = popen(cmd, "r");
         if (fp == NULL) {
             printf("Failed to run command\n" );
@@ -191,7 +192,7 @@ int handle_scdone(DB_ENV *dbenv, u_int32_t rectype, llog_scdone_args *scdoneop,
 
         char *args[10] = {0};
         int i = 0;
-        /* Read the output a line at a time - output it. */
+        // Read the output a line at a time - output it.
         while (i < 9 && fgets(cmd, sizeof(cmd), fp) != NULL) {
             args[i] = strdup(cmd);
             printf("%s", args[i]);
@@ -199,12 +200,14 @@ int handle_scdone(DB_ENV *dbenv, u_int32_t rectype, llog_scdone_args *scdoneop,
         }
         printf(" restarting ... \n");
 
-        /*
         char *b[] = {"/bin/ls", "/dev/shm/", 0};
         execv(b[0], b);
-        */
         execv(args[0], args);
         printf("errror = %d %s\n", errno, strerror(errno));
+        */
+        printf(" releasing all pages in bufferpool ... \n");
+        extern void release_all_pages();
+        release_all_pages();
         return 0;
     }
 

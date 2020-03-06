@@ -8920,3 +8920,9 @@ int bdb_fetch_page(bdb_state_type *bdb_state, unsigned char fileid[DB_FILE_ID_LE
 {
     return bdb_state->dbenv->get_page(bdb_state->dbenv, fileid, pageno, buf, size);
 }
+
+extern void __release_all_pages(DB_ENV *dbenv);
+void bdb_release_all_pages(bdb_state_type *bdb_state)
+{
+    __release_all_pages(bdb_state->dbenv);
+}

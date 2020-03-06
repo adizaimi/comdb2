@@ -397,8 +397,8 @@ retry:	st_hsearch = 0;
 
 		++mfp->stat.st_cache_hit;
 
-        if (LF_ISSET(DB_MPOOL_PFGET))
-            ++c_mp->stat.st_page_pf_in_late;
+		if (LF_ISSET(DB_MPOOL_PFGET))
+		    ++c_mp->stat.st_page_pf_in_late;
 
 		break;
 	}
@@ -470,8 +470,8 @@ alloc:		/*
 				*pgnoaddr = mfp->last_pgno + 1;
 			}
 			break;
-			case DB_MPOOL_CREATE:if (mfp->maxpgno != 0 &&
-			    *pgnoaddr > mfp->maxpgno) {
+		case DB_MPOOL_CREATE:
+			if (mfp->maxpgno != 0 && *pgnoaddr > mfp->maxpgno) {
 				__db_err(dbenv, "%s: file limited to %lu pages",
 				    __memp_fn(dbmfp), (u_long) mfp->maxpgno);
 				ret = ENOSPC;
