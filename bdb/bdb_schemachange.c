@@ -208,7 +208,6 @@ int handle_scdone(DB_ENV *dbenv, u_int32_t rectype, llog_scdone_args *scdoneop,
         printf(" releasing all pages in bufferpool ... \n");
         extern void release_all_pages();
         release_all_pages();
-        return 0;
     }
 
     int rc = 0;

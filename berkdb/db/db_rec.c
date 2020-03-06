@@ -146,10 +146,6 @@ __db_addrem_recover(dbenv, dbtp, lsnp, op, info)
 	u_int32_t change;
 	int cmp_n, cmp_p, ret;
     int check_page = gbl_check_page_in_recovery;
-    extern int gbl_diskless;
-    if (gbl_diskless) {
-        return 0;
-    }
 
 	pagep = NULL;
 	COMPQUIET(info, NULL);

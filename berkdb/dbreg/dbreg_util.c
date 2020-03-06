@@ -515,8 +515,6 @@ __dbreg_id_to_db_int_int(dbenv, txn, dbpp, ndx, inc, tryopen, lsnp,
 			 * case this will fail too.  Then it's up to the
 			 * caller to reopen the file.
 			 */
-fprintf(stderr, "id to fname  %d ret %d\n", ndx, ret);
-            abort();
 			return (ENOENT);
 
 		/*
