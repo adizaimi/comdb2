@@ -266,10 +266,12 @@ __db_big_recover(dbenv, dbtp, lsnp, op, info)
 	u_int32_t change;
 	int cmp_n, cmp_p, ret;
 
+    /*
     extern int gbl_diskless;
     if (gbl_diskless) {
         return 0;
     }
+    */
 
 	pagep = NULL;
 	COMPQUIET(info, NULL);
@@ -743,10 +745,12 @@ __db_pg_alloc_recover(dbenv, dbtp, lsnp, op, info)
 	PAGE *pagep;
 	db_pgno_t pgno;
 	int cmp_n, cmp_p, created, level, modified, ret;
+    /*
     extern int gbl_diskless;
     if (gbl_diskless) {
         return 0;
     }
+    */
 
 	meta = NULL;
 	pagep = NULL;
@@ -1049,10 +1053,12 @@ __db_pg_free_recover(dbenv, dbtp, lsnp, op, info)
 	__db_pg_free_args *argp;
 	int ret;
 
+    /*
     extern int gbl_diskless;
     if (gbl_diskless) {
         return 0;
     }
+    */
 
 	COMPQUIET(info, NULL);
 	REC_PRINT(__db_pg_free_print);

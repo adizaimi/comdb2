@@ -1215,7 +1215,6 @@ typedef enum {
 	DB_HASH=2,
 	DB_RECNO=3,
 	DB_QUEUE=4,
-	DB_DISKLESS_BTREE=4,
 	DB_UNKNOWN=5,			/* Figure it out on open. */
 	DB_TYPE_MAX=6
 } DBTYPE;

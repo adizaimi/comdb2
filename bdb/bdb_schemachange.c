@@ -176,7 +176,7 @@ int handle_scdone(DB_ENV *dbenv, u_int32_t rectype, llog_scdone_args *scdoneop,
 {
     extern int gbl_diskless;
     if (gbl_diskless) {
-
+        exit(0);
         /*
         pid_t p = getpid();
         char cmd[256];
@@ -186,7 +186,7 @@ int handle_scdone(DB_ENV *dbenv, u_int32_t rectype, llog_scdone_args *scdoneop,
         // Open the command for reading.
         FILE *fp = popen(cmd, "r");
         if (fp == NULL) {
-            printf("Failed to run command\n" );
+            printf("Failed to open file\n" );
             exit(1);
         }
 

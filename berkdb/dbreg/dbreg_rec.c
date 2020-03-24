@@ -89,11 +89,12 @@ __dbreg_register_recover(dbenv, dbtp, lsnp, op, info)
     struct lsn_range *r = NULL;
 
 
-
+    /*
     extern int gbl_diskless;
     if (gbl_diskless) {
         return 0;
     }
+    */
 
 	dblp = dbenv->lg_handle;
 	dbp = NULL;
