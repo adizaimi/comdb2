@@ -170,6 +170,7 @@ typedef enum {
     LLMETA_SC_START_LSN = 49,
     LLMETA_SCHEMACHANGE_STATUS = 50,
     LLMETA_VIEW = 51, /* User defined views */
+    LLMETA_SCHEMACHANGE_HISTORY = 52, /* 52 + TABLENAME[32] + SEED[8] */
 } llmetakey_t;
 
 struct llmeta_file_type_key {
@@ -3959,6 +3960,8 @@ err:
     free(sc_data);
     return -1;
 }
+
+
 /* updates the last processed genid for a stripe in the in progress schema
  * change. should only be used if schema change is not rebuilding main data
  * files because if it is you can simply query those for their highest genids

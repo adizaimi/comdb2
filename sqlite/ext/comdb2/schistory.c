@@ -10,7 +10,6 @@
 #include "cdb2api.h"
 #include "schemachange.h"
 #include "sc_schema.h"
-#include "sc_global.h"
 
 struct sc_status_ent {
     char *name;
@@ -105,10 +104,13 @@ static int get_status(void **data, int *npoints)
         if (status[i].status == BDB_SC_RUNNING || 
             status[i].status == BDB_SC_PAUSED || 
             status[i].status == BDB_SC_COMMIT_PENDING) {
-            uint64_t seed = sc_get_seed_table(sc.tablename);
-            char str[22];
-            sprintf(str, "%0#16" PRIx64, flibc_htonll(seed));
-            sc_status_ents[i].seed = strdup(str);
+            unsigned long long seed = 0;
+            unsigned int host = 0;
+            if ((rc = fetch_sc_seed(sc.tablename, thedb, &seed, &host)) == SC_OK) {
+                char str[22];
+                sprintf(str, "0x%llx", seed);
+                sc_status_ents[i].seed = strdup(str);
+            }
         }
     }
 
@@ -143,14 +145,14 @@ static void free_status(void *p, int n)
     free(sc_status_ents);
 }
 
-sqlite3_module systblScStatusModule = {
+sqlite3_module systblScHistoryModule = {
     .access_flag = CDB2_ALLOW_USER,
 };
 
-int systblScStatusInit(sqlite3 *db)
+int systblScHistoryInit(sqlite3 *db)
 {
     return create_system_table(
-        db, "comdb2_sc_status", &systblScStatusModule,
+        db, "comdb2_sc_history", &systblScHistoryModule,
         get_status, free_status, sizeof(struct sc_status_ent),
         CDB2_CSTRING, "name", -1, offsetof(struct sc_status_ent, name),
         CDB2_CSTRING, "type", -1, offsetof(struct sc_status_ent, type),
