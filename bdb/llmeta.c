@@ -170,7 +170,7 @@ typedef enum {
     LLMETA_SC_START_LSN = 49,
     LLMETA_SCHEMACHANGE_STATUS = 50,
     LLMETA_VIEW = 51, /* User defined views */
-    LLMETA_SCHEMACHANGE_HISTORY = 52, /* 52 + TABLENAME[32] + SEED[8] */
+    LLMETA_SCHEMACHANGE_HISTORY = 52, /* 52 + SEED[8] */
 } llmetakey_t;
 
 struct llmeta_file_type_key {
@@ -185,6 +185,10 @@ BB_COMPILE_TIME_ASSERT(llmeta_file_type_key,
 
 BB_COMPILE_TIME_ASSERT(llmeta_file_type_key_overflow,
                        sizeof(struct llmeta_file_type_key) <= LLMETA_IXLEN);
+
+static int kv_get(tran_type *t, void *k, size_t klen, void ***ret, int *num,
+                  int *bdberr);
+static int kv_put(tran_type *tran, void *k, void *v, size_t vlen, int *bdberr);
 
 static uint8_t *
 llmeta_file_type_key_put(const struct llmeta_file_type_key *p_file_type_key,
@@ -3644,6 +3648,175 @@ static unsigned long long get_epochms(void)
     return (tv.tv_sec * 1000 + tv.tv_usec / 1000);
 }
 
+static uint8_t *
+llmeta_sc_hist_data_put(const llmeta_sc_hist_data *p_sc_hist,
+                          uint8_t *p_buf, const uint8_t *p_buf_end)
+{
+    p_buf = buf_put(&(p_sc_hist->seed), sizeof(p_sc_hist->seed), p_buf,
+                    p_buf_end);
+
+    p_buf = buf_put(&(p_sc_hist->converted), sizeof(p_sc_hist->converted), p_buf,
+                    p_buf_end);
+
+    p_buf = buf_no_net_put(&(p_sc_hist->tablename), 32, p_buf, p_buf_end);
+
+    p_buf = buf_put(&(p_sc_hist->start), sizeof(p_sc_hist->start), p_buf,
+                    p_buf_end);
+
+    p_buf = buf_put(&(p_sc_hist->last), sizeof(p_sc_hist->last), p_buf,
+                    p_buf_end);
+
+    p_buf = buf_put(&(p_sc_hist->status), sizeof(p_sc_hist->status), p_buf,
+                    p_buf_end);
+
+    p_buf = buf_no_net_put(&(p_sc_hist->errstr), LLMETA_SCERR_LEN, p_buf,
+                           p_buf_end);
+
+    /*
+    p_buf = buf_put(&(p_sc_hist->sc_data_len),
+                    sizeof(p_sc_hist->sc_data_len), p_buf, p_buf_end);
+    */
+
+    return p_buf;
+}
+
+/* View key */
+struct llmeta_view_key {
+    int file_type;
+    char view_name[LLMETA_TBLLEN]; /* View name must be NULL terminated */
+};
+
+
+static const uint8_t *
+llmeta_sc_hist_data_get(llmeta_sc_hist_data *p_sc_hist,
+                          const uint8_t *p_buf, const uint8_t *p_buf_end)
+{
+    p_buf = buf_get(&(p_sc_hist->seed), sizeof(p_sc_hist->seed), p_buf,
+                    p_buf_end);
+    p_buf = buf_get(&(p_sc_hist->converted), sizeof(p_sc_hist->converted), p_buf,
+                    p_buf_end);
+    p_buf = buf_no_net_get(&(p_sc_hist->tablename), 32, p_buf, p_buf_end);
+
+    p_buf = buf_get(&(p_sc_hist->start), sizeof(p_sc_hist->start), p_buf,
+                    p_buf_end);
+
+    p_buf = buf_get(&(p_sc_hist->last), sizeof(p_sc_hist->last), p_buf,
+                    p_buf_end);
+
+    p_buf = buf_get(&(p_sc_hist->status), sizeof(p_sc_hist->status), p_buf,
+                    p_buf_end);
+
+    p_buf = buf_no_net_get(&(p_sc_hist->errstr), sizeof(p_sc_hist->errstr),
+                           p_buf, p_buf_end);
+
+    /*
+    p_buf = buf_get(&(p_sc_hist->sc_data_len),
+                    sizeof(p_sc_hist->sc_data_len), p_buf, p_buf_end);
+                    */
+
+    return p_buf;
+}
+
+struct llmeta_hist_key {
+    int file_type;
+    uint64_t seed;
+};
+
+int bdb_set_schema_change_history(tran_type *t, const char *tablename,
+                                 uint64_t seed, uint64_t converted, int status, uint64_t start, uint64_t last,
+                                 const char *errstr, int *bdberr)
+{
+    union {
+        struct llmeta_hist_key key;
+        uint8_t buf[LLMETA_IXLEN];
+    } u = {{0}};
+
+    u.key.file_type = htonl(LLMETA_SCHEMACHANGE_HISTORY);
+    u.key.seed = flibc_htonll(seed);
+    int rc;
+
+    uint8_t *p_buf, *p_buf_start, *p_buf_end;
+    p_buf_start = p_buf = malloc(sizeof(llmeta_sc_hist_data));
+    if (p_buf == NULL) {
+        logmsg(LOGMSG_ERROR, "%s: failed to malloc %zu\n", __func__,
+               sizeof(llmeta_sc_hist_data));
+        *bdberr = BDBERR_MALLOC;
+        return 1;
+    }
+    llmeta_sc_hist_data sc_hist = { .seed = seed, .converted = converted, .start = start, .last = last,
+                                    .status = status };
+    strcpy(sc_hist.tablename, tablename);
+    if (errstr)
+        strcpy(sc_hist.errstr, errstr);
+    p_buf_end = p_buf_start + sizeof(llmeta_sc_hist_data);
+    p_buf = llmeta_sc_hist_data_put(&sc_hist, p_buf, p_buf_end);
+
+    rc = kv_put(t, &u, p_buf_start, sizeof(llmeta_sc_hist_data), bdberr);
+
+    free(p_buf_start);
+    *bdberr = BDBERR_NOERROR;
+    return rc;
+}
+
+int bdb_llmeta_get_all_sc_history(llmeta_sc_hist_data **status_out,
+                                 void ***sc_data_out, int *num, int *bdberr)
+{
+    void **data = NULL;
+    int nkey = 0, rc = 1;
+    llmetakey_t k = htonl(LLMETA_SCHEMACHANGE_HISTORY);
+    llmeta_sc_hist_data *status = NULL;
+    void **sc_data = NULL;
+
+    *num = 0;
+    *status_out = NULL;
+    *sc_data_out = NULL;
+
+    //AZ seed
+    rc = kv_get(NULL, &k, sizeof(k), &data, &nkey, bdberr);
+    if (rc) {
+        logmsg(LOGMSG_ERROR, "%s: failed kv_get rc %d\n", __func__, rc);
+        return -1;
+    }
+    if (nkey == 0)
+        return 0;
+    status = calloc(nkey, sizeof(llmeta_sc_hist_data) * nkey);
+    if (status == NULL) {
+        logmsg(LOGMSG_ERROR, "%s: failed malloc\n", __func__);
+        *bdberr = BDBERR_MALLOC;
+        return -1;
+    }
+
+    sc_data = calloc(nkey, sizeof(void *));
+    if (sc_data == NULL) {
+        logmsg(LOGMSG_ERROR, "%s: failed malloc\n", __func__);
+        free(status);
+        *bdberr = BDBERR_MALLOC;
+        return -1;
+    }
+
+    for (int i = 0; i < nkey; i++) {
+        //const uint8_t *p_buf;
+        //p_buf = 
+        llmeta_sc_hist_data_get(&status[i], data[i],
+                                          (uint8_t *)(data[i]) +
+                                              sizeof(llmeta_sc_hist_data));
+    }
+
+    for (int i = 0; i < nkey; i++) {
+        if (data[i])
+            free(data[i]);
+    }
+    free(data);
+
+    *num = nkey;
+    *status_out = status;
+    return 0;
+}
+
+
+
+
+
 enum { LLMETA_SC_STATUS_DATA_LEN = 8 + 4 + 8 + LLMETA_SCERR_LEN + 4 };
 
 static uint8_t *
@@ -3696,10 +3869,7 @@ llmeta_sc_status_data_get(llmeta_sc_status_data *p_sc_status,
     return p_buf;
 }
 
-int bdb_set_schema_change_status(tran_type *input_trans, const char *db_name,
-                                 void *schema_change_data,
-                                 size_t schema_change_data_len, int status,
-                                 const char *errstr, int *bdberr)
+int bdb_set_schema_change_status(tran_type *input_trans, const char *db_name, uint64_t seed, uint64_t converted, void *schema_change_data, size_t schema_change_data_len, int status, const char *errstr, int *bdberr)
 {
     int retries = 0, rc;
     char key[LLMETA_IXLEN] = {0};
@@ -3847,6 +4017,11 @@ retry:
     if (rc && *bdberr != BDBERR_NOERROR)
         goto backout;
 
+    rc = bdb_set_schema_change_history(trans, db_name, seed, converted, status, sc_status_data.start, sc_status_data.last, errstr, bdberr);
+
+    if (rc && *bdberr != BDBERR_NOERROR)
+        goto backout;
+
     /*commit if we created our own transaction*/
     if (!input_trans) {
         rc = bdb_tran_commit(llmeta_bdb_state, trans, bdberr);
@@ -3883,9 +4058,6 @@ backout:
         free(data);
     return -1;
 }
-
-static int kv_get(tran_type *t, void *k, size_t klen, void ***ret, int *num,
-                  int *bdberr);
 
 int bdb_llmeta_get_all_sc_status(llmeta_sc_status_data **status_out,
                                  void ***sc_data_out, int *num, int *bdberr)
@@ -6362,6 +6534,32 @@ int bdb_llmeta_print_record(bdb_state_type *bdb_state, void *key, int keylen,
         logmsg(LOGMSG_USER,
                "LLMETA_SCHEMACHANGE_STATUS: table=\"%s\" start=%lld status=%d "
                "last=%lld errstr=\"%s\"\n",
+               schema_change.dbname, sc_status_data.start,
+               sc_status_data.status, sc_status_data.last,
+               sc_status_data.errstr);
+    } break;
+
+    case LLMETA_SCHEMACHANGE_HISTORY: {
+        struct llmeta_schema_change_type schema_change = {0};
+        llmeta_sc_hist_data sc_status_data = {0};
+
+        if (keylen < sizeof(schema_change) ||
+            datalen < sizeof(llmeta_sc_hist_data)) {
+            logmsg(LOGMSG_USER,
+                   "%s:%d: wrong LLMETA_SCHEMACHANGE_STATUS entry\n", __FILE__,
+                   __LINE__);
+            *bdberr = BDBERR_MISC;
+            return -1;
+        }
+
+        p_buf_key = llmeta_schema_change_type_get(&schema_change, p_buf_key,
+                                                  p_buf_end_key);
+
+        llmeta_sc_hist_data_get(&sc_status_data, p_buf_data, p_buf_end_data);
+
+        logmsg(LOGMSG_USER,
+               "LLMETA_SCHEMACHANGE_STATUS: table=\"%s\" start=%"PRIu64" status=%d "
+               "last=%"PRIu64" errstr=\"%s\"\n",
                schema_change.dbname, sc_status_data.start,
                sc_status_data.status, sc_status_data.last,
                sc_status_data.errstr);
@@ -9828,12 +10026,6 @@ done:
     }
     return rc;
 }
-
-/* View key */
-struct llmeta_view_key {
-    int file_type;
-    char view_name[LLMETA_TBLLEN]; /* View name must be NULL terminated */
-};
 
 /* Fetch all view names */
 int bdb_get_view_names(tran_type *t, char **names, int *num)

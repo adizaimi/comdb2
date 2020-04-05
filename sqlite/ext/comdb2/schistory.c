@@ -10,6 +10,7 @@
 #include "cdb2api.h"
 #include "schemachange.h"
 #include "sc_schema.h"
+#include "tohex.h"
 
 struct sc_status_ent {
     char *name;
@@ -45,11 +46,11 @@ static char *status_num2str(int s)
 static int get_status(void **data, int *npoints)
 {
     int rc, bdberr, nkeys;
-    llmeta_sc_status_data *status = NULL;
+    llmeta_sc_hist_data *status = NULL;
     void **sc_data = NULL;
     struct sc_status_ent *sc_status_ents = NULL;
 
-    rc = bdb_llmeta_get_all_sc_status(&status, &sc_data, &nkeys, &bdberr);
+    rc = bdb_llmeta_get_all_sc_history(&status, &sc_data, &nkeys, &bdberr);
     if (rc || bdberr) {
         logmsg(LOGMSG_ERROR, "%s: failed to get all schema change status\n",
                __func__);
@@ -65,8 +66,9 @@ static int get_status(void **data, int *npoints)
 
     for (int i = 0; i < nkeys; i++) {
         dttz_t d;
-        struct schema_change_type sc = {0}; // used for upacking
 
+        /*
+        struct schema_change_type sc = {0}; // used for upacking
         rc = unpack_schema_change_type(&sc, sc_data[i], status[i].sc_data_len);
         if (rc) {
             free(sc_status_ents);
@@ -75,9 +77,10 @@ static int get_status(void **data, int *npoints)
             rc = SQLITE_INTERNAL;
             goto cleanup;
         }
-        sc_status_ents[i].name = strdup(sc.tablename);
         sc_status_ents[i].type = strdup(get_ddl_type_str(&sc));
         sc_status_ents[i].newcsc2 = strdup(get_ddl_csc2(&sc));
+        */
+        sc_status_ents[i].name = strdup(status[i].tablename);
 
         d = (dttz_t){.dttz_sec = status[i].start / 1000,
                      .dttz_frac =
@@ -94,33 +97,25 @@ static int get_status(void **data, int *npoints)
             (cdb2_client_datetime_t *)&(sc_status_ents[i].lastupdated));
         sc_status_ents[i].status = strdup(status_num2str(status[i].status));
 
-        struct dbtable *db = get_dbtable_by_name(sc.tablename);
-        if (db && db->doing_conversion)
-            sc_status_ents[i].converted = db->sc_nrecs;
-        else
-            sc_status_ents[i].converted = -1;
+        sc_status_ents[i].converted = status[i].converted;
 
+        char str[22] = { "0x" };
+        //sprintf(str, "0x%"PRIx64"", status[i].seed);
+        util_tohex(str + 2, (char*)&status[i].seed, sizeof(status[i].seed));
+
+        sc_status_ents[i].seed = strdup(str);
         sc_status_ents[i].error = strdup(status[i].errstr);
-        if (status[i].status == BDB_SC_RUNNING || 
-            status[i].status == BDB_SC_PAUSED || 
-            status[i].status == BDB_SC_COMMIT_PENDING) {
-            unsigned long long seed = 0;
-            unsigned int host = 0;
-            if ((rc = fetch_sc_seed(sc.tablename, thedb, &seed, &host)) == SC_OK) {
-                char str[22];
-                sprintf(str, "0x%llx", seed);
-                sc_status_ents[i].seed = strdup(str);
-            }
-        }
     }
 
     *npoints = nkeys;
     *data = sc_status_ents;
 
 cleanup:
+    /*
     for (int i = 0; i < nkeys; i++) {
         free(sc_data[i]);
     }
+    */
     free(status);
     free(sc_data);
 
