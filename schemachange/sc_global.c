@@ -23,6 +23,7 @@
 #include "bbinc/cheapstack.h"
 #include "crc32c.h"
 #include "comdb2_atomic.h"
+#include "tohex.h"
 #include <assert.h>
 
 #include <plhash.h>
@@ -258,10 +259,11 @@ static int freesc(void *obj, void *arg)
  * If we are using the low level meta table then this isn't called on the
  * replicants at all when doing a schema change, its still called for queue or
  * dtastripe changes. */
-int sc_set_running(struct ireq *iq, struct schema_change_type *s, char *table,
+int sc_set_running(struct ireq *iq, struct schema_change_type *s,
                    int running, const char *host, time_t time, int replicant,
                    const char *func, int line)
 {
+    char *table = s->tablename;
     sc_table_t *sctbl = NULL;
 #ifdef DEBUG_SC
     printf("%s: table %s : %d from %s:%d\n", __func__, table, running, func,
@@ -302,6 +304,7 @@ int sc_set_running(struct ireq *iq, struct schema_change_type *s, char *table,
         assert(sctbl);
         strcpy(sctbl->mem, table);
         sctbl->tablename = sctbl->mem;
+        sctbl->seed = s->seed;
 
         sctbl->host = host ? crc32c((uint8_t *)host, strlen(host)) : 0;
         sctbl->time = time;
@@ -375,10 +378,12 @@ void sc_status(struct dbenv *dbenv)
         localtime_r(&timet, &tm);
 
         logmsg(LOGMSG_USER, "-------------------------\n");
+        char str[22] = { "0x" };
+        util_tohex(str + 2, (char*)&sctbl->seed, sizeof(sctbl->seed));
         logmsg(LOGMSG_USER,
                "Schema change in progress for table %s "
-               "with seed 0x%" PRIx64 "\n",
-               sctbl->tablename, sctbl->seed);
+               "with seed %s\n",
+               sctbl->tablename, str);
         logmsg(LOGMSG_USER,
                "(Started on node %s at %04d-%02d-%02d %02d:%02d:%02d)\n",
                mach ? mach : "(unknown)", tm.tm_year + 1900, tm.tm_mon + 1,
@@ -554,6 +559,19 @@ unsigned int sc_get_logical_redo_lwm_table(char *table)
         lwm = sctbl->logical_lwm;
     Pthread_mutex_unlock(&schema_change_in_progress_mutex);
     return lwm;
+}
+
+uint64_t sc_get_seed_table(char *table)
+{
+    sc_table_t *sctbl = NULL;
+    uint64_t seed = 0;
+    Pthread_mutex_lock(&schema_change_in_progress_mutex);
+    assert(sc_tables);
+    sctbl = hash_find_readonly(sc_tables, &table);
+    if (sctbl)
+        seed = sctbl->seed;
+    Pthread_mutex_unlock(&schema_change_in_progress_mutex);
+    return seed;
 }
 
 void add_ongoing_alter(struct schema_change_type *sc)
