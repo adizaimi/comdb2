@@ -3747,7 +3747,7 @@ int bdb_set_schema_change_history(tran_type *t, const char *tablename,
                                     .status = status };
     strcpy(sc_hist.tablename, tablename);
     if (errstr)
-        strcpy(sc_hist.errstr, errstr);
+        strncpy0(sc_hist.errstr, errstr, sizeof(sc_hist.errstr));
     p_buf_end = p_buf_start + sizeof(llmeta_sc_hist_data);
     p_buf = llmeta_sc_hist_data_put(&sc_hist, p_buf, p_buf_end);
 

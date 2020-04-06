@@ -348,7 +348,12 @@ function rebuild_new_field_and_idx
 
 function check_comdb2_sc_hist
 {
-    grep "starting schema" $COMDB2_ROOT/var/log/cdb2/$DBNAME.trc.c | cut -f10 -d' ' > seeds_trc.txt
+    if [[ -n "$CLUSTER" ]]; then
+        master=`getmaster`
+        ssh -o StrictHostKeyChecking=no $master "cat $COMDB2_ROOT/var/log/cdb2/$DBNAME.trc.c" | grep "starting schema" | cut -f10 -d' ' > seeds_trc.txt
+    else
+        grep "starting schema" $COMDB2_ROOT/var/log/cdb2/$DBNAME.trc.c | cut -f10 -d' ' > seeds_trc.txt
+    fi
     # use tail +3 to skip first two entries which are creating t1 and t2 and dont show up in trc.c
     cdb2sql --tabs ${CDB2_OPTIONS} $dbnm default "select seed from comdb2_sc_history order by seed" | tail +3 > seeds_sql.txt
     if ! diff seeds_trc.txt seeds_sql.txt ; then

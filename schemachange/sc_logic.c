@@ -282,7 +282,9 @@ static int do_finalize(ddl_t func, struct ireq *iq,
             return rc;
         }
     }
-    uint64_t sc_nrecs = s->db->sc_nrecs; // take a copy, func will clear to 0
+    uint64_t sc_nrecs = 0;
+    if (s->db)
+        sc_nrecs = s->db->sc_nrecs; // take a copy, func will clear to 0
 
     rc = func(iq, s, tran);
 
