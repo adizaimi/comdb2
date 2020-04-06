@@ -259,11 +259,10 @@ static int freesc(void *obj, void *arg)
  * If we are using the low level meta table then this isn't called on the
  * replicants at all when doing a schema change, its still called for queue or
  * dtastripe changes. */
-int sc_set_running(struct ireq *iq, struct schema_change_type *s,
+int sc_set_running(struct ireq *iq, struct schema_change_type *s, char *table,
                    int running, const char *host, time_t time, int replicant,
                    const char *func, int line)
 {
-    char *table = s->tablename;
     sc_table_t *sctbl = NULL;
 #ifdef DEBUG_SC
     printf("%s: table %s : %d from %s:%d\n", __func__, table, running, func,
