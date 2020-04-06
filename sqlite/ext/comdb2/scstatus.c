@@ -107,8 +107,8 @@ int get_status(void **data, int *npoints)
             status[i].status == BDB_SC_PAUSED || 
             status[i].status == BDB_SC_COMMIT_PENDING) {
             uint64_t seed = sc_get_seed_table(sc.tablename);
-            char str[22] = { "0x" };
-            util_tohex(str + 2, (char*)&seed, sizeof(seed));
+            char str[22];
+            sprintf(str, "%0#16" PRIx64, flibc_htonll(seed));
             sc_status_ents[i].seed = strdup(str);
         }
     }

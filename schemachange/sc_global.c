@@ -378,12 +378,10 @@ void sc_status(struct dbenv *dbenv)
         localtime_r(&timet, &tm);
 
         logmsg(LOGMSG_USER, "-------------------------\n");
-        char str[22] = { "0x" };
-        util_tohex(str + 2, (char*)&sctbl->seed, sizeof(sctbl->seed));
         logmsg(LOGMSG_USER,
                "Schema change in progress for table %s "
-               "with seed %s\n",
-               sctbl->tablename, str);
+               "with seed %0#16" PRIx64 "\n",
+               sctbl->tablename, flibc_htonll(sctbl->seed));
         logmsg(LOGMSG_USER,
                "(Started on node %s at %04d-%02d-%02d %02d:%02d:%02d)\n",
                mach ? mach : "(unknown)", tm.tm_year + 1900, tm.tm_mon + 1,
