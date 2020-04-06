@@ -99,9 +99,8 @@ static int get_status(void **data, int *npoints)
 
         sc_status_ents[i].converted = status[i].converted;
 
-        char str[22] = { "0x" };
-        //sprintf(str, "0x%"PRIx64"", status[i].seed);
-        util_tohex(str + 2, (char*)&status[i].seed, sizeof(status[i].seed));
+        char str[22];
+        sprintf(str, "%0#16"PRIx64"", flibc_htonll(status[i].seed));
 
         sc_status_ents[i].seed = strdup(str);
         sc_status_ents[i].error = strdup(status[i].errstr);
@@ -150,8 +149,8 @@ int systblScHistoryInit(sqlite3 *db)
         db, "comdb2_sc_history", &systblScHistoryModule,
         get_status, free_status, sizeof(struct sc_status_ent),
         CDB2_CSTRING, "name", -1, offsetof(struct sc_status_ent, name),
-        CDB2_CSTRING, "type", -1, offsetof(struct sc_status_ent, type),
-        CDB2_CSTRING, "newcsc2", -1, offsetof(struct sc_status_ent, newcsc2),
+        //CDB2_CSTRING, "type", -1, offsetof(struct sc_status_ent, type),
+        //CDB2_CSTRING, "newcsc2", -1, offsetof(struct sc_status_ent, newcsc2),
         CDB2_DATETIME, "start", -1, offsetof(struct sc_status_ent, start),
         CDB2_CSTRING, "status", -1, offsetof(struct sc_status_ent, status),
         CDB2_CSTRING, "seed", -1, offsetof(struct sc_status_ent, seed),

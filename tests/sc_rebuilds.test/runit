@@ -346,6 +346,16 @@ function rebuild_new_field_and_idx
     do_verify $tbl
 }
 
+function check_comdb2_sc_hist
+{
+    grep "starting schema" $COMDB2_ROOT/var/log/cdb2/$DBNAME.trc.c | cut -f10 -d' ' > seeds_trc.txt
+    # use tail +3 to skip first two entries which are creating t1 and t2 and dont show up in trc.c
+    cdb2sql --tabs ${CDB2_OPTIONS} $dbnm default "select seed from comdb2_sc_history order by seed" | tail +3 > seeds_sql.txt
+    if ! diff seeds_trc.txt seeds_sql.txt ; then
+        failexit "Seed captured in sc_history is not the same as trc.c"
+    fi
+}
+
 
 echo "running test in machine $(hostname):${PWD}"
 
@@ -371,5 +381,7 @@ cdb2sql ${CDB2_OPTIONS} $dbnm default "create table $tbl  { `cat $tbl.csc2 ` }"
 run_plain_rebuilds 500
 run_pageorder_rebuilds
 rebuild_new_field_and_idx 
+
+check_comdb2_sc_hist
 
 echo Success
