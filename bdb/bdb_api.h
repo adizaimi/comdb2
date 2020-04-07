@@ -1529,11 +1529,14 @@ typedef struct {
     int sc_data_len;
 } llmeta_sc_status_data;
 
-int bdb_set_schema_change_status(tran_type *input_trans, const char *db_name, uint64_t seed, uint64_t converted, void *schema_change_data, size_t schema_change_data_len, int status, const char *errstr, int *bdberr);
+int bdb_set_schema_change_status(tran_type *input_trans, const char *db_name,
+                                 uint64_t seed, uint64_t converted,
+                                 void *schema_change_data,
+                                 size_t schema_change_data_len, int status,
+                                 const char *errstr, int *bdberr);
 
 int bdb_llmeta_get_all_sc_status(llmeta_sc_status_data **status_out,
                                  void ***sc_data_out, int *num, int *bdberr);
-
 
 typedef struct {
     uint64_t seed;
@@ -1543,12 +1546,11 @@ typedef struct {
     uint64_t converted;
     int status;
     char errstr[LLMETA_SCERR_LEN];
-    //int sc_data_len;
+    // int sc_data_len;
 } llmeta_sc_hist_data;
 
-
 int bdb_llmeta_get_all_sc_history(llmeta_sc_hist_data **status_out,
-                                 void ***sc_data_out, int *num, int *bdberr);
+                                  void ***sc_data_out, int *num, int *bdberr);
 
 int bdb_set_high_genid(tran_type *input_trans, const char *tablename,
                        unsigned long long genid, int *bdberr);
