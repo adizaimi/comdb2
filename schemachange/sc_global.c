@@ -23,7 +23,6 @@
 #include "bbinc/cheapstack.h"
 #include "crc32c.h"
 #include "comdb2_atomic.h"
-#include "tohex.h"
 #include <assert.h>
 
 #include <plhash.h>

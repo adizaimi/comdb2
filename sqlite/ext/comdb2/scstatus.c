@@ -11,7 +11,6 @@
 #include "schemachange.h"
 #include "sc_schema.h"
 #include "sc_global.h"
-#include "tohex.h"
 
 struct sc_status_ent {
     char *name;
