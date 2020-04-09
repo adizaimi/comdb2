@@ -189,6 +189,7 @@ BB_COMPILE_TIME_ASSERT(llmeta_file_type_key_overflow,
 static int kv_get(tran_type *t, void *k, size_t klen, void ***ret, int *num,
                   int *bdberr);
 static int kv_put(tran_type *tran, void *k, void *v, size_t vlen, int *bdberr);
+static int kv_del(tran_type *tran, void *k, int *bdberr);
 
 static uint8_t *
 llmeta_file_type_key_put(const struct llmeta_file_type_key *p_file_type_key,
@@ -3720,6 +3721,24 @@ struct llmeta_hist_key {
     int file_type;
     uint64_t seed;
 };
+
+
+int bdb_del_schema_change_history(tran_type *t, uint64_t seed)
+{
+    union {
+        struct llmeta_hist_key key;
+        uint8_t buf[LLMETA_IXLEN];
+    } u = {{0}};
+
+    u.key.file_type = htonl(LLMETA_SCHEMACHANGE_HISTORY);
+    u.key.seed = flibc_htonll(seed);
+
+    int bdberr;
+    int rc = kv_del(NULL, &u, &bdberr);
+    if (rc)
+        logmsg(LOGMSG_ERROR, "%s: %0#16"PRIx64" rc=%d bdberr=%d\n", __func__, flibc_ntohll(seed), rc, bdberr);
+    return rc;
+}
 
 int bdb_set_schema_change_history(tran_type *t, const char *tablename,
                                   uint64_t seed, uint64_t converted, int status,
