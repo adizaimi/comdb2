@@ -3722,7 +3722,6 @@ struct llmeta_hist_key {
     uint64_t seed;
 };
 
-
 int bdb_del_schema_change_history(tran_type *t, uint64_t seed)
 {
     union {
@@ -3736,7 +3735,8 @@ int bdb_del_schema_change_history(tran_type *t, uint64_t seed)
     int bdberr;
     int rc = kv_del(NULL, &u, &bdberr);
     if (rc)
-        logmsg(LOGMSG_ERROR, "%s: %0#16"PRIx64" rc=%d bdberr=%d\n", __func__, flibc_ntohll(seed), rc, bdberr);
+        logmsg(LOGMSG_ERROR, "%s: %0#16" PRIx64 " rc=%d bdberr=%d\n", __func__,
+               flibc_ntohll(seed), rc, bdberr);
     return rc;
 }
 
