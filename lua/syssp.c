@@ -567,6 +567,8 @@ static int db_comdb_delete_sc_history_byseed(Lua L)
     if (lua_isnil(L, 1)) 
         return luaL_error(L, "Expected non null value for seed.");
 
+    if (gbl_myhostname != thedb->master)
+        return luaL_error(L, "Can only delete from master node");
     uint64_t fseed = lua_tointeger(L, -1);
     int rc = bdb_del_schema_change_history(NULL, flibc_ntohll(fseed));
     if (rc)
