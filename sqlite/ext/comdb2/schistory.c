@@ -46,13 +46,12 @@ static char *status_num2str(int s)
 static int get_status(void **data, int *npoints)
 {
     int rc, bdberr, nkeys;
-    llmeta_sc_hist_data *status = NULL;
-    void **sc_data = NULL;
+    sc_hist_row *hist = NULL;
     struct sc_status_ent *sc_status_ents = NULL;
 
-    rc = bdb_llmeta_get_all_sc_history(&status, &sc_data, &nkeys, &bdberr);
+    rc = bdb_llmeta_get_all_sc_history(NULL, &hist, &nkeys, &bdberr);
     if (rc || bdberr) {
-        logmsg(LOGMSG_ERROR, "%s: failed to get all schema change status\n",
+        logmsg(LOGMSG_ERROR, "%s: failed to get all schema change hist\n",
                __func__);
         return SQLITE_INTERNAL;
     }
@@ -67,56 +66,38 @@ static int get_status(void **data, int *npoints)
     for (int i = 0; i < nkeys; i++) {
         dttz_t d;
 
-        /*
-        struct schema_change_type sc = {0}; // used for upacking
-        rc = unpack_schema_change_type(&sc, sc_data[i], status[i].sc_data_len);
-        if (rc) {
-            free(sc_status_ents);
-            logmsg(LOGMSG_ERROR, "%s: failed to unpack schema change\n",
-                   __func__);
-            rc = SQLITE_INTERNAL;
-            goto cleanup;
-        }
-        sc_status_ents[i].type = strdup(get_ddl_type_str(&sc));
-        sc_status_ents[i].newcsc2 = strdup(get_ddl_csc2(&sc));
-        */
-        sc_status_ents[i].name = strdup(status[i].tablename);
+        //todo: sc_status_ents[i].type = strdup(get_ddl_type_str(&sc));
+        sc_status_ents[i].name = strdup(hist[i].tablename);
 
-        d = (dttz_t){.dttz_sec = status[i].start / 1000,
+        d = (dttz_t){.dttz_sec = hist[i].start / 1000,
                      .dttz_frac =
-                         status[i].start - (status[i].start / 1000 * 1000),
+                         hist[i].start - (hist[i].start / 1000 * 1000),
                      .dttz_prec = DTTZ_PREC_MSEC};
         dttz_to_client_datetime(
             &d, "UTC", (cdb2_client_datetime_t *)&(sc_status_ents[i].start));
-        d = (dttz_t){.dttz_sec = status[i].last / 1000,
+        d = (dttz_t){.dttz_sec = hist[i].last / 1000,
                      .dttz_frac =
-                         status[i].last - (status[i].last / 1000 * 1000),
+                         hist[i].last - (hist[i].last / 1000 * 1000),
                      .dttz_prec = DTTZ_PREC_MSEC};
         dttz_to_client_datetime(
             &d, "UTC",
             (cdb2_client_datetime_t *)&(sc_status_ents[i].lastupdated));
-        sc_status_ents[i].status = strdup(status_num2str(status[i].status));
+        sc_status_ents[i].status = strdup(status_num2str(hist[i].status));
 
-        sc_status_ents[i].converted = status[i].converted;
+        sc_status_ents[i].converted = hist[i].converted;
 
         char str[22];
-        sprintf(str, "%0#16"PRIx64"", flibc_htonll(status[i].seed));
+        sprintf(str, "%0#16"PRIx64"", flibc_htonll(hist[i].seed));
 
         sc_status_ents[i].seed = strdup(str);
-        sc_status_ents[i].error = strdup(status[i].errstr);
+        sc_status_ents[i].error = strdup(hist[i].errstr);
     }
 
     *npoints = nkeys;
     *data = sc_status_ents;
 
 cleanup:
-    /*
-    for (int i = 0; i < nkeys; i++) {
-        free(sc_data[i]);
-    }
-    */
-    free(status);
-    free(sc_data);
+    free(hist);
 
     return rc;
 }

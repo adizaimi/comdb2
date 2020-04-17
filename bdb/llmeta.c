@@ -190,6 +190,8 @@ static int kv_get(tran_type *t, void *k, size_t klen, void ***ret, int *num,
                   int *bdberr);
 static int kv_put(tran_type *tran, void *k, void *v, size_t vlen, int *bdberr);
 static int kv_del(tran_type *tran, void *k, int *bdberr);
+static int kv_get_kv(tran_type *t, void *k, size_t klen, void ***keys, 
+                      void ***values, int *num, int *bdberr);
 
 static uint8_t *
 llmeta_file_type_key_put(const struct llmeta_file_type_key *p_file_type_key,
@@ -3653,13 +3655,8 @@ static uint8_t *llmeta_sc_hist_data_put(const llmeta_sc_hist_data *p_sc_hist,
                                         uint8_t *p_buf,
                                         const uint8_t *p_buf_end)
 {
-    p_buf =
-        buf_put(&(p_sc_hist->seed), sizeof(p_sc_hist->seed), p_buf, p_buf_end);
-
     p_buf = buf_put(&(p_sc_hist->converted), sizeof(p_sc_hist->converted),
                     p_buf, p_buf_end);
-
-    p_buf = buf_no_net_put(&(p_sc_hist->tablename), 32, p_buf, p_buf_end);
 
     p_buf = buf_put(&(p_sc_hist->start), sizeof(p_sc_hist->start), p_buf,
                     p_buf_end);
@@ -3676,26 +3673,19 @@ static uint8_t *llmeta_sc_hist_data_put(const llmeta_sc_hist_data *p_sc_hist,
     /*
     p_buf = buf_put(&(p_sc_hist->sc_data_len),
                     sizeof(p_sc_hist->sc_data_len), p_buf, p_buf_end);
-    */
+     */
 
     return p_buf;
 }
 
-/* View key */
-struct llmeta_view_key {
-    int file_type;
-    char view_name[LLMETA_TBLLEN]; /* View name must be NULL terminated */
-};
 
-static const uint8_t *llmeta_sc_hist_data_get(llmeta_sc_hist_data *p_sc_hist,
+// write the key info into sc_hist_row 
+static const uint8_t *llmeta_sc_hist_data_get(sc_hist_row *p_sc_hist,
                                               const uint8_t *p_buf,
                                               const uint8_t *p_buf_end)
 {
-    p_buf =
-        buf_get(&(p_sc_hist->seed), sizeof(p_sc_hist->seed), p_buf, p_buf_end);
     p_buf = buf_get(&(p_sc_hist->converted), sizeof(p_sc_hist->converted),
                     p_buf, p_buf_end);
-    p_buf = buf_no_net_get(&(p_sc_hist->tablename), 32, p_buf, p_buf_end);
 
     p_buf = buf_get(&(p_sc_hist->start), sizeof(p_sc_hist->start), p_buf,
                     p_buf_end);
@@ -3712,17 +3702,52 @@ static const uint8_t *llmeta_sc_hist_data_get(llmeta_sc_hist_data *p_sc_hist,
     /*
     p_buf = buf_get(&(p_sc_hist->sc_data_len),
                     sizeof(p_sc_hist->sc_data_len), p_buf, p_buf_end);
-                    */
+     */
 
     return p_buf;
 }
 
+
 struct llmeta_hist_key {
     int file_type;
+    char tablename[LLMETA_TBLLEN];
+    int pad;
     uint64_t seed;
 };
+enum {
+    LLMETA_HIST_KEY_LEN = 4 + LLMETA_TBLLEN + 4 + 8
+};
 
-int bdb_del_schema_change_history(tran_type *t, uint64_t seed)
+BB_COMPILE_TIME_ASSERT(llmeta_hist_key_len,
+                       sizeof(struct llmeta_hist_key) ==
+                           LLMETA_HIST_KEY_LEN);
+
+
+// write the key info into sc_hist_row 
+static const uint8_t *llmeta_sc_hist_key_get(struct llmeta_hist_key *p_hist_k,
+                                              const uint8_t *p_buf,
+                                              const uint8_t *p_buf_end)
+{
+    if (p_buf_end < p_buf || sizeof(struct llmeta_hist_key) > (p_buf_end - p_buf))
+        return NULL;
+
+    p_buf = buf_get(&(p_hist_k->file_type), sizeof(p_hist_k->file_type), p_buf,
+                    p_buf_end);
+
+    p_buf = buf_no_net_get(&(p_hist_k->tablename), sizeof(p_hist_k->tablename),
+                           p_buf, p_buf_end);
+
+    p_buf = buf_get(&(p_hist_k->pad), sizeof(p_hist_k->pad), p_buf, p_buf_end);
+    p_buf = buf_get(&(p_hist_k->seed), sizeof(p_hist_k->seed), p_buf,
+                    p_buf_end);
+
+    return p_buf;
+}
+
+
+
+int bdb_del_schema_change_history(tran_type *t, const char *tablename,
+                                  uint64_t seed)
 {
     union {
         struct llmeta_hist_key key;
@@ -3730,13 +3755,14 @@ int bdb_del_schema_change_history(tran_type *t, uint64_t seed)
     } u = {{0}};
 
     u.key.file_type = htonl(LLMETA_SCHEMACHANGE_HISTORY);
+    strncpy0(u.key.tablename, tablename, sizeof(u.key.tablename));
     u.key.seed = flibc_htonll(seed);
 
     int bdberr;
-    int rc = kv_del(NULL, &u, &bdberr);
+    int rc = kv_del(t, &u, &bdberr);
     if (rc)
-        logmsg(LOGMSG_ERROR, "%s: %0#16" PRIx64 " rc=%d bdberr=%d\n", __func__,
-               flibc_ntohll(seed), rc, bdberr);
+        logmsg(LOGMSG_ERROR, "%s: tbl %s seed %0#16" PRIx64 " rc=%d bdberr=%d\n",
+               __func__, tablename, flibc_ntohll(seed), rc, bdberr);
     return rc;
 }
 
@@ -3751,58 +3777,51 @@ int bdb_set_schema_change_history(tran_type *t, const char *tablename,
     } u = {{0}};
 
     u.key.file_type = htonl(LLMETA_SCHEMACHANGE_HISTORY);
+    strncpy0(u.key.tablename, tablename, sizeof(u.key.tablename));
     u.key.seed = flibc_htonll(seed);
+
     int rc;
 
-    uint8_t *p_buf, *p_buf_start, *p_buf_end;
-    p_buf_start = p_buf = malloc(sizeof(llmeta_sc_hist_data));
-    if (p_buf == NULL) {
-        logmsg(LOGMSG_ERROR, "%s: failed to malloc %zu\n", __func__,
-               sizeof(llmeta_sc_hist_data));
-        *bdberr = BDBERR_MALLOC;
-        return 1;
-    }
-    llmeta_sc_hist_data sc_hist = {.seed = seed,
-                                   .converted = converted,
+    uint8_t *p_buf_start, *p_buf_end;
+    p_buf_start = alloca(sizeof(llmeta_sc_hist_data));
+
+    llmeta_sc_hist_data sc_hist = {.converted = converted,
                                    .start = start,
                                    .last = last,
                                    .status = status};
-    strcpy(sc_hist.tablename, tablename);
     if (errstr)
         strncpy0(sc_hist.errstr, errstr, sizeof(sc_hist.errstr));
     p_buf_end = p_buf_start + sizeof(llmeta_sc_hist_data);
-    p_buf = llmeta_sc_hist_data_put(&sc_hist, p_buf, p_buf_end);
+    llmeta_sc_hist_data_put(&sc_hist, p_buf_start, p_buf_end);
 
     rc = kv_put(t, &u, p_buf_start, sizeof(llmeta_sc_hist_data), bdberr);
 
-    free(p_buf_start);
     *bdberr = BDBERR_NOERROR;
     return rc;
 }
 
-int bdb_llmeta_get_all_sc_history(llmeta_sc_hist_data **status_out,
-                                  void ***sc_data_out, int *num, int *bdberr)
+int bdb_llmeta_get_all_sc_history(tran_type *t, sc_hist_row **hist_out,
+                                  int *num, int *bdberr)
 {
     void **data = NULL;
+    void **keys = NULL;
     int nkey = 0, rc = 1;
     llmetakey_t k = htonl(LLMETA_SCHEMACHANGE_HISTORY);
-    llmeta_sc_hist_data *status = NULL;
+    sc_hist_row *hist = NULL;
     void **sc_data = NULL;
 
     *num = 0;
-    *status_out = NULL;
-    *sc_data_out = NULL;
+    *hist_out = NULL;
 
-    // AZ seed
-    rc = kv_get(NULL, &k, sizeof(k), &data, &nkey, bdberr);
+    rc = kv_get_kv(NULL, &k, sizeof(k), &keys, &data, &nkey, bdberr);
     if (rc) {
         logmsg(LOGMSG_ERROR, "%s: failed kv_get rc %d\n", __func__, rc);
         return -1;
     }
     if (nkey == 0)
         return 0;
-    status = calloc(nkey, sizeof(llmeta_sc_hist_data) * nkey);
-    if (status == NULL) {
+    hist = calloc(nkey, sizeof(sc_hist_row) * nkey);
+    if (hist == NULL) {
         logmsg(LOGMSG_ERROR, "%s: failed malloc\n", __func__);
         *bdberr = BDBERR_MALLOC;
         return -1;
@@ -3811,27 +3830,32 @@ int bdb_llmeta_get_all_sc_history(llmeta_sc_hist_data **status_out,
     sc_data = calloc(nkey, sizeof(void *));
     if (sc_data == NULL) {
         logmsg(LOGMSG_ERROR, "%s: failed malloc\n", __func__);
-        free(status);
+        free(hist);
         *bdberr = BDBERR_MALLOC;
         return -1;
     }
 
     for (int i = 0; i < nkey; i++) {
-        // const uint8_t *p_buf;
-        // p_buf =
-        llmeta_sc_hist_data_get(&status[i], data[i],
-                                (uint8_t *)(data[i]) +
+        struct llmeta_hist_key k;
+        llmeta_sc_hist_key_get(&k, keys[i],
+                               (uint8_t *)(keys[i]) +
+                                    sizeof(struct llmeta_hist_key));
+        strcpy(hist[i].tablename, k.tablename);
+        hist[i].seed = k.seed;
+        llmeta_sc_hist_data_get(&hist[i], data[i],
+                               (uint8_t *)(data[i]) +
                                     sizeof(llmeta_sc_hist_data));
     }
 
     for (int i = 0; i < nkey; i++) {
-        if (data[i])
-            free(data[i]);
+        free(keys[i]);
+        free(data[i]);
     }
     free(data);
+    free(keys);
 
     *num = nkey;
-    *status_out = status;
+    *hist_out = hist;
     return 0;
 }
 
@@ -6563,30 +6587,27 @@ int bdb_llmeta_print_record(bdb_state_type *bdb_state, void *key, int keylen,
     } break;
 
     case LLMETA_SCHEMACHANGE_HISTORY: {
-        struct llmeta_schema_change_type schema_change = {0};
-        llmeta_sc_hist_data sc_status_data = {0};
+        sc_hist_row sc_hist = {0};
 
-        if (keylen < sizeof(schema_change) ||
+        if (keylen < sizeof(struct llmeta_hist_key) ||
             datalen < sizeof(llmeta_sc_hist_data)) {
             logmsg(LOGMSG_USER,
-                   "%s:%d: wrong LLMETA_SCHEMACHANGE_STATUS entry\n", __FILE__,
+                   "%s:%d: wrong LLMETA_SCHEMACHANGE_HISTORY entry\n", __FILE__,
                    __LINE__);
             *bdberr = BDBERR_MISC;
             return -1;
         }
 
-        p_buf_key = llmeta_schema_change_type_get(&schema_change, p_buf_key,
-                                                  p_buf_end_key);
-
-        llmeta_sc_hist_data_get(&sc_status_data, p_buf_data, p_buf_end_data);
+        struct llmeta_hist_key k;
+        llmeta_sc_hist_key_get(&k, p_buf_key, p_buf_end_key);
+        llmeta_sc_hist_data_get(&sc_hist, p_buf_data, p_buf_end_data);
 
         logmsg(LOGMSG_USER,
-               "LLMETA_SCHEMACHANGE_STATUS: table=\"%s\" start=%" PRIu64
-               " status=%d "
-               "last=%" PRIu64 " errstr=\"%s\"\n",
-               schema_change.dbname, sc_status_data.start,
-               sc_status_data.status, sc_status_data.last,
-               sc_status_data.errstr);
+               "LLMETA_SCHEMACHANGE_HISTORY: table=\"%s\" seed=%0#16" PRIx64 
+               " start=%" PRIu64 " status=%d " "last=%" PRIu64 
+               " errstr=\"%s\"\n",
+               k.tablename, flibc_ntohll(k.seed), sc_hist.start,
+               sc_hist.status, sc_hist.last, sc_hist.errstr);
     } break;
 
     case LLMETA_HIGH_GENID: {
@@ -9017,6 +9038,51 @@ static int kv_get_keys(tran_type *t, void *k, size_t klen, void ***ret,
     return rc;
 }
 
+
+// get keys and values for all matching keys
+static int kv_get_kv(tran_type *t, void *k, size_t klen, void ***keys, 
+                      void ***values, int *num, int *bdberr)
+{
+    int fnd;
+    int n = 0;
+    int inc = 10;
+    int alloc = 0;
+    uint8_t out[LLMETA_IXLEN];
+    void **vals = NULL;
+    void **names = NULL;
+    int rc = bdb_lite_fetch_partial_tran(llmeta_bdb_state, t, k, klen, out,
+                                         &fnd, bdberr);
+    while (rc == 0 && fnd == 1) {
+        if (memcmp(k, out, klen) != 0) {
+            break;
+        }
+        if (n == alloc) {
+            alloc += inc;
+            names = realloc(names, sizeof(char *) * alloc);
+            vals = realloc(vals, sizeof(void *) * alloc);
+        }
+        names[n] = malloc(LLMETA_IXLEN);
+        memcpy(names[n], out, LLMETA_IXLEN);
+
+        void *dta;
+        int dsz;
+        rc = bdb_lite_exact_var_fetch_tran(llmeta_bdb_state, t, out, &dta, &dsz,
+                                           bdberr);
+        if (rc || *bdberr != BDBERR_NOERROR) {
+            break;
+        }
+        vals[n] = dta;
+        ++n;
+        uint8_t nxt[LLMETA_IXLEN];
+        rc = bdb_lite_fetch_keys_fwd_tran(llmeta_bdb_state, t, out, nxt, 1,
+                                          &fnd, bdberr);
+        memcpy(out, nxt, sizeof(out));
+    }
+    *num = n;
+    *keys = names;
+    *values = vals;
+    return rc;
+}
 static int kv_del(tran_type *tran, void *k, int *bdberr)
 {
     return bdb_lite_exact_del(llmeta_bdb_state, tran, k, bdberr);
@@ -10050,6 +10116,13 @@ done:
     }
     return rc;
 }
+
+
+/* View key */
+struct llmeta_view_key {
+    int file_type;
+    char view_name[LLMETA_TBLLEN]; /* View name must be NULL terminated */
+};
 
 /* Fetch all view names */
 int bdb_get_view_names(tran_type *t, char **names, int *num)

@@ -18,8 +18,6 @@
 #include <bdb_api.h>
 #include <phys_rep.h>
 
-int bdb_del_schema_change_history(tran_type *t, uint64_t seed);
-
 /* Wishes for anyone who wants to clean this up one day:
  * 1)  don't need boilerplate lua code for this, should have a fixed description
  *     of types/names for each call, and C code for emitting them. 
@@ -562,15 +560,19 @@ static int db_comdb_register_replicant(Lua L)
     return 1;
 }
 
-static int db_comdb_delete_sc_history_byseed(Lua L)
+// delete sc history by tablename and by seed
+static int db_comdb_delete_sc_history(Lua L)
 {
-    if (lua_isnil(L, 1)) 
+    if (!lua_isstring(L, 1))
+        return luaL_error(L, "Expected string value for tablename.");
+    if (lua_isnil(L, 2)) 
         return luaL_error(L, "Expected non null value for seed.");
 
     if (gbl_myhostname != thedb->master)
         return luaL_error(L, "Can only delete from master node");
     uint64_t fseed = lua_tointeger(L, -1);
-    int rc = bdb_del_schema_change_history(NULL, flibc_ntohll(fseed));
+    char *tbl = (char*) lua_tostring(L, -2);
+    int rc = bdb_del_schema_change_history(NULL, tbl, flibc_htonll(fseed));
     if (rc)
         return luaL_error(L, "Error deleting entry");
 
@@ -590,7 +592,7 @@ static const luaL_Reg sys_funcs[] = {
     { "start_replication", db_comdb_start_replication },
     { "stop_replication", db_comdb_stop_replication },
     { "register_replicant", db_comdb_register_replicant },
-    { "delete_sc_history_byseed", db_comdb_delete_sc_history_byseed },
+    { "delete_sc_history", db_comdb_delete_sc_history },
     { NULL, NULL }
 }; 
 
@@ -776,7 +778,7 @@ static struct sp_source syssps[] = {
         "  local c = 0\n"
         "  local row = resultset:fetch()\n"
         "  while row do\n"
-        "    sys.delete_sc_history_byseed(' '..row.seed)\n"
+        "    sys.delete_sc_history(t, ' '..row.seed)\n"
         //"    db:emit('Deleting '..row.seed)\n"
         "    row = resultset:fetch()\n"
         "    c = c + 1\n"
