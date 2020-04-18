@@ -85,7 +85,7 @@ static int get_status(void **data, int *npoints)
         sc_status_ents[i].converted = hist[i].converted;
 
         char str[22];
-        sprintf(str, "%0#16"PRIx64, flibc_htonll(hist[i].seed));
+        sprintf(str, "%0#16"PRIx64, hist[i].seed);
 
         sc_status_ents[i].seed = strdup(str);
         sc_status_ents[i].error = strdup(hist[i].errstr);

@@ -182,6 +182,13 @@ int validate_ix_names(struct dbtable *db)
     return rc;
 }
 
+static int seed_qsort_cmpfunc(const void *key1, const void *key2) {
+    sc_hist_row *s1, *s2;
+    s1 = (sc_hist_row *) key1;
+    s2 = (sc_hist_row *) key2;
+
+    return bdb_cmp_genids(s1->seed, s2->seed);
+}
 int keep_only_last_sc_history_entries(tran_type *tran, const char *tablename)
 {
     int rc = 0, bdberr, nkeys;
@@ -197,8 +204,10 @@ int keep_only_last_sc_history_entries(tran_type *tran, const char *tablename)
     if (nkeys < attr) //attr
         goto cleanup;
 
+    qsort(hist, nkeys, sizeof(sc_hist_row), seed_qsort_cmpfunc);
+
     for (int i = 0; i < nkeys - attr; i++) {
-        printf("deleting entry %i seed %0#16"PRIx64"\n", i, flibc_htonll(hist[i].seed));
+        printf("deleting entry %i seed %0#16"PRIx64"\n", i, hist[i].seed);
 
         rc = bdb_del_schema_change_history(tran, tablename, hist[i].seed);
         if (rc)

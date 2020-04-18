@@ -3710,8 +3710,8 @@ static const uint8_t *llmeta_sc_hist_data_get(sc_hist_row *p_sc_hist,
 
 struct llmeta_hist_key {
     int file_type;
-    char tablename[LLMETA_TBLLEN];
-    int pad;
+    char tablename[LLMETA_TBLLEN + 1];
+    char pad[3];
     uint64_t seed;
 };
 enum {
@@ -3723,7 +3723,27 @@ BB_COMPILE_TIME_ASSERT(llmeta_hist_key_len,
                            LLMETA_HIST_KEY_LEN);
 
 
-// write the key info into sc_hist_row 
+// put the key info
+static const uint8_t *llmeta_sc_hist_key_put(const struct llmeta_hist_key *p_hist_k,
+                                              uint8_t *p_buf,
+                                              const uint8_t *p_buf_end)
+{
+    if (p_buf_end < p_buf || sizeof(struct llmeta_hist_key) > (p_buf_end - p_buf))
+        return NULL;
+
+    p_buf = buf_put(&(p_hist_k->file_type), sizeof(p_hist_k->file_type), p_buf,
+                    p_buf_end);
+
+    p_buf = buf_no_net_put(&(p_hist_k->tablename), sizeof(p_hist_k->tablename),
+                           p_buf, p_buf_end);
+
+    p_buf += sizeof(p_hist_k->pad);
+    p_buf = buf_put(&(p_hist_k->seed), sizeof(p_hist_k->seed), p_buf, p_buf_end);
+
+    return p_buf;
+}
+
+// get the key info
 static const uint8_t *llmeta_sc_hist_key_get(struct llmeta_hist_key *p_hist_k,
                                               const uint8_t *p_buf,
                                               const uint8_t *p_buf_end)
@@ -3737,7 +3757,7 @@ static const uint8_t *llmeta_sc_hist_key_get(struct llmeta_hist_key *p_hist_k,
     p_buf = buf_no_net_get(&(p_hist_k->tablename), sizeof(p_hist_k->tablename),
                            p_buf, p_buf_end);
 
-    p_buf = buf_get(&(p_hist_k->pad), sizeof(p_hist_k->pad), p_buf, p_buf_end);
+    p_buf += sizeof(p_hist_k->pad);
     p_buf = buf_get(&(p_hist_k->seed), sizeof(p_hist_k->seed), p_buf,
                     p_buf_end);
 
@@ -3756,13 +3776,13 @@ int bdb_del_schema_change_history(tran_type *t, const char *tablename,
 
     u.key.file_type = htonl(LLMETA_SCHEMACHANGE_HISTORY);
     strncpy0(u.key.tablename, tablename, sizeof(u.key.tablename));
-    u.key.seed = flibc_htonll(seed);
+    u.key.seed = flibc_ntohll(seed);
 
     int bdberr;
     int rc = kv_del(t, &u, &bdberr);
     if (rc)
         logmsg(LOGMSG_ERROR, "%s: tbl %s seed %0#16" PRIx64 " rc=%d bdberr=%d\n",
-               __func__, tablename, flibc_ntohll(seed), rc, bdberr);
+               __func__, tablename, seed, rc, bdberr);
     return rc;
 }
 
@@ -3778,9 +3798,7 @@ int bdb_set_schema_change_history(tran_type *t, const char *tablename,
 
     u.key.file_type = htonl(LLMETA_SCHEMACHANGE_HISTORY);
     strncpy0(u.key.tablename, tablename, sizeof(u.key.tablename));
-    u.key.seed = flibc_htonll(seed);
-
-    int rc;
+    u.key.seed = seed;
 
     uint8_t *p_buf_start, *p_buf_end;
     p_buf_start = alloca(sizeof(llmeta_sc_hist_data));
@@ -3794,7 +3812,7 @@ int bdb_set_schema_change_history(tran_type *t, const char *tablename,
     p_buf_end = p_buf_start + sizeof(llmeta_sc_hist_data);
     llmeta_sc_hist_data_put(&sc_hist, p_buf_start, p_buf_end);
 
-    rc = kv_put(t, &u, p_buf_start, sizeof(llmeta_sc_hist_data), bdberr);
+    int rc = kv_put(t, &u, p_buf_start, sizeof(llmeta_sc_hist_data), bdberr);
 
     *bdberr = BDBERR_NOERROR;
     return rc;
@@ -6617,7 +6635,7 @@ int bdb_llmeta_print_record(bdb_state_type *bdb_state, void *key, int keylen,
                "LLMETA_SCHEMACHANGE_HISTORY: table=\"%s\" seed=%0#16" PRIx64 
                " start=%" PRIu64 " status=%d " "last=%" PRIu64 
                " errstr=\"%s\"\n",
-               k.tablename, flibc_ntohll(k.seed), sc_hist.start,
+               k.tablename, k.seed, sc_hist.start,
                sc_hist.status, sc_hist.last, sc_hist.errstr);
     } break;
 
