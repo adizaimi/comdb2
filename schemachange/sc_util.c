@@ -204,7 +204,9 @@ int keep_only_last_sc_history_entries(tran_type *tran, const char *tablename)
     if (nkeys < attr) //attr
         goto cleanup;
 
+#if defined(_IBM_SOURCE) || defined(_SUN_SOURCE)
     qsort(hist, nkeys, sizeof(sc_hist_row), seed_qsort_cmpfunc);
+#endif
 
     for (int i = 0; i < nkeys - attr; i++) {
         printf("deleting entry %i seed %0#16"PRIx64"\n", i, hist[i].seed);
