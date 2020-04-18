@@ -193,7 +193,7 @@ int keep_only_last_sc_history_entries(tran_type *tran, const char *tablename)
                __func__);
         return 1;
     }
-    int attr = 10;
+    int attr = bdb_attr_get(thedb->bdb_attr, BDB_ATTR_SC_HIST_KEEP);
     if (nkeys < attr) //attr
         goto cleanup;
 
