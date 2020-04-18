@@ -49,7 +49,7 @@ static int get_status(void **data, int *npoints)
     sc_hist_row *hist = NULL;
     struct sc_status_ent *sc_status_ents = NULL;
 
-    rc = bdb_llmeta_get_all_sc_history(NULL, &hist, &nkeys, &bdberr);
+    rc = bdb_llmeta_get_sc_history(NULL, &hist, &nkeys, &bdberr, NULL);
     if (rc || bdberr) {
         logmsg(LOGMSG_ERROR, "%s: failed to get all schema change hist\n",
                __func__);
@@ -70,14 +70,12 @@ static int get_status(void **data, int *npoints)
         sc_status_ents[i].name = strdup(hist[i].tablename);
 
         d = (dttz_t){.dttz_sec = hist[i].start / 1000,
-                     .dttz_frac =
-                         hist[i].start - (hist[i].start / 1000 * 1000),
+                     .dttz_frac = hist[i].start - (hist[i].start / 1000 * 1000),
                      .dttz_prec = DTTZ_PREC_MSEC};
         dttz_to_client_datetime(
             &d, "UTC", (cdb2_client_datetime_t *)&(sc_status_ents[i].start));
         d = (dttz_t){.dttz_sec = hist[i].last / 1000,
-                     .dttz_frac =
-                         hist[i].last - (hist[i].last / 1000 * 1000),
+                     .dttz_frac = hist[i].last - (hist[i].last / 1000 * 1000),
                      .dttz_prec = DTTZ_PREC_MSEC};
         dttz_to_client_datetime(
             &d, "UTC",
@@ -87,7 +85,7 @@ static int get_status(void **data, int *npoints)
         sc_status_ents[i].converted = hist[i].converted;
 
         char str[22];
-        sprintf(str, "%0#16"PRIx64"", flibc_htonll(hist[i].seed));
+        sprintf(str, "%0#16"PRIx64, flibc_htonll(hist[i].seed));
 
         sc_status_ents[i].seed = strdup(str);
         sc_status_ents[i].error = strdup(hist[i].errstr);

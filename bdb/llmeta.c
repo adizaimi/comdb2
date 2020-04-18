@@ -3800,20 +3800,31 @@ int bdb_set_schema_change_history(tran_type *t, const char *tablename,
     return rc;
 }
 
-int bdb_llmeta_get_all_sc_history(tran_type *t, sc_hist_row **hist_out,
-                                  int *num, int *bdberr)
+int bdb_llmeta_get_sc_history(tran_type *t, sc_hist_row **hist_out,
+                              int *num, int *bdberr, const char *tablename)
 {
     void **data = NULL;
     void **keys = NULL;
     int nkey = 0, rc = 1;
-    llmetakey_t k = htonl(LLMETA_SCHEMACHANGE_HISTORY);
     sc_hist_row *hist = NULL;
     void **sc_data = NULL;
 
     *num = 0;
     *hist_out = NULL;
+    union {
+        struct llmeta_hist_key key;
+        uint8_t buf[LLMETA_IXLEN];
+    } u = {{0}};
 
-    rc = kv_get_kv(NULL, &k, sizeof(k), &keys, &data, &nkey, bdberr);
+    u.key.file_type = htonl(LLMETA_SCHEMACHANGE_HISTORY);
+    int sz = sizeof(int);
+
+    if (tablename) {
+        strncpy0(u.key.tablename, tablename, sizeof(u.key.tablename));
+        sz += sizeof(u.key.tablename);
+    } 
+
+    rc = kv_get_kv(t, &u, sz, &keys, &data, &nkey, bdberr);
     if (rc) {
         logmsg(LOGMSG_ERROR, "%s: failed kv_get rc %d\n", __func__, rc);
         return -1;

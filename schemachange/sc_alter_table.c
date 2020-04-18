@@ -395,6 +395,13 @@ int do_alter_table(struct ireq *iq, struct schema_change_type *s,
         goto convert_records;
     }
 
+    rc = keep_only_last_sc_history_entries(tran, s->tablename);
+    if (rc) {
+        sc_errf(s, "Cant cleanup comdb2_sc_history and keep last entries\n");
+        reqerrstr(iq, ERR_SC, "Can't cleanup comdb2_sc_history and keep last entries");
+        return -1;
+    }
+
     set_schemachange_options_tran(s, db, &scinfo, tran);
 
     if ((rc = check_option_coherency(s, db, &scinfo))) return rc;

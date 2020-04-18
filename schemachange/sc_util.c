@@ -181,3 +181,32 @@ int validate_ix_names(struct dbtable *db)
     }
     return rc;
 }
+
+int keep_only_last_sc_history_entries(tran_type *tran, const char *tablename)
+{
+    int rc = 0, bdberr, nkeys;
+    sc_hist_row *hist = NULL;
+
+    rc = bdb_llmeta_get_sc_history(tran, &hist, &nkeys, &bdberr, tablename);
+    if (rc || bdberr) {
+        logmsg(LOGMSG_ERROR, "%s: failed to get all schema change hist\n",
+               __func__);
+        return 1;
+    }
+    int attr = 10;
+    if (nkeys < attr) //attr
+        goto cleanup;
+
+    for (int i = 0; i < nkeys - attr; i++) {
+        printf("deleting entry %i seed %0#16"PRIx64"\n", i, flibc_htonll(hist[i].seed));
+
+        rc = bdb_del_schema_change_history(tran, tablename, hist[i].seed);
+        if (rc)
+            return rc;
+    }
+
+cleanup:
+    free(hist);
+    return rc;   
+}
+

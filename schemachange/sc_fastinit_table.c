@@ -29,6 +29,7 @@
 #include "sc_drop_table.h"
 #include "sc_add_table.h"
 #include "sc_alter_table.h"
+#include "sc_util.h"
 
 int do_fastinit(struct ireq *iq, struct schema_change_type *s, tran_type *tran)
 {
@@ -55,7 +56,7 @@ int do_fastinit(struct ireq *iq, struct schema_change_type *s, tran_type *tran)
         return -1;
     }
 
-    //rc = keep_only_last_sc_history_entries(tran, s->tablename);
+    rc = keep_only_last_sc_history_entries(tran, s->tablename);
     if (rc) {
         sc_errf(s, "Cant cleanup comdb2_sc_history and keep last entries\n");
         reqerrstr(iq, ERR_SC, "Can't cleanup comdb2_sc_history and keep last entries");

@@ -1559,8 +1559,8 @@ typedef struct {
 } sc_hist_row; // this is content of row in comdb2_sc_history
 
 
-int bdb_llmeta_get_all_sc_history(tran_type *t, sc_hist_row **hist_out,
-                                  int *num, int *bdberr);
+int bdb_llmeta_get_sc_history(tran_type *t, sc_hist_row **hist_out,
+                              int *num, int *bdberr, const char *tablename);
 
 int bdb_del_schema_change_history(tran_type *t, const char *tablename,
                                   uint64_t seed);

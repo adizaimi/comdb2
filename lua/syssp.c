@@ -572,7 +572,7 @@ static int db_comdb_delete_sc_history(Lua L)
         return luaL_error(L, "Can only delete from master node");
     uint64_t fseed = lua_tointeger(L, -1);
     char *tbl = (char*) lua_tostring(L, -2);
-    int rc = bdb_del_schema_change_history(NULL, tbl, flibc_htonll(fseed));
+    int rc = bdb_del_schema_change_history(NULL, tbl, fseed);
     if (rc)
         return luaL_error(L, "Error deleting entry");
 
