@@ -56,12 +56,6 @@ int do_fastinit(struct ireq *iq, struct schema_change_type *s, tran_type *tran)
         return -1;
     }
 
-    rc = keep_only_last_sc_history_entries(tran, s->tablename);
-    if (rc) {
-        sc_errf(s, "Cant cleanup comdb2_sc_history and keep last entries\n");
-        reqerrstr(iq, ERR_SC, "Can't cleanup comdb2_sc_history and keep last entries");
-        return -1;
-    }
     set_schemachange_options_tran(s, db, &scinfo, tran);
 
     extern int gbl_broken_max_rec_sz;

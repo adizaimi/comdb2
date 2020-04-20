@@ -3719,8 +3719,7 @@ enum {
 };
 
 BB_COMPILE_TIME_ASSERT(llmeta_hist_key_len,
-                       sizeof(struct llmeta_hist_key) ==
-                           LLMETA_HIST_KEY_LEN);
+                       sizeof(struct llmeta_hist_key) == LLMETA_HIST_KEY_LEN);
 
 
 // put the key info
