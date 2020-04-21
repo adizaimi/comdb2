@@ -1256,6 +1256,11 @@ int bplog_schemachange(struct ireq *iq, blocksql_tran_t *tran, void *err)
     iq->sc = sc = iq->sc_pending;
     iq->sc_pending = NULL;
 
+    int attr = 1; // attr
+    if (attr && iq->sc_seed != 0) {
+        //find way to have client print seed and exit if in detached mode
+    }
+
     while (sc != NULL) {
         Pthread_mutex_lock(&sc->mtx);
         sc->nothrevent = 1;

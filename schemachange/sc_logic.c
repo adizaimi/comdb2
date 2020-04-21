@@ -399,8 +399,7 @@ static int do_ddl(ddl_t pre, ddl_t post, struct ireq *iq,
         s->sc_rc = SC_DETACHED;
     }
 
-    broadcast_sc_start(s->tablename, iq->sc_seed, iq->sc_host,
-                       time(NULL));                   // dont care rcode
+    broadcast_sc_start(s->tablename, iq->sc_seed, iq->sc_host, time(NULL));
     rc = pre(iq, s, NULL);                            // non-tran ??
     if (type == alter && master_downgrading(s)) {
         s->sc_rc = SC_MASTER_DOWNGRADE;
