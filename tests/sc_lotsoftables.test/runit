@@ -18,22 +18,6 @@ fi
 nins=0
 
 
-function assertcnt 
-{
-    tbl=$1
-    target=$2
-    cnt=$(cdb2sql -tabs ${CDB2_OPTIONS} $dbnm default "select count(*) from $tbl")
-    if [ $? -ne 0 ] ; then
-        echo "assertcnt: select error"
-    fi
-
-    echo "count of $tbl is now $cnt"
-    if [[ $cnt != $target ]] ; then
-        failexit "count is now $cnt but should be $target"
-    fi
-}
-
-
 function insert_records
 {
     tbl=$1
@@ -151,14 +135,29 @@ for i in `seq 1 $tblcnt`; do
   #flushall
 done
 
+for node in $cluster ; do
+    cdb2sql ${CDB2_OPTIONS} $dbnm --host $node "exec procedure sys.cmd.send('bdb dblist')" > dblist_$node.pre
+done
+
 for i in `seq 1 $tblcnt`; do
     assertcnt ${PRFIX}$i $i
-    #echo rebuild t1
-    #time cdb2sql ${CDB2_OPTIONS} $dbnm default "rebuild t1"
-    #assertcnt t$i $i
-    #assertcnt t1 1
-    #flushall
+    echo rebuild ${PRFIX}$i
+    time cdb2sql ${CDB2_OPTIONS} $dbnm default "rebuild ${PRFIX}$i"
+    echo truncate ${PRFIX}0
+    time cdb2sql ${CDB2_OPTIONS} $dbnm default "truncate ${PRFIX}0"
+    assertcnt ${PRFIX}$i $i
+    flushall
 done
+
+# check that we dont keep open any file that we should have closed
+for node in $cluster ; do
+    cdb2sql ${CDB2_OPTIONS} $dbnm --host $node "exec procedure sys.cmd.send('bdb dblist')" > dblist_$node.post
+
+    if [ `wc -l dblist_$node.pre` != `wc -l dblist_$node.post` ] ; then
+        failexit "count different for $node: diff dblist_$node.pre dblist_$node.post"
+    fi
+done
+
 
 #RESTART_DELAY=35
 #echo "killrestart all nodes"

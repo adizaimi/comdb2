@@ -35,7 +35,9 @@ assertcnt ()
     fi
     local tbl=$1
     local target=$2
-    comment=$3
+    if [ "x$3" != "x" ] ; then
+        comment="$3: "
+    fi
     local cnt=$(cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} default "select count(*) from $tbl")
     if [ $? -ne 0 ] ; then
         echo "assertcnt: select error"
@@ -43,7 +45,7 @@ assertcnt ()
 
     #echo "count is now $cnt"
     if [[ $cnt != $target ]] ; then
-        failexit "tbl $tbl count is now $cnt but should be $target"
+        failexit "$comment tbl $tbl count is now $cnt but should be $target"
     fi
 }
 
