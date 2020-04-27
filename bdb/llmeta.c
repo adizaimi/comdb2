@@ -3670,7 +3670,7 @@ static uint8_t *llmeta_sc_hist_data_put(const llmeta_sc_hist_data *p_sc_hist,
     p_buf = buf_no_net_put(&(p_sc_hist->errstr), LLMETA_SCERR_LEN, p_buf,
                            p_buf_end);
 
-    /*
+    /* If we want to store scdata in the future:
     p_buf = buf_put(&(p_sc_hist->sc_data_len),
                     sizeof(p_sc_hist->sc_data_len), p_buf, p_buf_end);
      */
@@ -3699,7 +3699,7 @@ static const uint8_t *llmeta_sc_hist_data_get(sc_hist_row *p_sc_hist,
     p_buf = buf_no_net_get(&(p_sc_hist->errstr), sizeof(p_sc_hist->errstr),
                            p_buf, p_buf_end);
 
-    /*
+    /* If we want to store scdata in the future:
     p_buf = buf_get(&(p_sc_hist->sc_data_len),
                     sizeof(p_sc_hist->sc_data_len), p_buf, p_buf_end);
      */

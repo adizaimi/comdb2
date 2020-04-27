@@ -767,7 +767,7 @@ static struct sp_source syssps[] = {
     }
     ,{
         /* delete all but the last N rows from llmeta for this table */
-        "sys.cmd.truncate_sc_history",
+        "sys.cmd.trim_sc_history",
         "local function main(t, n)\n"
         " if (n == nil) then \n"
         "  n = 10 \n"
