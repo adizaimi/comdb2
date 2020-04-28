@@ -5,6 +5,7 @@ schema
     int      c
     int      d
     vutf8    e[10]
+    vutf8    f[10]
 }
 
 keys

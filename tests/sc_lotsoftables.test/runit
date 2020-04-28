@@ -29,7 +29,7 @@ function insert_records
     echo "" > $insfl
 
     while [[ $j -le $nstop ]]; do 
-        echo "insert into $tbl(a,b,c,d,e) values ($((j+10000)),'test1$j',$j,$j,'abc$j')" 
+        echo "insert into $tbl(a,b,c,d,e,f) values ($((j+10000)),'test1$j',$j,$j,'abc$j','abc$j')" 
         let j=j+1
     done | cdb2sql ${CDB2_OPTIONS} $dbnm default - &>> $insfl
 }
@@ -131,14 +131,15 @@ for i in `seq 1 $tblcnt`; do
   insert_records ${PRFIX}$i $i
   echo truncate ${PRFIX}0
   time cdb2sql ${CDB2_OPTIONS} $dbnm default "truncate ${PRFIX}0"
-
-  #flushall
+  flushall
 done
 
+# take snapsot of loaded files
 for node in $cluster ; do
     cdb2sql ${CDB2_OPTIONS} $dbnm --host $node "exec procedure sys.cmd.send('bdb dblist')" > dblist_$node.pre
 done
 
+# rebuild all and truncate
 for i in `seq 1 $tblcnt`; do
     assertcnt ${PRFIX}$i $i
     echo rebuild ${PRFIX}$i
@@ -152,9 +153,10 @@ done
 # check that we dont keep open any file that we should have closed
 for node in $cluster ; do
     cdb2sql ${CDB2_OPTIONS} $dbnm --host $node "exec procedure sys.cmd.send('bdb dblist')" > dblist_$node.post
-
-    if [ `wc -l dblist_$node.pre` != `wc -l dblist_$node.post` ] ; then
-        failexit "count different for $node: diff dblist_$node.pre dblist_$node.post"
+    c1=`wc -l dblist_$node.pre | cut -f1 -d' '`
+    c2=`wc -l dblist_$node.post | cut -f1 -d' '`
+    if [ "$c1" != "$c2" ] ; then
+        failexit "count different ($c1 != $c2) for $node: diff dblist_$node.pre dblist_$node.post"
     fi
 done
 
