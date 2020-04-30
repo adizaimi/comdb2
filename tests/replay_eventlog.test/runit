@@ -179,17 +179,8 @@ delete_records()
     echo "done updating round $nout"
 }
 
-# Make sure we talk to the same host
-node=`cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} default "SELECT comdb2_host()"`
-# NB from here on we will be communicating with --host $node only 
-export CDB2_OPTIONS="$CDB2_OPTIONS --host $node"
-
 echo "Test with insert, SC should not fail"
 
-cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("flush")'
-cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("reql events roll")'
-
-cdb2sql ${CDB2_OPTIONS} ${DBNAME} "exec procedure sys.cmd.send('debg 0')"
 cdb2sql ${CDB2_OPTIONS} ${DBNAME} "create table t1  { `cat alltypes.csc2 ` }"
 
 cdb2sql ${CDB2_OPTIONS} ${DBNAME} "select * from t2"
@@ -216,37 +207,31 @@ assertcnt t1 $NEWNUMREC
 
 set -e
 #echo "Now call task that uses cdb2api to ins/upd/del"
-export CDB2_HOST="$node"  # cdb2api_caller will connect to CDB2_HOST
 ${TESTSBUILDDIR}/cdb2api_caller ${DBNAME} t1 > cdb2api_caller.out
 
 cdb2sql ${CDB2_OPTIONS} ${DBNAME} "select * from t1 order by alltypes_u_short" > orig.txt
 
 
-cluster=`cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("bdb cluster")' | grep lsn | cut -f1 -d':' `
+logflunziped=events.unzipped
+if [[ -z "$CLUSTER" ]]; then
+    logfl=`cdb2sql ${CDB2_OPTIONS} ${DBNAME} "exec procedure sys.cmd.send('reql stat')"  | grep Eventlog | sed "s/[^:]*:\(.*\)')/\1/g"`
+    cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("flush")'
+    cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("reql events roll")'
 
-cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("flush")'
-cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("reql events roll")'
+    zcat $logfl  | grep -v '"type": "txn"' | grep -v 'sys.cmd.send' > $logflunziped
+
+else
+
+    for node in $CLUSTER ; do
+        logfl=`cdb2sql ${CDB2_OPTIONS} ${DBNAME} --host $node "exec procedure sys.cmd.send('reql stat')"  | grep Eventlog | sed "s/[^:]*:\(.*\)')/\1/g"`
+        cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} --host $node 'exec procedure sys.cmd.send("flush")'
+        cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} --host $node 'exec procedure sys.cmd.send("reql events roll")'
+        ssh -o StrictHostKeyChecking=no $node "zcat $logfl | grep -v 'sys.cmd.send'" > ${node}.events.unzipped
+    done
+    sort -n *.events.unzipped > $logflunziped
+fi
 
 set +e
-
-#cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("exit")'
-sleep 10
-
-if [ $node != `hostname` ] ; then
-    ssh -o StrictHostKeyChecking=no $node "ls -ltr $TESTDIR/var/log/cdb2/ | grep events"
-    logfl=`ssh -o StrictHostKeyChecking=no $node "ls -1Sr $TESTDIR/var/log/cdb2/ | grep events | grep ${DBNAME} | tail -1"`
-    logfl=`ssh -o StrictHostKeyChecking=no $node "find $TESTDIR/var/log/cdb2/ | grep $logfl"`
-    logflunziped=${node}.events.unzipped
-    ssh -o StrictHostKeyChecking=no $node wc $logfl
-    ssh -o StrictHostKeyChecking=no $node "zcat $logfl | grep -v 'sys.cmd.send'" > $logflunziped
-else
-    ls -ltr $TESTDIR/var/log/cdb2/ | grep events
-    logfl=`ls -1Sr $TESTDIR/var/log/cdb2/ | grep events | grep ${DBNAME} | tail -1`
-    logfl=`find $TESTDIR/var/log/cdb2/ | grep $logfl`
-    logflunziped=events.unzipped
-    wc $logfl
-    zcat $logfl  | grep -v '"type": "txn"' | grep -v 'sys.cmd.send' > $logflunziped
-fi
 
 echo "Make sure that the data we expect is in the event log file"
 cat $logflunziped | grep fingerprint | grep -oP '(?<="fingerprint": ").*?(?=",)' > fingerprints_only.out
