@@ -179,7 +179,10 @@ delete_records()
     echo "done updating round $nout"
 }
 
-echo "Test with insert, SC should not fail"
+cluster=`cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("bdb cluster")' | grep lsn | cut -f1 -d':' `
+for node in $cluster ; do
+    cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} --host $node 'exec procedure sys.cmd.send("reql events roll")'
+done
 
 cdb2sql ${CDB2_OPTIONS} ${DBNAME} "create table t1  { `cat alltypes.csc2 ` }"
 
@@ -218,7 +221,7 @@ if [[ -z "$CLUSTER" ]]; then
     cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("flush")'
     cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("reql events roll")'
 
-    zcat $logfl  | grep -v '"type": "txn"' | grep -v 'sys.cmd.send' > $logflunziped
+    zcat $logfl | grep -v 'sys.cmd.send' > $logflunziped
 
 else
 
@@ -234,8 +237,8 @@ fi
 set +e
 
 echo "Make sure that the data we expect is in the event log file"
-cat $logflunziped | grep fingerprint | grep -oP '(?<="fingerprint": ").*?(?=",)' > fingerprints_only.out
-if [ ! diff fingerprints_only.out fingerprints_only.exp ] ; then
+cat $logflunziped | grep fingerprint | grep -oP '(?<="fingerprint": ").*?(?=",)'  | sort | uniq -c > fingerprints_only.out
+if ! diff fingerprints_only.out fingerprints_freq.exp ; then
     failexit "fingerprints_only.out contains different fingerprint data than expected"
 fi
 
