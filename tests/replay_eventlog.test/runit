@@ -186,6 +186,8 @@ done
 
 cdb2sql ${CDB2_OPTIONS} ${DBNAME} "create table t1  { `cat alltypes.csc2 ` }"
 
+# following is an error because t2 does not exist, resulting in a 
+# fingerprint of 00000 so will not ba replayed
 cdb2sql ${CDB2_OPTIONS} ${DBNAME} "select * from t2"
 
 assert_vers t1 0
@@ -211,8 +213,8 @@ assertcnt t1 $NEWNUMREC
 set -e
 #echo "Now call task that uses cdb2api to ins/upd/del"
 ${TESTSBUILDDIR}/cdb2api_caller ${DBNAME} t1 > cdb2api_caller.out
-
 cdb2sql ${CDB2_OPTIONS} ${DBNAME} "select * from t1 order by alltypes_u_short" > orig.txt
+
 
 
 logflunziped=events.unzipped
@@ -221,7 +223,7 @@ if [[ -z "$CLUSTER" ]]; then
     cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("flush")'
     cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} 'exec procedure sys.cmd.send("reql events roll")'
 
-    zcat $logfl | grep -v 'sys.cmd.send' > $logflunziped
+    zcat $logfl | grep -v 'sys.cmd.send' | sort -n > $logflunziped
 
 else
 
@@ -229,7 +231,7 @@ else
         logfl=`cdb2sql ${CDB2_OPTIONS} ${DBNAME} --host $node "exec procedure sys.cmd.send('reql stat')"  | grep Eventlog | sed "s/[^:]*:\(.*\)')/\1/g"`
         cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} --host $node 'exec procedure sys.cmd.send("flush")'
         cdb2sql --tabs ${CDB2_OPTIONS} ${DBNAME} --host $node 'exec procedure sys.cmd.send("reql events roll")'
-        ssh -o StrictHostKeyChecking=no $node "zcat $logfl | grep -v 'sys.cmd.send'" > ${node}.events.unzipped
+        ssh -o StrictHostKeyChecking=no $node "zcat $logfl" | grep -v 'sys.cmd.send' > ${node}.events.unzipped
     done
     sort -n *.events.unzipped > $logflunziped
 fi
@@ -242,13 +244,47 @@ if ! diff fingerprints_only.out fingerprints_freq.exp ; then
     failexit "fingerprints_only.out contains different fingerprint data than expected"
 fi
 
-set -e
+
+count=`grep -c '"txn"\|"type": "sql"' $logflunziped`
+CSHOULDBE=8210 # number of lines that should be in the log when single node
+if [[ $count -ne $CSHOULDBE ]] ; then
+    failexit "$logflunziped contains $count rather than $CSHOULDBE entries"
+fi
+
+
+
+echo "working with secondary db"
+
+cluster=`cdb2sql --tabs ${SECONDARY_CDB2_OPTIONS} $SECONDARY_DBNAME 'exec procedure sys.cmd.send("bdb cluster")' | grep lsn | cut -f1 -d':' `
+for node in $cluster ; do
+    cdb2sql --tabs ${SECONDARY_CDB2_OPTIONS} $SECONDARY_DBNAME --host $node 'exec procedure sys.cmd.send("reql events roll")'
+done
 
 echo running "CDB2_CONFIG=\"${SECONDARY_CDB2_CONFIG}\" $CDB2_SQLREPLAY_EXE $SECONDARY_DBNAME $logflunziped > sqlreplay.out"
 CDB2_CONFIG="${SECONDARY_CDB2_CONFIG}" $CDB2_SQLREPLAY_EXE $SECONDARY_DBNAME $logflunziped > sqlreplay.out
+
+echo "Get the secondary db event logs"
+slogflunziped=secondary_events.unzipped
+if [[ -z "$CLUSTER" ]]; then
+    logfl=`cdb2sql ${SECONDARY_CDB2_OPTIONS} $SECONDARY_DBNAME "exec procedure sys.cmd.send('reql stat')"  | grep Eventlog | sed "s/[^:]*:\(.*\)')/\1/g"`
+    cdb2sql --tabs ${SECONDARY_CDB2_OPTIONS} $SECONDARY_DBNAME 'exec procedure sys.cmd.send("flush")'
+    cdb2sql --tabs ${SECONDARY_CDB2_OPTIONS} $SECONDARY_DBNAME 'exec procedure sys.cmd.send("reql events roll")'
+
+    zcat $logfl | grep -v 'sys.cmd.send' | sort -n > $slogflunziped
+
+else
+
+    for node in $CLUSTER ; do
+        logfl=`cdb2sql ${SECONDARY_CDB2_OPTIONS} $SECONDARY_DBNAME --host $node "exec procedure sys.cmd.send('reql stat')"  | grep Eventlog | sed "s/[^:]*:\(.*\)')/\1/g"`
+        cdb2sql --tabs ${SECONDARY_CDB2_OPTIONS} $SECONDARY_DBNAME --host $node 'exec procedure sys.cmd.send("flush")'
+        cdb2sql --tabs ${SECONDARY_CDB2_OPTIONS} $SECONDARY_DBNAME --host $node 'exec procedure sys.cmd.send("reql events roll")'
+        ssh -o StrictHostKeyChecking=no $node "zcat $logfl" | grep -v 'sys.cmd.send' > ${node}.events.unzipped
+    done
+    sort -n *.events.unzipped > $slogflunziped
+fi
+
 cdb2sql ${SECONDARY_CDB2_OPTIONS} $SECONDARY_DBNAME default "select * from t1 order by alltypes_u_short" > replayed.txt
 
-set +e
 success=1
 
 if ! diff orig.txt replayed.txt ; then
@@ -259,9 +295,26 @@ if [ $success != 1 ] ; then
     failexit "replayed.txt content is not the same as original.txt"
 fi
 
+
+count=`grep -c '"txn"\|"type": "sql"' $slogflunziped`
+CSHOULDBE=$((CSHOULDBE-1)) # one less than the orig which had an error which does not get replayed
+if [[ $count -ne $CSHOULDBE ]] ; then
+    failexit "$slogflunziped contains $count rather than $CSHOULDBE entries"
+fi
+
+if which jq ; then
+    # be bold: compare fingerprint and sql of both runs
+    grep '"type": "sql"' $logflunziped | grep -v '"fingerprint": "00000000000000000000000000000000"' | jq '[.fingerprint,.sql] | @csv'  > 1.out
+    grep '"type": "sql"' $slogflunziped | jq '[.fingerprint,.sql] | @csv' > 2.out
+    if ! diff 1.out 2.out ; then
+        failexit "fingerprint and sql content is not same (1.out vs 2.out)"
+    fi
+fi
+
+
 if [ "$CLEANUPDBDIR" != "0" ] ; then
     #delete files now that test is successful
-    rm orig.txt replayed.txt sqlreplay.out $logflunziped
+    rm orig.txt replayed.txt sqlreplay.out $logflunziped $slogflunziped
 fi
 
 echo "Success"
