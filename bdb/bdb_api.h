@@ -1545,7 +1545,7 @@ typedef struct {
     int status;
     int type; // optional
     char errstr[LLMETA_SCERR_LEN];
-    int sc_data_len; // extra data that we might want to store
+    int sc_data_len;   // extra data that we might want to store
 } llmeta_sc_hist_data; // this is the data stored in llmeta for sc_history
 
 typedef struct {
@@ -1558,9 +1558,8 @@ typedef struct {
     char errstr[LLMETA_SCERR_LEN];
 } sc_hist_row; // this is content of row in comdb2_sc_history
 
-
-int bdb_llmeta_get_sc_history(tran_type *t, sc_hist_row **hist_out,
-                              int *num, int *bdberr, const char *tablename);
+int bdb_llmeta_get_sc_history(tran_type *t, sc_hist_row **hist_out, int *num,
+                              int *bdberr, const char *tablename);
 
 int bdb_del_schema_change_history(tran_type *t, const char *tablename,
                                   uint64_t seed);

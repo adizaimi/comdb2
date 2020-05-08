@@ -182,10 +182,11 @@ int validate_ix_names(struct dbtable *db)
     return rc;
 }
 
-static int seed_qsort_cmpfunc(const void *key1, const void *key2) {
+static int seed_qsort_cmpfunc(const void *key1, const void *key2)
+{
     sc_hist_row *s1, *s2;
-    s1 = (sc_hist_row *) key1;
-    s2 = (sc_hist_row *) key2;
+    s1 = (sc_hist_row *)key1;
+    s2 = (sc_hist_row *)key2;
 
     return bdb_cmp_genids(s1->seed, s2->seed);
 }
@@ -203,15 +204,16 @@ int trim_sc_history_entries(tran_type *tran, const char *tablename)
         return 1;
     }
     int attr = bdb_attr_get(thedb->bdb_attr, BDB_ATTR_SC_HIST_KEEP);
-    if (nkeys < attr) //attr
-        goto cleanup;
+    if (nkeys < attr)
+        goto cleanup; // nothing to trim
 
 #if defined(_IBM_SOURCE) || defined(_SUN_SOURCE)
     qsort(hist, nkeys, sizeof(sc_hist_row), seed_qsort_cmpfunc);
 #endif
 
     for (int i = 0; i < nkeys - attr; i++) {
-        printf("deleting entry %i seed %0#16"PRIx64"\n", i, hist[i].seed);
+        logmsg(LOGMSG_DEBUG, "Deleting sc_hist entry %i seed %0#16" PRIx64 "\n",
+               i, hist[i].seed);
 
         rc = bdb_del_schema_change_history(tran, tablename, hist[i].seed);
         if (rc)
@@ -220,6 +222,5 @@ int trim_sc_history_entries(tran_type *tran, const char *tablename)
 
 cleanup:
     free(hist);
-    return rc;   
+    return rc;
 }
-

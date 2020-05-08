@@ -381,7 +381,8 @@ static int do_ddl(ddl_t pre, ddl_t post, struct ireq *iq,
 
         rc = trim_sc_history_entries(NULL, s->tablename);
         if (rc)
-            logmsg(LOGMSG_ERROR, "Cant cleanup comdb2_sc_history and keep last entries\n");
+            logmsg(LOGMSG_ERROR,
+                   "Cant cleanup comdb2_sc_history and keep last entries\n");
     }
     if ((rc = mark_sc_in_llmeta_tran(s, NULL))) // non-tran ??
         goto end;
