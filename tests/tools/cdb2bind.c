@@ -262,6 +262,74 @@ void test_03()
     test_close(hndl);
 }
 
+
+
+// Test to test mixing positional parameters with named parameters
+void test_mix()
+{
+    cdb2_hndl_tp *hndl = NULL;
+    long long *val;
+
+    test_open(&hndl, db);
+
+    long long int a = 1;
+    long long int b = 2;
+    test_bind_index(hndl, 1, CDB2_INTEGER, &b, sizeof(long long int));
+    test_bind_param(hndl, "a", CDB2_INTEGER, &a, sizeof(long long int));
+    test_exec(hndl, "select ?,@a");
+    test_next_record(hndl);
+    val = cdb2_column_value(hndl, 0);
+    if (*val != b) {
+        fprintf(stderr, "%d error got:%lld expected:%lld\n", __LINE__, *val, b);
+        exit(1);
+    }
+
+    val = cdb2_column_value(hndl, 1);
+    if (*val != a) {
+        fprintf(stderr, "%d error got:%lld expected:%lld\n", __LINE__, *val, a);
+        exit(1);
+    }
+
+    cdb2_clearbindings(hndl);
+
+    //reversing order of calling bind param and bind index
+    test_bind_param(hndl, "a", CDB2_INTEGER, &a, sizeof(long long int));
+    test_bind_index(hndl, 1, CDB2_INTEGER, &b, sizeof(long long int));
+    test_exec(hndl, "select ?,@a"); //select @a,? results in segfault because cdb2_column_value() returns null
+    test_next_record(hndl);
+    val = cdb2_column_value(hndl, 0);
+    if (*val != b) {
+        fprintf(stderr, "%d error got:%lld expected:%lld\n", __LINE__, *val, b);
+        exit(1);
+    }
+
+    val = cdb2_column_value(hndl, 1);
+    if (*val != a) {
+        fprintf(stderr, "%d error got:%lld expected:%lld\n", __LINE__, *val, a);
+        exit(1);
+    }
+
+    cdb2_clearbindings(hndl);
+
+    test_bind_index(hndl, 2, CDB2_INTEGER, &b, sizeof(long long int));
+    test_bind_param(hndl, "a", CDB2_INTEGER, &a, sizeof(long long int));
+    test_exec(hndl, "select @a,?"); // select ?,@a segfaults because cdb2_column_value() returns null
+    test_next_record(hndl);
+    val = cdb2_column_value(hndl, 0);
+    if (*val != a) {
+        fprintf(stderr, "%d error got:%lld expected:%lld\n", __LINE__, *val, a);
+        exit(1);
+    }
+
+    val = cdb2_column_value(hndl, 1);
+    if (*val != b) {
+        fprintf(stderr, "%d error got:%lld expected:%lld\n", __LINE__, *val, b);
+        exit(1);
+    }
+
+    test_close(hndl);
+}
+
 int main(int argc, char *argv[])
 {
     db = argv[1];
@@ -269,6 +337,7 @@ int main(int argc, char *argv[])
     test_01();
     test_02();
     test_03();
+    test_mix();
 
     return 0;
 }
