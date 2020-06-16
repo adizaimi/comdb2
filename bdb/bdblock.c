@@ -33,6 +33,8 @@
 #include "locks_wrap.h"
 #include "logmsg.h"
 
+__thread thread_lock_info_type *lock_key;
+
 /* XXX stupid chicken/egg.  this variable cannot live in the bdb_state
    cause it needs to get set before we have a bdb_state */
 extern bdb_state_type *gbl_bdb_state;
@@ -244,10 +246,12 @@ void bdb_lock_init(bdb_state_type *bdb_state)
     Pthread_mutex_init(&bdb_state->thread_lock_info_list_mutex, NULL);
 }
 
+/* check that lock_key has been cleaned up properly 
+ * NB: this is the destructor for pthread_key_t lock_key_checker used solely
+ * to ensure correct destruction of the __thread variable lock_key */
 void bdb_lock_destructor(void *ptr)
 {
-    thread_lock_info_type *lk = ptr;
-    if (lk) {
+    if (lock_key) {
         if (gbl_exit) {
             /* We don't give up bdblock on exit */
             goto out;
@@ -255,17 +259,17 @@ void bdb_lock_destructor(void *ptr)
         logmsg(LOGMSG_ERROR, 
             "%s: thread has not called bdb_thread_event to destroy locks!\n",
             __func__);
-        if (lk->lockref != 0) {
+        if (lock_key->lockref != 0) {
             logmsg(LOGMSG_FATAL, "%s: exiting thread holding lock!\n", __func__);
-            abort_lk(lk);
+            abort_lk(lock_key);
         }
-        if (lk->stack && lk->nstack > 0) {
+        if (lock_key->stack && lock_key->nstack > 0) {
             cheap_stack_trace();
         }
-out:    if (lk->stack) {
-            free(lk->stack);
+out:    if (lock_key->stack) {
+            free(lock_key->stack);
         }
-        free(lk);
+        free(lock_key);
     }
 }
 
@@ -350,7 +354,6 @@ static inline void bdb_get_writelock_int(bdb_state_type *bdb_state,
                                          const char *funcname, int line,
                                          int abort_waiters)
 {
-    thread_lock_info_type *lk = pthread_getspecific(lock_key);
     static pthread_mutex_t lk_desired_lock = PTHREAD_MUTEX_INITIALIZER;
     bdb_state_type *lock_handle = bdb_state;
     int rc;
@@ -358,7 +361,7 @@ static inline void bdb_get_writelock_int(bdb_state_type *bdb_state,
     if (lock_handle->parent)
         lock_handle = lock_handle->parent;
 
-    if (lk == NULL) {
+    if (lock_key == NULL) {
         logmsg(LOGMSG_FATAL, "%s/%s(%s): bdb lock not inited in this thread\n",
                 idstr, funcname, __func__);
         abort();
@@ -366,27 +369,27 @@ static inline void bdb_get_writelock_int(bdb_state_type *bdb_state,
 
     /* If we're upgrading from read lock to write lock, remember the
      * ref count for our old read lock. */
-    if (lk->locktype == READLOCK && lk->lockref > 0) {
+    if (lock_key->locktype == READLOCK && lock_key->lockref > 0) {
         /*
            printf("Thread %d upgrading read lock '%s' cnt %u to write lock
            '%s'\n",
-                 (int)lk->threadid, lk->ident ? lk->ident : "",
-                 lk->lockref,
+                 (int)lock_key->threadid, lock_key->ident ? lock_key->ident : "",
+                 lock_key->lockref,
                  idstr ? idstr : "");
            */
-        lk->readlockref = lk->lockref;
-        lk->readident = lk->ident;
+        lock_key->readlockref = lock_key->lockref;
+        lock_key->readident = lock_key->ident;
         Pthread_rwlock_unlock(lock_handle->bdb_lock);
 
         if (gbl_bdblock_debug)
             rel_lock_log(bdb_state);
 
-        lk->locktype = NOLOCK;
-        lk->ident = NULL;
-        lk->lockref = 0;
+        lock_key->locktype = NOLOCK;
+        lock_key->ident = NULL;
+        lock_key->lockref = 0;
     }
 
-    if (lk->lockref == 0) {
+    if (lock_key->lockref == 0) {
         Pthread_mutex_lock(&lk_desired_lock);
         lock_handle->bdb_lock_desired++;
         Pthread_mutex_unlock(&lk_desired_lock);
@@ -395,14 +398,14 @@ static inline void bdb_get_writelock_int(bdb_state_type *bdb_state,
             get_write_lock_try_log(bdb_state);
 
 #ifdef _SUN_SOURCE
-        if (!lk->initpri) {
+        if (!lock_key->initpri) {
             init_thd_priority();
-            lk->initpri = 1;
+            lock_key->initpri = 1;
         }
 
         rc = lower_thd_priority();
         if (0 == rc)
-            lk->loweredpri = 1;
+            lock_key->loweredpri = 1;
 #endif
 
         rc = pthread_rwlock_trywrlock(lock_handle->bdb_lock);
@@ -445,25 +448,25 @@ static inline void bdb_get_writelock_int(bdb_state_type *bdb_state,
         Pthread_mutex_unlock(&lk_desired_lock);
 
         lock_handle->bdb_lock_write_holder = pthread_self();
-        lock_handle->bdb_lock_write_holder_ptr = lk;
-        lk->locktype = WRITELOCK;
-        lk->ident = (idstr);
+        lock_handle->bdb_lock_write_holder_ptr = lock_key;
+        lock_key->locktype = WRITELOCK;
+        lock_key->ident = (idstr);
     }
-    if (lk->lockref == 0) {
-        lk->line = line;
-        if (lk->stack) {
+    if (lock_key->lockref == 0) {
+        lock_key->line = line;
+        if (lock_key->stack) {
             rc =
-                stack_pc_getlist(NULL, lk->stack, BDB_DEBUG_STACK, &lk->nstack);
+                stack_pc_getlist(NULL, lock_key->stack, BDB_DEBUG_STACK, &lock_key->nstack);
             if (rc) {
 /* stack_pc_getlist isn't implemented yet on linux */
 #ifndef _LINUX_SOURCE
                 logmsg(LOGMSG_WARN, "%s: failed to get stack %d\n", __func__, rc);
 #endif
-                lk->nstack = 0;
+                lock_key->nstack = 0;
             }
         }
     }
-    lk->lockref++;
+    lock_key->lockref++;
 }
 
 /* This flavor of get_writelock should be called from anything which cannot
@@ -490,24 +493,23 @@ void bdb_get_writelock_abort_waiters(bdb_state_type *bdb_state,
 void bdb_get_readlock(bdb_state_type *bdb_state, const char *idstr,
                       const char *funcname, int line)
 {
-    thread_lock_info_type *lk = pthread_getspecific(lock_key);
     bdb_state_type *lock_handle = bdb_state;
     int rc;
 
     if (lock_handle->parent)
         lock_handle = lock_handle->parent;
 
-    if (lk == NULL) {
+    if (lock_key == NULL) {
         logmsg(LOGMSG_FATAL, "%s/%s(%s): bdb lock not inited in this thread\n",
                 idstr, funcname, __func__);
         abort();
     }
 
-    if (lk->lockref == 0) {
+    if (lock_key->lockref == 0) {
 #ifdef _SUN_SOURCE
-        if (!lk->initpri) {
+        if (!lock_key->initpri) {
             init_thd_priority();
-            lk->initpri = 1;
+            lock_key->initpri = 1;
         }
 #endif
 
@@ -527,27 +529,27 @@ void bdb_get_readlock(bdb_state_type *bdb_state, const char *idstr,
         if (gbl_bdblock_debug)
             get_read_lock_log(bdb_state);
 
-        lk->locktype = READLOCK;
-        lk->ident = (idstr);
+        lock_key->locktype = READLOCK;
+        lock_key->ident = (idstr);
     } else {
         if (gbl_bdblock_debug)
-            get_read_lock_ref_log(bdb_state, lk->lockref);
+            get_read_lock_ref_log(bdb_state, lock_key->lockref);
     }
 
-    if (lk->lockref == 0) {
-        lk->line = line;
-        if (lk->stack) {
+    if (lock_key->lockref == 0) {
+        lock_key->line = line;
+        if (lock_key->stack) {
             rc =
-                stack_pc_getlist(NULL, lk->stack, BDB_DEBUG_STACK, &lk->nstack);
+                stack_pc_getlist(NULL, lock_key->stack, BDB_DEBUG_STACK, &lock_key->nstack);
             if (rc) {
 #ifndef _LINUX_SOURCE
                 logmsg(LOGMSG_INFO, "%s: failed to get stack %d\n", __func__, rc);
 #endif
-                lk->nstack = 0;
+                lock_key->nstack = 0;
             }
         }
     }
-    lk->lockref++;
+    lock_key->lockref++;
 }
 
 void bdb_get_the_readlock(const char *idstr, const char *function, int line)
@@ -558,22 +560,21 @@ void bdb_get_the_readlock(const char *idstr, const char *function, int line)
 void bdb_assert_wrlock(bdb_state_type *bdb_state, const char *funcname,
                        int line)
 {
-    thread_lock_info_type *lk = pthread_getspecific(lock_key);
     bdb_state_type *lock_handle = bdb_state;
 
     if (lock_handle->parent)
         lock_handle = lock_handle->parent;
 
-    if (lk == NULL) {
+    if (lock_key == NULL) {
         logmsg(LOGMSG_FATAL, "%s(%s): bdb lock not inited in this thread\n",
                funcname, __func__);
         abort();
     }
 
-    if (lk->lockref == 0 || lk->locktype != WRITELOCK) {
+    if (lock_key->lockref == 0 || lock_key->locktype != WRITELOCK) {
         logmsg(LOGMSG_FATAL, "%s(%s): I do not hold the writelock!\n", funcname,
                __func__);
-        abort_lk(lk);
+        abort_lk(lock_key);
     }
 }
 
@@ -581,25 +582,24 @@ void bdb_assert_wrlock(bdb_state_type *bdb_state, const char *funcname,
  * actual lock if reference count hits zero). */
 void bdb_rellock(bdb_state_type *bdb_state, const char *funcname, int line)
 {
-    thread_lock_info_type *lk = pthread_getspecific(lock_key);
     bdb_state_type *lock_handle = bdb_state;
 
     if (lock_handle->parent)
         lock_handle = lock_handle->parent;
 
-    if (lk == NULL) {
+    if (lock_key == NULL) {
         logmsg(LOGMSG_FATAL, "%s(%s): bdb lock not inited in this thread\n",
                 funcname, __func__);
         abort();
     }
-    if (lk->lockref == 0) {
+    if (lock_key->lockref == 0) {
         logmsg(LOGMSG_FATAL, "%s(%s): I do not hold the lock!\n", funcname,
                 __func__);
-        abort_lk(lk);
+        abort_lk(lock_key);
     }
-    lk->lockref--;
-    if (lk->lockref == 0) {
-        if (lk->locktype == WRITELOCK) {
+    lock_key->lockref--;
+    if (lock_key->lockref == 0) {
+        if (lock_key->locktype == WRITELOCK) {
             lock_handle->bdb_lock_write_holder_ptr = NULL;
             lock_handle->bdb_lock_write_holder = 0;
         }
@@ -611,33 +611,33 @@ void bdb_rellock(bdb_state_type *bdb_state, const char *funcname, int line)
 
 #ifdef _SUN_SOURCE
         int rc;
-        if (lk->locktype == WRITELOCK && lk->loweredpri) {
+        if (lock_key->locktype == WRITELOCK && lock_key->loweredpri) {
             rc = raise_thd_priority();
             if (0 == rc)
-                lk->loweredpri = 0;
+                lock_key->loweredpri = 0;
         }
 #endif
 
-        lk->locktype = NOLOCK;
-        lk->ident = NULL;
+        lock_key->locktype = NOLOCK;
+        lock_key->ident = NULL;
 
         /* If we previously held the read lock before we acquired the write
          * lock, reacquire the read lock. */
-        if (lk->readlockref > 0) {
+        if (lock_key->readlockref > 0) {
             /*
                printf("Thread %d reacquiring read lock '%s' with refcount %u\n",
-                     (int)lk->threadid, lk->readident ? lk->readident : "",
-                     lk->readlockref);
+                     (int)lock_key->threadid, lock_key->readident ? lock_key->readident : "",
+                     lock_key->readlockref);
                */
-            while (lk->readlockref > 0) {
-                bdb_get_readlock(bdb_state, lk->readident, funcname, line);
-                lk->readlockref--;
+            while (lock_key->readlockref > 0) {
+                bdb_get_readlock(bdb_state, lock_key->readident, funcname, line);
+                lock_key->readlockref--;
             }
-            lk->readident = NULL;
+            lock_key->readident = NULL;
         }
     } else {
         if (gbl_bdblock_debug)
-            rel_lock_ref_log(bdb_state, lk->lockref);
+            rel_lock_ref_log(bdb_state, lock_key->lockref);
     }
 }
 
@@ -653,31 +653,29 @@ void bdb_relthelock(const char *funcname, int line)
  */
 void bdb_checklock(bdb_state_type *bdb_state)
 {
-    thread_lock_info_type *lk = pthread_getspecific(lock_key);
     bdb_state_type *lock_handle = bdb_state;
 
     if (lock_handle->parent)
         lock_handle = lock_handle->parent;
 
-    if (lk == NULL || lk->lockref == 0)
+    if (lock_key == NULL || lock_key->lockref == 0)
         return; /* all good */
 
     logmsg(LOGMSG_FATAL, "%p %s: request terminated but thread is holding bdb lock!\n", (void *)pthread_self(),
            __func__);
-    logmsg(LOGMSG_FATAL, "%p %s: %s %s lockref=%u\n", (void *)pthread_self(), __func__, locktype2str(lk->locktype),
-           lk->ident ? lk->ident : "?", lk->lockref);
-    abort_lk(lk);
+    logmsg(LOGMSG_FATAL, "%p %s: %s %s lockref=%u\n", (void *)pthread_self(), __func__, locktype2str(lock_key->locktype),
+           lock_key->ident ? lock_key->ident : "?", lock_key->lockref);
+    abort_lk(lock_key);
 }
 
 int bdb_lockref(void)
 {
-    thread_lock_info_type *lk = pthread_getspecific(lock_key);
-    if (lk == NULL) {
+    if (lock_key == NULL) {
         logmsg(LOGMSG_FATAL, "%s: bdb lock not inited in this thread\n",
                __func__);
         abort();
     }
-    return lk->lockref;
+    return lock_key->lockref;
 }
 
 static int get_threadid(bdb_state_type *bdb_state)
@@ -746,15 +744,14 @@ static void return_threadid(bdb_state_type *bdb_state, int id)
  * hasn't already been done. */
 static void new_thread_lock_info(bdb_state_type *bdb_state)
 {
-    thread_lock_info_type *lk = pthread_getspecific(lock_key);
     int rc = 0;
 
-    if (lk) {
+    if (lock_key) {
         logmsg(LOGMSG_WARN, "%s: redundant thread start!\n", __func__);
         return;
     }
 
-    lk = calloc(1, sizeof(thread_lock_info_type));
+    thread_lock_info_type *lk = calloc(1, sizeof(thread_lock_info_type));
     if (!lk) {
         logmsg(LOGMSG_FATAL, "%s: out of memory\n", __func__);
         exit(1);
@@ -779,7 +776,7 @@ static void new_thread_lock_info(bdb_state_type *bdb_state)
         }
     }
 
-    Pthread_setspecific(lock_key, lk);
+    lock_key = lk;
 
     Pthread_mutex_lock(&bdb_state->thread_lock_info_list_mutex);
     listc_atl(&bdb_state->thread_lock_info_list, lk);
@@ -789,28 +786,29 @@ static void new_thread_lock_info(bdb_state_type *bdb_state)
 /* Free the current thread's lock info struct. */
 static void delete_thread_lock_info(bdb_state_type *bdb_state)
 {
-    thread_lock_info_type *lk = pthread_getspecific(lock_key);
-    if (!lk) {
+    if (!lock_key) {
         logmsg(LOGMSG_WARN, "%s: thread stop before init!!\n", __func__);
         return;
     }
 
-    if (lk->lockref != 0) {
+    if (lock_key->lockref != 0) {
         logmsg(LOGMSG_FATAL, "%s: exiting thread holding lock!\n", __func__);
         logmsg(LOGMSG_FATAL, "%s: %s %s lockref=%u\n", __func__,
-               locktype2str(lk->locktype), lk->ident ? lk->ident : "?",
-               lk->lockref);
-        abort_lk(lk);
+               locktype2str(lock_key->locktype), lock_key->ident ? lock_key->ident : "?",
+               lock_key->lockref);
+        abort_lk(lock_key);
     }
 
+    thread_lock_info_type *copy_lk = lock_key;
+    lock_key = NULL;
+
     Pthread_mutex_lock(&bdb_state->thread_lock_info_list_mutex);
-    listc_rfl(&bdb_state->thread_lock_info_list, lk);
+    listc_rfl(&bdb_state->thread_lock_info_list, copy_lk);
     Pthread_mutex_unlock(&bdb_state->thread_lock_info_list_mutex);
 
-    if (lk->stack)
-        free(lk->stack);
-    free(lk);
-    Pthread_setspecific(lock_key, NULL);
+    if (copy_lk->stack)
+        free(copy_lk->stack);
+    free(copy_lk);
 }
 
 void bdb_stripe_get(bdb_state_type *bdb_state)
@@ -904,11 +902,10 @@ static void dump_int(thread_lock_info_type *lk, FILE *out)
 
 void bdb_dump_my_lock_state(FILE *out)
 {
-    thread_lock_info_type *lk = pthread_getspecific(lock_key);
-    if (!lk)
+    if (!lock_key)
         logmsgf(LOGMSG_USER, out, "no lock state defined\n");
     else
-        dump_int(lk, out);
+        dump_int(lock_key, out);
 }
 
 void bdb_locks_dump(bdb_state_type *bdb_state, FILE *out)

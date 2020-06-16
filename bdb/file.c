@@ -5465,6 +5465,7 @@ int bdb_reopen_inline(bdb_state_type *bdb_state)
 }
 
 extern pthread_key_t lockmgr_key;
+static pthread_key_t lock_key_checker;
 
 static void run_once(void)
 {
@@ -5472,7 +5473,7 @@ static void run_once(void)
 
     Pthread_key_create(&bdb_key, NULL);
 
-    Pthread_key_create(&lock_key, bdb_lock_destructor);
+    Pthread_key_create(&lock_key_checker, bdb_lock_destructor);
 }
 
 static void deadlock_happened(struct berkdb_deadlock_info *deadlock_info)

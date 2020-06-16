@@ -17,7 +17,8 @@
 #ifndef INCLUDED_LOCKS_H
 #define INCLUDED_LOCKS_H
 
-extern pthread_key_t lock_key;
+typedef struct thread_lock_info_tag thread_lock_info_type;
+extern __thread thread_lock_info_type *lock_key;
 
 /* Acquire the write lock.  If the current thread already holds the bdb read
  * lock then it is upgraded to a write lock.  If it already holds the write
