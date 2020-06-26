@@ -530,7 +530,7 @@ static int exec_delete_from_sc_history(void *tran, bpfunc_t *func,
                                        struct errstat *err)
 {
     BpfuncDeleteFromScHistory *tblseed = func->arg->tblseed;
-    int rc = bdb_del_schema_change_history(NULL, tblseed->tablename, tblseed->seed);
+    int rc = bdb_del_schema_change_history(tran, tblseed->tablename, tblseed->seed);
     if (rc)
         errstat_set_rcstrf(err, rc, "%s failed delete", __func__);
     return rc;
