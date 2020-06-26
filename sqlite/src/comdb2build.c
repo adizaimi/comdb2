@@ -6638,24 +6638,16 @@ out:
  */
 int comdb2DeleteFromScHistory(char *tablename, uint64_t seed)
 {
-    BpfuncArg *arg = (BpfuncArg*) malloc(sizeof(BpfuncArg));
+    BpfuncArg arg = {0};
+    bpfunc_arg__init(&arg);
 
-    if (arg)
-        bpfunc_arg__init(arg);
-    else
-        goto err; 
+    BpfuncDeleteFromScHistory tblseed = {0};
+    bpfunc_delete_from_sc_history__init(&tblseed);
 
-    BpfuncDeleteFromScHistory *tblseed = malloc(sizeof(BpfuncDeleteFromScHistory));
-    
-    if (tblseed)
-        bpfunc_delete_from_sc_history__init(tblseed);
-    else
-        goto err;
-
-    arg->tblseed = tblseed;
-    arg->type = BPFUNC_DELETE_FROM_SC_HISTORY;
-    tblseed->tablename = tablename;
-    tblseed->seed = seed;
+    arg.tblseed = &tblseed;
+    arg.type = BPFUNC_DELETE_FROM_SC_HISTORY;
+    tblseed.tablename = tablename;
+    tblseed.seed = seed;
     struct sql_thread *thd = pthread_getspecific(query_info_key);
     struct sqlclntstate *clnt = get_sql_clnt();
     int rc = 0;
@@ -6664,14 +6656,7 @@ int comdb2DeleteFromScHistory(char *tablename, uint64_t seed)
             clnt->intrans = 1;
     }
     if (!rc)
-        rc = osql_bpfunc_logic(thd, arg);
-    free(tblseed);
-    free(arg);
+        rc = osql_bpfunc_logic(thd, &arg);
     return rc;
-
-err:
-    if (arg)
-        free_bpfunc_arg(arg);   
-    return SQLITE_INTERNAL;
 }
 
