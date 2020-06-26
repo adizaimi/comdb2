@@ -6638,7 +6638,6 @@ out:
  */
 int comdb2DeleteFromScHistory(char *tablename, uint64_t seed)
 {
-    printf("AZ: %s enter\n", __func__);
     BpfuncArg *arg = (BpfuncArg*) malloc(sizeof(BpfuncArg));
 
     if (arg)

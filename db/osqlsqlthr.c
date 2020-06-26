@@ -948,7 +948,6 @@ static inline int sock_restart_retryable_rcode(int restart_rc)
  */
 int osql_sock_commit(struct sqlclntstate *clnt, int type)
 {
-    printf("AZ: %s enter\n", __func__);
     osqlstate_t *osql = &clnt->osql;
     int rc = 0, rc2;
     int rcout = 0;

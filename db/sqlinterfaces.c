@@ -1779,7 +1779,6 @@ void handle_sql_intrans_unrecoverable_error(struct sqlclntstate *clnt)
 
 static int do_commitrollback(struct sqlthdstate *thd, struct sqlclntstate *clnt)
 {
-    printf("AZ: %s enter\n", __func__);
     int irc = 0, rc = 0, bdberr = 0;
 
     if (!clnt->intrans) {
@@ -2077,7 +2076,6 @@ static int do_commitrollback(struct sqlthdstate *thd, struct sqlclntstate *clnt)
 static int do_send_commitrollback_response(struct sqlclntstate *clnt,
                                            int sideeffects)
 {
-    printf("AZ: %s enter\n", __func__);
     if (sideeffects == TRANS_CLNTCOMM_NORMAL &&
         (send_intrans_response(clnt) || !clnt->had_errors))
         return 1;
