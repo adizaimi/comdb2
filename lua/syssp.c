@@ -18,6 +18,7 @@
 #include <bdb_api.h>
 #include <phys_rep.h>
 
+extern int comdb2DeleteFromScHistory(char *tablename, uint64_t seed);
 /* Wishes for anyone who wants to clean this up one day:
  * 1)  don't need boilerplate lua code for this, should have a fixed description
  *     of types/names for each call, and C code for emitting them. 
@@ -569,11 +570,9 @@ static int db_comdb_delete_sc_history(Lua L)
     if (lua_isnil(L, 2)) 
         return luaL_error(L, "Expected non null value for seed.");
 
-    if (gbl_myhostname != thedb->master)
-        return luaL_error(L, "Can only delete from master node");
     uint64_t fseed = lua_tointeger(L, -1);
     char *tbl = (char*) lua_tostring(L, -2);
-    int rc = bdb_del_schema_change_history(NULL, tbl, fseed);
+    int rc = comdb2DeleteFromScHistory(tbl, fseed);
     if (rc)
         return luaL_error(L, "Error deleting entry");
 
