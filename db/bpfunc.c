@@ -529,6 +529,7 @@ static int exec_rowlocks_enable(void *tran, bpfunc_t *func, struct errstat *err)
 static int exec_delete_from_sc_history(void *tran, bpfunc_t *func,
                                        struct errstat *err)
 {
+    printf("AZ: %s enter\n", __func__);
     BpfuncDeleteFromScHistory *tblseed = func->arg->tblseed;
     int rc = bdb_del_schema_change_history(tran, tblseed->tablename, tblseed->seed);
     if (rc)

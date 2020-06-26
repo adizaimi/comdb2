@@ -6638,6 +6638,7 @@ out:
  */
 int comdb2DeleteFromScHistory(char *tablename, uint64_t seed)
 {
+    printf("AZ: %s enter\n", __func__);
     BpfuncArg *arg = (BpfuncArg*) malloc(sizeof(BpfuncArg));
 
     if (arg)
@@ -6657,11 +6658,14 @@ int comdb2DeleteFromScHistory(char *tablename, uint64_t seed)
     tblseed->tablename = tablename;
     tblseed->seed = seed;
     struct sql_thread *thd = pthread_getspecific(query_info_key);
-    int rc = osql_bpfunc_logic(thd, arg);
-    if (!rc) {
-        struct sqlclntstate *clnt = get_sql_clnt();
-        rc = osql_sock_commit(clnt, OSQL_SOCK_REQ);
+    struct sqlclntstate *clnt = get_sql_clnt();
+    int rc = 0;
+    if(!clnt->intrans) {
+        if ((rc = osql_sock_start(clnt, OSQL_SOCK_REQ, 0)) == 0)
+            clnt->intrans = 1;
     }
+    if (!rc)
+        rc = osql_bpfunc_logic(thd, arg);
     free(tblseed);
     free(arg);
     return rc;

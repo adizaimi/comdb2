@@ -769,10 +769,11 @@ static struct sp_source syssps[] = {
         /* delete all but the last N rows from llmeta for this table */
         "sys.cmd.trim_sc_history",
         "local function main(t, n)\n"
-        " if (n == nil) then \n"
-        "  n = 10 \n"
-        " end \n"
-        " local resultset, rc = db:exec('select seed from comdb2_sc_history where seed not in "
+        "  if (n == nil) then \n"
+        "    n = 10 \n"
+        "  end \n"
+        "  db:begin()\n"
+        "  local resultset, rc = db:exec('select seed from comdb2_sc_history where seed not in "
         "   (select seed from comdb2_sc_history where name = \"'..t..'\" order by seed desc limit '..n..') "
         "   and name=\"'..t..'\"' )\n"
         "  local c = 0\n"
@@ -783,10 +784,13 @@ static struct sp_source syssps[] = {
         "    row = resultset:fetch()\n"
         "    c = c + 1\n"
         "  end\n"
-        "  if (c > 0) then \n"
+        "  local rc1 = db:commit()\n"
+        "  if (c > 0 and rc1 == 0) then\n"
         "    db:emit('Deleted '..c..' rows from sc_history for tablename '..t)\n"
-        "  else \n"
+        "  elseif (c == 0) then \n"
         "    db:emit('No rows to delete from sc_history for tablename '..t)\n"
+        "  else\n"
+        "    db:emit('Failed to delete from sc_history for tablename '..t)\n"
         "  end \n"
         "end\n",
         NULL

@@ -2735,6 +2735,7 @@ static const char * db_rollback_int(Lua, int *);
 
 static int db_begin(Lua L)
 {
+    printf("AZ: %s enter\n", __func__);
     luaL_checkudata(L, 1, dbtypes.db);
     int rc;          // begin rc
     const char *err; // logic err - terminate lua prog
@@ -2744,6 +2745,7 @@ static int db_begin(Lua L)
 
 static int db_commit(Lua L)
 {
+    printf("AZ: %s enter\n", __func__);
     luaL_checkudata(L, 1, dbtypes.db);
     SP sp = getsp(L);
     reset_consumer_cursor(sp->consumer);
@@ -2772,6 +2774,7 @@ static int db_rollback(Lua L)
 
 static const char *db_begin_int(Lua L, int *rc)
 {
+    printf("AZ: %s enter\n", __func__);
     SP sp = getsp(L);
     if (sp->in_parent_trans && sp->make_parent_trans) {
         const char *err;
@@ -2794,6 +2797,7 @@ static const char *db_begin_int(Lua L, int *rc)
 
 static const char *db_commit_int(Lua L, int *rc)
 {
+    printf("AZ: %s enter\n", __func__);
     SP sp = getsp(L);
     if (sp->clnt->ctrl_sqlengine != SQLENG_INTRANS_STATE &&
         sp->clnt->ctrl_sqlengine != SQLENG_STRT_STATE) {
@@ -2820,6 +2824,7 @@ static const char *db_commit_int(Lua L, int *rc)
 
 static const char *db_rollback_int(Lua L, int *rc)
 {
+    printf("AZ: %s enter\n", __func__);
     SP sp = getsp(L);
     if (sp->clnt->ctrl_sqlengine != SQLENG_INTRANS_STATE &&
         sp->clnt->ctrl_sqlengine != SQLENG_STRT_STATE) {
@@ -2859,6 +2864,7 @@ static const char *begin_parent(Lua L)
 
 static const char *commit_parent(Lua L)
 {
+    printf("AZ: %s enter\n", __func__);
     SP sp = getsp(L);
     if (sp->in_parent_trans && sp->make_parent_trans) {
         db_commit_int(L, &sp->rc);
@@ -6122,6 +6128,7 @@ static int push_args(const char **argstr, struct sqlclntstate *clnt, char **err,
 
 static int run_sp_int(struct sqlclntstate *clnt, int argcnt, char **err)
 {
+    printf("AZ: %s enter\n", __func__);
     int rc;
     SP sp = clnt->sp;
     Lua lua = sp->lua;
@@ -6159,6 +6166,7 @@ static int run_sp_int(struct sqlclntstate *clnt, int argcnt, char **err)
 
 static int run_sp(struct sqlclntstate *clnt, int argcnt, char **err)
 {
+    printf("AZ: %s enter\n", __func__);
     int verifyretry_off = clnt->verifyretry_off;
     clnt->verifyretry_off = 1;
     int rc = run_sp_int(clnt, argcnt, err);
@@ -6736,6 +6744,7 @@ static int lua_func_int(char *spname, char **err, struct sqlthdstate *thd,
 
 static int exec_thread_int(struct sqlthdstate *thd, struct sqlclntstate *clnt)
 {
+    printf("AZ: %s enter\n", __func__);
     // Lua Stack:
     //   arg n
     //   arg n - 1
@@ -6762,6 +6771,7 @@ static int exec_thread_int(struct sqlthdstate *thd, struct sqlclntstate *clnt)
 static int exec_procedure_int(struct sqlthdstate *thd,
                               struct sqlclntstate *clnt, char **err)
 {
+    printf("AZ: %s enter\n", __func__);
     const char *s = clnt->sql;
     char spname[MAX_SPNAME];
     long long sprc = 0;
