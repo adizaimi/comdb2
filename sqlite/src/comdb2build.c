@@ -6638,10 +6638,10 @@ out:
  */
 int comdb2DeleteFromScHistory(char *tablename, uint64_t seed)
 {
-    BpfuncArg arg = {0};
+    BpfuncArg arg = {{0}};
     bpfunc_arg__init(&arg);
 
-    BpfuncDeleteFromScHistory tblseed = {0};
+    BpfuncDeleteFromScHistory tblseed = {{0}};
     bpfunc_delete_from_sc_history__init(&tblseed);
 
     arg.tblseed = &tblseed;
