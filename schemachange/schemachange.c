@@ -558,6 +558,7 @@ int do_dryrun(struct schema_change_type *s)
     struct dbtable *newdb = NULL;
     struct scinfo scinfo = {0};
 
+    // not sure if useful to print: sc_printf(s, "starting dryrun\n");
     db = get_dbtable_by_name(s->tablename);
     if (db == NULL) {
         if (s->alteronly) {
@@ -1363,7 +1364,7 @@ void handle_setcompr(SBUF2 *sb)
         goto out;
     }
     if ((db = get_dbtable_by_name(tbl)) == NULL) {
-        sbuf2printf(sb, ">Table not found: %s\n", tbl);
+        sbuf2printf(sb, ">Table not found: %s, sb %p\n", tbl, sb);
         goto out;
     }
     if (!db->odh) {

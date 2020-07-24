@@ -385,7 +385,7 @@ int do_alter_table(struct ireq *iq, struct schema_change_type *s,
 
     db = get_dbtable_by_name(s->tablename);
     if (db == NULL) {
-        sc_errf(s, "Table not found:%s\n", s->tablename);
+        sc_errf(s, "Table not found:%s, s %p\n", s->tablename, s);
         return SC_TABLE_DOESNOT_EXIST;
     }
 
@@ -399,7 +399,7 @@ int do_alter_table(struct ireq *iq, struct schema_change_type *s,
 
     if ((rc = check_option_coherency(s, db, &scinfo))) return rc;
 
-    sc_printf(s, "starting schema update with seed %llx\n", iq->sc_seed);
+    sc_printf(s, "starting schema update with seed %0#16llx\n", flibc_ntohll(iq->sc_seed));
 
     int local_lock = 0;
     if (!iq->sc_locked) {
