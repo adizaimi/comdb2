@@ -120,7 +120,6 @@ sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
 				   }
                                 }
 
-<RECTYPE>guid|GUID              { yylval.opttext=yytext; return T_FLD_GUIDDEFAULT; }
 <RECTYPE>{sqlhexstr}            { 
                                   char * data=NULL;
                                   int i=0, slen=0, j=sizeof(int);

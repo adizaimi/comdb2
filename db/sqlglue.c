@@ -1550,7 +1550,7 @@ char *sql_field_default_trans(struct field *f, int is_out)
             break;
         }
         if (null) {
-            dstr = sqlite3_mprintf("%q", "libuuid_call");
+            dstr = sqlite3_mprintf("%q", "guid()");
         } else {
             dstr = sqlite3_malloc((this_default_len * 2) + 3);
             dstr[0] = 'x';
@@ -1597,11 +1597,14 @@ char *sql_field_default_trans(struct field *f, int is_out)
         }
         break;
     }
+    case SERVER_FUNCTION: {
+        dstr = sqlite3_mprintf("%q", this_default);
+        break;
+    }
     /* no defaults for blobs or vutf8 */
     default:
-        logmsg(LOGMSG_ERROR, "Unknown type in schema: column '%s' "
-                        "type %d\n",
-                f->name, f->type);
+        logmsg(LOGMSG_ERROR, "Unknown default type %d in schema: column '%s' of type %d\n",
+               default_type, f->name, f->type);
         return NULL;
     }
 

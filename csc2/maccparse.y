@@ -32,7 +32,7 @@
 }
 
 
-%token T_STRING T_FLD_GUIDDEFAULT T_NUM T_FLOAT T_SQLHEXSTR
+%token T_STRING T_NUM T_FLOAT T_SQLHEXSTR
 %token T_WHERE T_VARNAME T_COMMENT
 
 %token T_LOGICAL T_INTEGER2 T_INTEGER4 
@@ -72,7 +72,8 @@
 %type <comment> comment
 %type <fltpoint> fltnumber
 %type <bytestr> sqlhexstr
-%type <opttext> guid
+%type <varname> defaultfunction
+%type <varname> function
 
 %{
 #include <stdio.h>
@@ -192,16 +193,65 @@ fieldopts: T_FLD_STRDEFAULT '=' number fieldopts          { add_fldopt(FLDOPT_DB
            | T_FLD_LDDEFAULT '=' number fieldopts         { add_fldopt(FLDOPT_DBLOAD,CLIENT_INT, $3.numstr); }
            | T_FLD_STRDEFAULT '=' fltnumber fieldopts     { double f=$3; add_fldopt(FLDOPT_DBSTORE,CLIENT_REAL,&f); }
            | T_FLD_LDDEFAULT '=' fltnumber fieldopts      { double f=$3; add_fldopt(FLDOPT_DBLOAD,CLIENT_REAL,&f); }
-           | T_FLD_STRDEFAULT '=' guid  fieldopts       { add_fldopt(FLDOPT_DBSTORE,CLIENT_BYTEARRAY,$3); }
            | T_FLD_STRDEFAULT '=' string  fieldopts       { add_fldopt(FLDOPT_DBSTORE,CLIENT_CSTR,$3); }
            | T_FLD_LDDEFAULT '=' string fieldopts         { add_fldopt(FLDOPT_DBLOAD,CLIENT_CSTR,$3); }
            | T_FLD_STRDEFAULT '=' sqlhexstr  fieldopts       { add_fldopt(FLDOPT_DBSTORE,CLIENT_BYTEARRAY,$3); }
            | T_FLD_LDDEFAULT '=' sqlhexstr fieldopts         { add_fldopt(FLDOPT_DBLOAD,CLIENT_BYTEARRAY,$3); }
            | T_FLD_NULL '=' yesno fieldopts               { int f=$3; add_fldopt(FLDOPT_NULL,CLIENT_INT,&f); }
            | T_FLD_PADDING '=' number fieldopts           { int f=$3.number; add_fldopt(FLDOPT_PADDING,CLIENT_INT,&f); }
+           | T_FLD_STRDEFAULT '=' defaultfunction fieldopts       { add_fldopt(FLDOPT_DBSTORE,CLIENT_FUNCTION,$3); }
            | /* %empty */
            ;
-	 
+
+defaultfunction: '{' function '}' {
+		char *str;
+		int origlen=strlen($2)+1;
+		str=(char*)csc2_malloc(origlen+2);
+		if (str==0) {
+		  csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.opttext);
+		  exit(-1);
+		}
+		sprintf(str,"(%s)", $2);
+printf("AZ: have defaultfunction %s\n", str);
+		$$=str;
+	}
+	;
+
+function: varname
+	| varname '(' ')' { 
+		char *str;
+		int origlen=strlen($1)+1;
+       		str=(char*)csc2_malloc(origlen+2);
+		if (str==0) {
+		  csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.opttext);
+		  exit(-1);
+		}
+		sprintf(str,"%s()", $1);
+		$$=str;
+        }
+	| varname '(' number ')' { 
+       		char *str;
+		int origlen=strlen($1)+strlen($3.numstr)+1;
+       		str=(char*)csc2_malloc(origlen+2);
+		if (str==0) {
+		  csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.opttext);
+		  exit(-1);
+		}
+		sprintf(str,"%s(%s)", $1, $3.numstr);
+		$$=str;
+        }
+	| varname '(' function ')' { 
+		char *str;
+		int origlen=strlen($1)+strlen($3)+1;
+       		str=(char*)csc2_malloc(origlen+2);
+		if (str==0) {
+		  csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.opttext);
+		  exit(-1);
+		}
+		sprintf(str,"%s(%s)", $1, $3);
+		$$=str;
+        }
+	;
 /* recstruct: defines a record
 **		ie.
 **		record {
@@ -349,15 +399,6 @@ varname:	T_VARNAME
             }
             $$=yylval.varname;
             } 
-	        | guid {
- 	    yylval.varname=csc2_strdup(yylval.varname);
-            if (yylval.varname==0) {
-              csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.comment);
-              exit(-1);
-            }
-            $$=yylval.varname;
-
-	}
 		;
 string:		T_STRING
 			{
@@ -373,16 +414,6 @@ string:		T_STRING
 			}
                 ;
 
-guid:		T_FLD_GUIDDEFAULT {
-			char *str;
-			str=strdup(yylval.opttext);
-			if (!str) {
-			  csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.opttext);
-			  exit(-1);
-			}
-			$$=str;
-			}
-		;
 comment:	T_COMMENT	
 			{
 			remem_com=(char*)csc2_malloc(yyleng+1);

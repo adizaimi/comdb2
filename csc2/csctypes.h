@@ -23,7 +23,8 @@ XMACRO_CLIENT_TYPE(CLIENT_VUTF8,      12, "vutf8")                             \
 XMACRO_CLIENT_TYPE(CLIENT_BLOB2,      13, "blob2")                             \
 XMACRO_CLIENT_TYPE(CLIENT_DATETIMEUS, 14, "datetimeus")                        \
 XMACRO_CLIENT_TYPE(CLIENT_INTVDSUS,   15, "intervaldsus")                      \
-XMACRO_CLIENT_TYPE(CLIENT_MAXTYPE,    16, "max")
+XMACRO_CLIENT_TYPE(CLIENT_FUNCTION,   16, "function")                          \
+XMACRO_CLIENT_TYPE(CLIENT_MAXTYPE,    17, "max")
 
 /* CLIENT side types */
 #ifdef XMACRO_CLIENT_TYPE
@@ -60,6 +61,7 @@ enum {
     SERVER_BLOB2 = 112,
     SERVER_DATETIMEUS = 113,
     SERVER_INTVDSUS = 114,
+    SERVER_FUNCTION = 115,
     SERVER_MAXTYPE
 };
 

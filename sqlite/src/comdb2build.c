@@ -3136,8 +3136,13 @@ static char *format_csc2(struct comdb2_ddl_context *ctx)
               Check whether the default value needs to be quoted. Note: CSC2
               does not allow single quoted value.
             */
-            if ((type_flags[column->type] & FLAG_QUOTE_DEFAULT) == 0 ||
-                    (column->type == SQL_TYPE_BYTE && strcasecmp(column->def, "GUID") == 0)) {
+            printf("AZ: column->def=%s\n", column->def);
+            if (*column->def == '(') {
+                int len = strlen(column->def);
+                assert(column->def[len - 1] == ')');
+                strbuf_appendf(csc2, "dbstore = {%.*s} ", len - 2, column->def + 1);
+            } else if (*column->def == '(' ||
+                (type_flags[column->type] & FLAG_QUOTE_DEFAULT) == 0) {
                 strbuf_appendf(csc2, "dbstore = %s ", column->def);
             } else {
                 strbuf_appendf(csc2, "dbstore = \"%s\" ", column->def);

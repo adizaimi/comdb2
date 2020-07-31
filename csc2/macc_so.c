@@ -1512,6 +1512,8 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                     tables[ntables].sym[tables[ntables].nsym].fopts
                             [i].valtype != CLIENT_CSTR &&
                     tables[ntables].sym[tables[ntables].nsym].fopts
+                            [i].valtype != CLIENT_FUNCTION &&
+                    tables[ntables].sym[tables[ntables].nsym].fopts
                             [i].opttype != FLDOPT_NULL) {
                     csc2_error(
                         "Error at line %3d: FIELD OPTION TYPE IN "
@@ -1528,11 +1530,11 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                 }
                 if (tables[ntables].sym[tables[ntables].nsym].fopts[i].valtype == CLIENT_BYTEARRAY &&
                     tables[ntables].sym[tables[ntables].nsym].fopts[i].opttype != FLDOPT_NULL &&
-                    strcasecmp(tables[ntables].sym[tables[ntables].nsym].fopts[i].value.strval, "GUID") == 0) {
+                    strcasecmp(tables[ntables].sym[tables[ntables].nsym].fopts[i].value.strval, "GUID()") == 0) {
                     if (siz != 16) {
-                        csc2_error("Error at line %3d: CAN ONLY HAVE BYTE[16] FOR GUID DBSTORE: %s\n",
+                        csc2_error("Error at line %3d: CAN ONLY HAVE BYTE[16] FOR GUID() DBSTORE: %s\n",
                             current_line, name);
-                        csc2_syntax_error("Error at line %3d: CAN ONLY HAVE BYTE[16] FOR GUID DBSTORE: %s\n",
+                        csc2_syntax_error("Error at line %3d: CAN ONLY HAVE BYTE[16] FOR GUID() DBSTORE: %s\n",
                             current_line, name);
                         any_errors++;
                         return;
@@ -1914,7 +1916,7 @@ void add_fldopt(int opttype, int valtype, void *value)
         return;
     }
     if (valtype != CLIENT_INT && valtype != CLIENT_REAL &&
-        valtype != CLIENT_CSTR && valtype != CLIENT_BYTEARRAY) {
+        valtype != CLIENT_CSTR && valtype != CLIENT_BYTEARRAY && valtype != CLIENT_FUNCTION) {
         csc2_error("FIELD OPTION ERROR: INVALID VALUE TYPE %d\n", valtype);
         any_errors++;
         reset_fldopt();
@@ -1975,10 +1977,12 @@ void add_fldopt(int opttype, int valtype, void *value)
     }
     if (valtype == CLIENT_REAL) /* floating point numeric */
         fieldopts[nfieldopt].value.r8val = *(double *)value;
-    if (valtype == CLIENT_CSTR) /* string */
+    else if (valtype == CLIENT_CSTR) /* string */
         fieldopts[nfieldopt].value.strval = (char *)value;
-    if (valtype == CLIENT_BYTEARRAY) /* string */
+    else if (valtype == CLIENT_BYTEARRAY) /* string */
         fieldopts[nfieldopt].value.byteval = (char *)value;
+    else if (valtype == CLIENT_FUNCTION) /* function */
+        fieldopts[nfieldopt].value.strval = (char *)value;
     nfieldopt++;
 }
 
@@ -2536,6 +2540,7 @@ static int dyns_load_schema_int(char *filename, char *schematxt, char *dbname,
 
     if (yyparse() || any_errors || check_options()) {
         csc2_error("FOUND ERRORS IN SCHEMA. ABORTING!\n");
+        csc2_error("%s\n", schematxt);
         if (fhopen)
             fclose((FILE *)yyin);
         return -1;
@@ -3135,7 +3140,7 @@ int dyns_get_table_field_option(char *tag, int fidx, int option,
                 int length;
                 if (*value_type == CLIENT_BYTEARRAY && vbsz >= tables[tidx].sym[fidx].szof && 
                    tables[tidx].sym[fidx].szof == 16 && 
-                   strcasecmp(tables[tidx].sym[fidx].fopts[i].value.strval, "GUID") == 0) {
+                   strcasecmp(tables[tidx].sym[fidx].fopts[i].value.strval, "GUID()") == 0) {
                     int len = strlen(tables[tidx].sym[fidx].fopts[i].value.strval);
                     memcpy(valuebuf, tables[tidx].sym[fidx].fopts[i].value.strval, len);
                     *value_sz = len;
@@ -3170,13 +3175,6 @@ int dyns_get_table_field_option(char *tag, int fidx, int option,
                     memcpy(valuebuf, tables[tidx].sym[fidx].fopts[i].value.strval, len);
                     *value_sz = strlen(tables[tidx].sym[fidx].fopts[i].value.strval);
                     return 0;
-                } else if (*value_type == CLIENT_BYTEARRAY && vbsz >= tables[tidx].sym[fidx].szof && 
-                           tables[tidx].sym[fidx].szof == 16 && 
-                           strcasecmp(tables[tidx].sym[fidx].fopts[i].value.strval, "GUID") == 0) {
-                    int len = strlen(tables[tidx].sym[fidx].fopts[i].value.strval);
-                    memcpy(valuebuf, tables[tidx].sym[fidx].fopts[i].value.strval, len);
-                    *value_sz = len;
-                    return 0;
                 } else if (*value_type == CLIENT_BYTEARRAY && vbsz >= tables[tidx].sym[fidx].szof) {
                     /* There are several production databases that try to
                      * specify a default load/store for a byte array using a
@@ -3190,6 +3188,13 @@ int dyns_get_table_field_option(char *tag, int fidx, int option,
                     return -1;
                 }
                 return -1;
+            }
+            case CLIENT_FUNCTION: {
+                int len = strlen(tables[tidx].sym[fidx].fopts[i].value.strval);
+                memcpy(valuebuf, tables[tidx].sym[fidx].fopts[i].value.strval, len);
+                *value_type = CLIENT_FUNCTION;
+                *value_sz = len;
+                return 0;
             }
             default:
                 return -1;

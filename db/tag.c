@@ -300,6 +300,8 @@ int client_type_to_server_type(int type)
         return SERVER_INTVDSUS;
     case CLIENT_VUTF8:
         return SERVER_VUTF8;
+    case CLIENT_FUNCTION:
+        return SERVER_FUNCTION;
     default:
         return type;
     }
@@ -5167,51 +5169,54 @@ static int init_default_value(struct field *fld, int fldn, int loadstore)
             *p_default_len = fld->len;
 
         *p_default_type = client_type_to_server_type(opttype);
+        if(opttype  == CLIENT_FUNCTION) {
+            *p_default = strdup(typebuf);
+            outrc = 0;
+            goto out;
+        }
+
         *p_default = calloc(1, *p_default_len);
+        if (*p_default == NULL) {
+            logmsg(LOGMSG_ERROR, "init_default_value: out of memory\n");
+            outrc = -1;
+            goto out;
+        }
+
 
         if (opttype == CLIENT_DATETIME || opttype == CLIENT_DATETIMEUS) {
             opttype = CLIENT_CSTR;
             if (strncasecmp(typebuf, "CURRENT_TIMESTAMP", 17) == 0)
                 is_null = 1; /* use isnull flag for current timestamp since
                                 null=yes is used for dbstore null */
-        } else if(opttype == CLIENT_BYTEARRAY) {
-            opttype = CLIENT_CSTR;
-            int len = strlen(typebuf);
-            if (len == 4 && strncasecmp(typebuf, "GUID", 4) == 0)
-                is_null = 1; /* use isnull flag for GUID since
-                                null=yes is used for dbstore null */
-        }
-        if (*p_default == NULL) {
-            logmsg(LOGMSG_ERROR, "init_default_value: out of memory\n");
+        } 
+        
+        /* csc2lib doesn't count the \0 in the size for cstrings - but type
+         * system does and will balk if no \0 is found. */
+        if (opttype == CLIENT_CSTR)
+            optsz++;
+        rc = CLIENT_to_SERVER(typebuf, optsz, opttype, is_null /*isnull*/,
+                              NULL /*convopts*/, NULL /*blob*/, *p_default,
+                              *p_default_len, *p_default_type, 0, &outdtsz,
+                              &fld->convopts, NULL /*blob*/);
+        if (rc == -1) {
+            logmsg(LOGMSG_ERROR, "%s initialisation failed for field %s\n", name,
+                    fld->name);
+            free(*p_default);
+            *p_default = NULL;
+            *p_default_len = 0;
+            *p_default_type = 0;
             outrc = -1;
-        } else {
-            /* csc2lib doesn't count the \0 in the size for cstrings - but type
-             * system does and will balk if no \0 is found. */
-            if (opttype == CLIENT_CSTR)
-                optsz++;
-            rc = CLIENT_to_SERVER(typebuf, optsz, opttype, is_null /*isnull*/,
-                                  NULL /*convopts*/, NULL /*blob*/, *p_default,
-                                  *p_default_len, *p_default_type, 0, &outdtsz,
-                                  &fld->convopts, NULL /*blob*/);
-            if (rc == -1) {
-                logmsg(LOGMSG_ERROR, "%s initialisation failed for field %s\n", name,
-                        fld->name);
-                free(*p_default);
-                *p_default = NULL;
-                *p_default_len = 0;
-                *p_default_type = 0;
-                outrc = -1;
-            }
-            /*
-            else
-            {
-               printf("%s opt for %s is:\n", name, fld->name);
-               fsnapf(stdout, *p_default, outdtsz);
-            }
-            */
         }
+        /*
+        else
+        {
+           printf("%s opt for %s is:\n", name, fld->name);
+           fsnapf(stdout, *p_default, outdtsz);
+        }
+        */
     }
 
+out:
     if (typebuf)
         free(typebuf);
 
@@ -6783,6 +6788,8 @@ void update_dbstore(dbtable *db)
                 /* column not seen before */
                 db->dbstore[position].ver = v;
 
+                if (from->in_default_type == SERVER_FUNCTION)
+                    continue;
                 if (from->in_default_len) {
                     db->dbstore[position].len = to->len;
                     db->dbstore[position].data = calloc(1, to->len);
