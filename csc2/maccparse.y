@@ -64,7 +64,7 @@
 %token T_EQ
 
 %type <number> validctype validstrtype valididxstrtype
-%type <numstr>      number
+%type <numstr> number
 %type <number> yesno
 %type <where> where 
 %type <varname> varname typename
@@ -72,8 +72,7 @@
 %type <comment> comment
 %type <fltpoint> fltnumber
 %type <bytestr> sqlhexstr
-%type <varname> defaultfunction
-%type <varname> function
+%type <varname> defaultfunction func_decl func_args
 
 %{
 #include <stdio.h>
@@ -189,21 +188,24 @@ cnstdef: varname '=' number ',' comment cnstdef { add_constant($1, $3.number, 0)
          | /* %empty */
          ;
 
-fieldopts: T_FLD_STRDEFAULT '=' number fieldopts          { add_fldopt(FLDOPT_DBSTORE,CLIENT_INT, $3.numstr); }
-           | T_FLD_LDDEFAULT '=' number fieldopts         { add_fldopt(FLDOPT_DBLOAD,CLIENT_INT, $3.numstr); }
-           | T_FLD_STRDEFAULT '=' fltnumber fieldopts     { double f=$3; add_fldopt(FLDOPT_DBSTORE,CLIENT_REAL,&f); }
-           | T_FLD_LDDEFAULT '=' fltnumber fieldopts      { double f=$3; add_fldopt(FLDOPT_DBLOAD,CLIENT_REAL,&f); }
-           | T_FLD_STRDEFAULT '=' string  fieldopts       { add_fldopt(FLDOPT_DBSTORE,CLIENT_CSTR,$3); }
-           | T_FLD_LDDEFAULT '=' string fieldopts         { add_fldopt(FLDOPT_DBLOAD,CLIENT_CSTR,$3); }
-           | T_FLD_STRDEFAULT '=' sqlhexstr  fieldopts       { add_fldopt(FLDOPT_DBSTORE,CLIENT_BYTEARRAY,$3); }
-           | T_FLD_LDDEFAULT '=' sqlhexstr fieldopts         { add_fldopt(FLDOPT_DBLOAD,CLIENT_BYTEARRAY,$3); }
-           | T_FLD_NULL '=' yesno fieldopts               { int f=$3; add_fldopt(FLDOPT_NULL,CLIENT_INT,&f); }
-           | T_FLD_PADDING '=' number fieldopts           { int f=$3.number; add_fldopt(FLDOPT_PADDING,CLIENT_INT,&f); }
-           | T_FLD_STRDEFAULT '=' defaultfunction fieldopts       { add_fldopt(FLDOPT_DBSTORE,CLIENT_FUNCTION,$3); }
-           | /* %empty */
+fieldopts: fieldterm fieldopts
+	| /* empty */
+	;
+
+fieldterm: T_FLD_STRDEFAULT '=' number { add_fldopt(FLDOPT_DBSTORE,CLIENT_INT, $3.numstr); }
+           | T_FLD_LDDEFAULT '=' number { add_fldopt(FLDOPT_DBLOAD,CLIENT_INT, $3.numstr); }
+           | T_FLD_STRDEFAULT '=' fltnumber { double f=$3; add_fldopt(FLDOPT_DBSTORE,CLIENT_REAL,&f); }
+           | T_FLD_LDDEFAULT '=' fltnumber { double f=$3; add_fldopt(FLDOPT_DBLOAD,CLIENT_REAL,&f); }
+           | T_FLD_STRDEFAULT '=' string  { add_fldopt(FLDOPT_DBSTORE,CLIENT_CSTR,$3); }
+           | T_FLD_LDDEFAULT '=' string { add_fldopt(FLDOPT_DBLOAD,CLIENT_CSTR,$3); }
+           | T_FLD_STRDEFAULT '=' sqlhexstr  { add_fldopt(FLDOPT_DBSTORE,CLIENT_BYTEARRAY,$3); }
+           | T_FLD_LDDEFAULT '=' sqlhexstr { add_fldopt(FLDOPT_DBLOAD,CLIENT_BYTEARRAY,$3); }
+           | T_FLD_NULL '=' yesno { int f=$3; add_fldopt(FLDOPT_NULL,CLIENT_INT,&f); }
+           | T_FLD_PADDING '=' number { int f=$3.number; add_fldopt(FLDOPT_PADDING,CLIENT_INT,&f); }
+           | T_FLD_STRDEFAULT '=' defaultfunction { add_fldopt(FLDOPT_DBSTORE,CLIENT_FUNCTION,$3); }
            ;
 
-defaultfunction: '{' function '}' {
+defaultfunction: '{' func_decl '}' {
 		char *str;
 		int origlen=strlen($2)+1;
 		str=(char*)csc2_malloc(origlen+2);
@@ -217,38 +219,23 @@ printf("AZ: have defaultfunction %s\n", str);
 	}
 	;
 
-function: varname
-	| varname '(' ')' { 
+func_args: number { $$=$1.numstr; }
+	|  func_decl
+	| /*empty*/ { $$=NULL; }
+	;
+
+func_decl: varname
+	| varname '{' func_args '}' {  /* putting '(' ')' breaks next token */
 		char *str;
 		int origlen=strlen($1)+1;
+		if ($3) 
+			origlen+=strlen($3);
        		str=(char*)csc2_malloc(origlen+2);
 		if (str==0) {
 		  csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.opttext);
 		  exit(-1);
 		}
-		sprintf(str,"%s()", $1);
-		$$=str;
-        }
-	| varname '(' number ')' { 
-       		char *str;
-		int origlen=strlen($1)+strlen($3.numstr)+1;
-       		str=(char*)csc2_malloc(origlen+2);
-		if (str==0) {
-		  csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.opttext);
-		  exit(-1);
-		}
-		sprintf(str,"%s(%s)", $1, $3.numstr);
-		$$=str;
-        }
-	| varname '(' function ')' { 
-		char *str;
-		int origlen=strlen($1)+strlen($3)+1;
-       		str=(char*)csc2_malloc(origlen+2);
-		if (str==0) {
-		  csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.opttext);
-		  exit(-1);
-		}
-		sprintf(str,"%s(%s)", $1, $3);
+		sprintf(str,"%s(%s)", $1, $3 ? $3: "");
 		$$=str;
         }
 	;

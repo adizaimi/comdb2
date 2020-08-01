@@ -356,7 +356,6 @@ static Keyword aKeywordTable[] = {
   { "IPU",              "TK_IPU",            ALWAYS               },
   { "ISC",              "TK_ISC",            ALWAYS               },
   { "KW",               "TK_KW",             ALWAYS               },
-  { "LIBUUID_CALL",     "TK_UUIDFUNCTION",   ALWAYS               },
   { "LUA",              "TK_LUA",            ALWAYS               },
   { "LZ4",              "TK_LZ4",            ALWAYS               },
   { "NONE",             "TK_NONE",           ALWAYS               },

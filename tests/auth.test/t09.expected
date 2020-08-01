@@ -108,7 +108,6 @@
 (candidate='KEY')
 (candidate='KW')
 (candidate='LEFT')
-(candidate='LIBUUID_CALL')
 (candidate='LIKE')
 (candidate='LIMIT')
 (candidate='LUA')

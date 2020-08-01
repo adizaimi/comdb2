@@ -3140,6 +3140,11 @@ static char *format_csc2(struct comdb2_ddl_context *ctx)
             if (*column->def == '(') {
                 int len = strlen(column->def);
                 assert(column->def[len - 1] == ')');
+                for(int i=0; i<len; i++)
+                    if (column->def[i] == '(')
+                        column->def[i] = '{';
+                    else if (column->def[i] == ')')
+                        column->def[i] = '}';
                 strbuf_appendf(csc2, "dbstore = {%.*s} ", len - 2, column->def + 1);
             } else if (*column->def == '(' ||
                 (type_flags[column->type] & FLAG_QUOTE_DEFAULT) == 0) {

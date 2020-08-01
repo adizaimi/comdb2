@@ -1528,9 +1528,9 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                     any_errors++;
                     return;
                 }
-                if (tables[ntables].sym[tables[ntables].nsym].fopts[i].valtype == CLIENT_BYTEARRAY &&
+                if (tables[ntables].sym[tables[ntables].nsym].fopts[i].valtype == CLIENT_FUNCTION &&
                     tables[ntables].sym[tables[ntables].nsym].fopts[i].opttype != FLDOPT_NULL &&
-                    strcasecmp(tables[ntables].sym[tables[ntables].nsym].fopts[i].value.strval, "GUID()") == 0) {
+                    strcasecmp(tables[ntables].sym[tables[ntables].nsym].fopts[i].value.strval, "(GUID())") == 0) {
                     if (siz != 16) {
                         csc2_error("Error at line %3d: CAN ONLY HAVE BYTE[16] FOR GUID() DBSTORE: %s\n",
                             current_line, name);
@@ -1587,6 +1587,8 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                             [i].valtype != CLIENT_CSTR &&
                     tables[ntables].sym[tables[ntables].nsym].fopts
                             [i].valtype != CLIENT_PSTR &&
+                    tables[ntables].sym[tables[ntables].nsym].fopts
+                            [i].valtype != CLIENT_FUNCTION &&
                     tables[ntables].sym[tables[ntables].nsym].fopts
                             [i].opttype != FLDOPT_NULL) {
                     csc2_error( "Error at line %3d: FIELD OPTION TYPE IN "
