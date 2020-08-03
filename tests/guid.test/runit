@@ -238,6 +238,9 @@ test_guid_autofill() {
     echo 'failure in transactions inserting will mean count will be off'
     assertcnt t2 $((CNT*PARALLEL*3))
 
+}
+
+test_guid_errors() {
 
     set +e 
 
@@ -266,6 +269,7 @@ test_guid_autofill() {
         int  i
     }
     }'
+    sleep 1
     cdb2sql ${CDB2_OPTIONS} $dbnm 'insert into t4(i) values(1),(2)' &> t4.err
     echo "[insert into t4(i) values(1),(2)] failed with rc 113 incompatible values from SQL string of length 32 to bbytearray field 'autoid' for table 't4'" > t4.expected
     if ! diff -w t4.err t4.expected ; then
@@ -284,5 +288,7 @@ test_guid_column
 
 test_guid_autofill
 
-rm *.out
+test_guid_errors
+
+rm -f *.out
 echo "Success"
