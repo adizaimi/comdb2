@@ -228,8 +228,8 @@ sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
 
 <RECTYPE>dbpad                  { return T_FLD_PADDING; }
 <RECTYPE>dbstore                { BEGIN DBSTORE; return T_FLD_STRDEFAULT;}
-<DBSTORE>[={()]			{ return yytext[0]; }
-<DBSTORE>"}"			{ BEGIN RECTYPE; return yytext[0]; }
+<DBSTORE>[={()]                 { return yytext[0]; }
+<DBSTORE>"}"                    { BEGIN RECTYPE; return yytext[0]; }
 <DBSTORE>{varname}              { yylval.varname=yytext; return T_VARNAME; }
 <RECTYPE>dbload                 { return T_FLD_LDDEFAULT;}
 <RECTYPE>null                   { return T_FLD_NULL;}

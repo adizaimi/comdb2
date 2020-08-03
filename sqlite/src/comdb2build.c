@@ -3137,6 +3137,7 @@ static char *format_csc2(struct comdb2_ddl_context *ctx)
               does not allow single quoted value.
             */
             if (*column->def == '(') {
+                /* turn DEFAULT(funct()) into dbstore={func()} */
                 int len = strlen(column->def);
                 assert(column->def[len - 1] == ')');
                 strbuf_appendf(csc2, "dbstore = {%.*s} ", len - 2, column->def + 1);

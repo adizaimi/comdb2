@@ -1531,6 +1531,7 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                 if (tables[ntables].sym[tables[ntables].nsym].fopts[i].valtype == CLIENT_FUNCTION &&
                     tables[ntables].sym[tables[ntables].nsym].fopts[i].opttype != FLDOPT_NULL &&
                     strcasecmp(tables[ntables].sym[tables[ntables].nsym].fopts[i].value.strval, "(GUID())") == 0) {
+                    /* special case check for guid() which can only go into a byte[16] field */
                     if (siz != 16) {
                         csc2_error("Error at line %3d: CAN ONLY HAVE BYTE[16] FOR GUID() DBSTORE: %s\n",
                             current_line, name);
@@ -3140,15 +3141,6 @@ int dyns_get_table_field_option(char *tag, int fidx, int option,
             case CLIENT_BYTEARRAY: {
                 int *bytes;
                 int length;
-                if (*value_type == CLIENT_BYTEARRAY && vbsz >= tables[tidx].sym[fidx].szof && 
-                   tables[tidx].sym[fidx].szof == 16 && 
-                   strcasecmp(tables[tidx].sym[fidx].fopts[i].value.strval, "GUID()") == 0) {
-                    int len = strlen(tables[tidx].sym[fidx].fopts[i].value.strval);
-                    memcpy(valuebuf, tables[tidx].sym[fidx].fopts[i].value.strval, len);
-                    *value_sz = len;
-                    return 0;
-                }
-
                 bytes = (int *)tables[tidx].sym[fidx].fopts[i].value.byteval;
                 if (!bytes) {
                     csc2_error("%s: null byteval\n", __func__);
