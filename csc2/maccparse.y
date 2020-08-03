@@ -225,7 +225,7 @@ func_args: number { $$=$1.numstr; }
 	;
 
 func_decl: varname
-	| varname '{' func_args '}' {  /* putting '(' ')' breaks next token */
+	| varname '(' func_args ')' {
 		char *str;
 		int origlen=strlen($1)+1;
 		if ($3) 

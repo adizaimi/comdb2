@@ -85,6 +85,7 @@ hexstring 0[Xx]([0-9a-fA-F]{1,2})+
 sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
 
 %s RECTYPE
+%s DBSTORE
 %s CONSTRAINTS
 
 %%
@@ -226,7 +227,10 @@ sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
 
 
 <RECTYPE>dbpad                  { return T_FLD_PADDING; }
-<RECTYPE>dbstore                { return T_FLD_STRDEFAULT;}
+<RECTYPE>dbstore                { BEGIN DBSTORE; return T_FLD_STRDEFAULT;}
+<DBSTORE>[={()]			{ printf("AZ: under DBSTORE '%s'\n", yytext); return yytext[0]; }
+<DBSTORE>"}"			{ printf("AZ: ending DBSTORE '%s'\n", yytext); BEGIN RECTYPE; return yytext[0]; }
+<DBSTORE>{varname}      { printf("AZ: under DBSTORE '%s'\n", yytext); yylval.varname=yytext; return T_VARNAME; }
 <RECTYPE>dbload                 { return T_FLD_LDDEFAULT;}
 <RECTYPE>null                   { return T_FLD_NULL;}
 
