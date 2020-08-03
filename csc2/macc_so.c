@@ -662,10 +662,8 @@ int keysize(struct key *ck) /* CALCULATES SIZE OF A STRUCT KEY */
     struct table *tables = macc_globals->tables;
     arr = (tables[ondtidx].sym[ck->sym].dim[0] != -1); /* is this an array? */
     rng = (ck->rg[0] > 0 && ck->rg[1] > 0); /* is an element specified?  */
-    chr = ((tables[ondtidx].sym[ck->sym].type == T_PSTR) ||
-           (tables[ondtidx].sym[ck->sym].type == T_UCHAR) ||
-           (tables[ondtidx].sym[ck->sym].type == 
-            T_CSTR)); /* is this a character type? */
+    chr = ((tables[ondtidx].sym[ck->sym].type == T_PSTR) || (tables[ondtidx].sym[ck->sym].type == T_UCHAR) ||
+           (tables[ondtidx].sym[ck->sym].type == T_CSTR)); /* is this a character type? */
 
     if (rng < 0) { /* report this odd error     */
         csc2_error("ERROR: BAD RANGE FOR %s(%d:%d), SYMBOL #%d\n",
@@ -1466,12 +1464,10 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
             case T_ULONG:
             case T_UINTEGER4:
             case T_INTEGER4:
-                if (tables[ntables].sym[tables[ntables].nsym].fopts
-                            [i].valtype != CLIENT_INT &&
-                    tables[ntables].sym[tables[ntables].nsym].fopts
-                            [i].valtype != CLIENT_UINT &&
-                    tables[ntables].sym[tables[ntables].nsym].fopts
-                            [i].opttype != FLDOPT_NULL) {
+                if (tables[ntables].sym[tables[ntables].nsym].fopts[i].valtype != CLIENT_INT &&
+                    tables[ntables].sym[tables[ntables].nsym].fopts[i].valtype != CLIENT_UINT &&
+                    tables[ntables].sym[tables[ntables].nsym].fopts[i].valtype != CLIENT_SEQUENCE &&
+                    tables[ntables].sym[tables[ntables].nsym].fopts[i].opttype != FLDOPT_NULL) {
                     csc2_error( "Error at line %3d: FIELD OPTION TYPE IN "
                                     "SCHEMA MUST MATCH FIELD TYPE: %s\n",
                             current_line, name);
@@ -1918,8 +1914,8 @@ void add_fldopt(int opttype, int valtype, void *value)
         reset_fldopt();
         return;
     }
-    if (valtype != CLIENT_INT && valtype != CLIENT_REAL &&
-        valtype != CLIENT_CSTR && valtype != CLIENT_BYTEARRAY && valtype != CLIENT_FUNCTION) {
+    if (valtype != CLIENT_INT && valtype != CLIENT_REAL && valtype != CLIENT_CSTR && valtype != CLIENT_BYTEARRAY &&
+        valtype != CLIENT_SEQUENCE && valtype != CLIENT_FUNCTION) {
         csc2_error("FIELD OPTION ERROR: INVALID VALUE TYPE %d\n", valtype);
         any_errors++;
         reset_fldopt();
@@ -2543,7 +2539,7 @@ static int dyns_load_schema_int(char *filename, char *schematxt, char *dbname,
 
     if (yyparse() || any_errors || check_options()) {
         csc2_error("FOUND ERRORS IN SCHEMA. ABORTING!\n");
-        csc2_error("%s\n", schematxt);
+        /* AZ: to debug csc2_error("%s\n", schematxt); */
         if (fhopen)
             fclose((FILE *)yyin);
         return -1;
@@ -3068,131 +3064,136 @@ int dyns_get_table_field_option(char *tag, int fidx, int option,
                                 int *value_type, int *value_sz, void *valuebuf,
                                 int vbsz)
 {
+    if (strcmp(tag, ONDISKTAG))
+        return -1;
+
     int i = 0;
     /* int tidx=gettable(tag==NULL?DEFAULTTAG:tag);*/
     int tidx = gettable(ONDISKTAG);
-    if (strcmp(tag, ONDISKTAG))
-        return -1;
     if (tidx < 0)
         return -1;
+
     struct table *tables = macc_globals->tables;
     if (fidx < 0 || fidx >= tables[tidx].nsym)
         return -1;
 
     assert((valuebuf != 0) && (vbsz > 0));
 
-    *value_type = field_type(tables[tidx].sym[fidx].type, 0);
-    for (i = 0; i < tables[tidx].sym[fidx].numfo; i++) {
-        if (tables[tidx].sym[fidx].fopts[i].opttype == option) {
-            if ((option == FLDOPT_NULL || option == FLDOPT_PADDING) &&
-                vbsz >= sizeof(int)) {
-                int tmpval = tables[tidx].sym[fidx].fopts[i].value.i4val;
-                *value_type = CLIENT_INT;
-                *value_sz = sizeof(int);
-                memcpy(valuebuf, &tmpval, sizeof(int));
+    struct symbol *sym = &tables[tidx].sym[fidx];
+    *value_type = field_type(sym->type, 0);
+    for (i = 0; i < sym->numfo; i++) {
+        struct fieldopt *f = &sym->fopts[i];
+        if (f->opttype != option)
+            continue;
+        if ((option == FLDOPT_NULL || option == FLDOPT_PADDING) && vbsz >= sizeof(int)) {
+            int tmpval = f->value.i4val;
+            *value_type = CLIENT_INT;
+            *value_sz = sizeof(int);
+            memcpy(valuebuf, &tmpval, sizeof(int));
+            return 0;
+        }
+
+        switch (f->valtype) {
+        case CLIENT_INT: {
+            if ((*value_type == CLIENT_INT || *value_type == CLIENT_UINT) && vbsz >= sizeof(uint64_t)) {
+                extern int gbl_broken_num_parser;
+                if (gbl_broken_num_parser) {
+                    int tmpval = htonl(f->value.i4val);
+                    memcpy(valuebuf, &tmpval, sizeof(tmpval));
+                    *value_sz = sizeof(tmpval);
+                } else {
+                    uint64_t tmpval = flibc_htonll(f->value.u8val);
+                    memcpy(valuebuf, &tmpval, sizeof(tmpval));
+                    *value_sz = sizeof(tmpval);
+                }
+                return 0;
+            } else if (*value_type == CLIENT_REAL && vbsz >= sizeof(double)) {
+                double tmpval = flibc_htond(((double)(f->value.i4val)));
+                memcpy(valuebuf, &tmpval, sizeof(double));
+                *value_sz = sizeof(double);
+                return 0;
+            } else if (*value_type == CLIENT_BYTEARRAY && vbsz >= sym->szof) {
+                /* construct a byte array memset with this value */
+                memset(valuebuf, f->value.i4val, sym->szof);
+                *value_sz = sym->szof;
                 return 0;
             }
+            return -1;
+        }
+        case CLIENT_REAL: {
+            if (*value_type == CLIENT_REAL && vbsz >= sizeof(double)) {
+                double tmpval = flibc_htond((double)(f->value.r8val));
+                memcpy(valuebuf, &tmpval, sizeof(double));
+                *value_sz = sizeof(double);
+                return 0;
+            }
+            return -1;
+        }
+        case CLIENT_BYTEARRAY: {
+            int *bytes;
+            int length;
+            bytes = (int *)f->value.byteval;
+            if (!bytes) {
+                csc2_error("dyns_get_table_field_option: null byteval\n");
+                return -1;
+            }
+            length = *bytes;
+            bytes++;
+            if (*value_type == CLIENT_BYTEARRAY && vbsz >= length) {
+                memcpy(valuebuf, bytes, length);
+                *value_sz = length;
+                return 0;
+            }
+            return -1;
+        }
 
-            switch (tables[tidx].sym[fidx].fopts[i].valtype) {
-            case CLIENT_INT: {
-                if ((*value_type == CLIENT_INT || *value_type == CLIENT_UINT) &&
-                    vbsz >= sizeof(uint64_t)) {
-                    extern int gbl_broken_num_parser;
-                    if (gbl_broken_num_parser) {
-                        int tmpval =
-                            htonl(tables[tidx].sym[fidx].fopts[i].value.i4val);
-                        memcpy(valuebuf, &tmpval, sizeof(tmpval));
-                        *value_sz = sizeof(tmpval);
-                    } else {
-                        uint64_t tmpval = flibc_htonll(
-                            tables[tidx].sym[fidx].fopts[i].value.u8val);
-                        memcpy(valuebuf, &tmpval, sizeof(tmpval));
-                        *value_sz = sizeof(tmpval);
-                    }
-                    return 0;
-                } else if (*value_type == CLIENT_REAL &&
-                           vbsz >= sizeof(double)) {
-                    double tmpval = flibc_htond((
-                        (double)(tables[tidx].sym[fidx].fopts[i].value.i4val)));
-                    memcpy(valuebuf, &tmpval, sizeof(double));
-                    *value_sz = sizeof(double);
-                    return 0;
-                } else if (*value_type == CLIENT_BYTEARRAY &&
-                           vbsz >= tables[tidx].sym[fidx].szof) {
-                    /* construct a byte array memset with this value */
-                    memset(valuebuf,
-                           tables[tidx].sym[fidx].fopts[i].value.i4val,
-                           tables[tidx].sym[fidx].szof);
-                    *value_sz = tables[tidx].sym[fidx].szof;
-                    return 0;
-                }
+        case CLIENT_SEQUENCE: {
+            if ((*value_type == CLIENT_INT)) {
+                *value_type = CLIENT_SEQUENCE;
+                *value_sz = (vbsz - 1);
+                memset(valuebuf, -1, *value_sz);
+                return 0;
+            }
+            return -1;
+        }
+
+        case CLIENT_CSTR: {
+            if (*value_type == CLIENT_BYTEARRAY && vbsz >= sym->szof) {
+                /* There are several production databases that try to
+                 * specify a default load/store for a byte array using a
+                 * string.  Previously we didn't catch this, so people put
+                 * in all kinds of wacky interpretations of how this
+                 * could work.  We want to disallow all of them, but can't
+                 * without breaking them.  So we silently ignore strings. */
+                *value_type = CLIENT_MINTYPE;
+                *value_sz = 0;
+                memset(valuebuf, 0, vbsz);
                 return -1;
             }
-            case CLIENT_REAL: {
-                if (*value_type == CLIENT_REAL && vbsz >= sizeof(double)) {
-                    double tmpval = flibc_htond(
-                        (double)(tables[tidx].sym[fidx].fopts[i].value.r8val));
-                    memcpy(valuebuf, &tmpval, sizeof(double));
-                    *value_sz = sizeof(double);
-                    return 0;
-                }
-                return -1;
-            }
-            case CLIENT_BYTEARRAY: {
-                int *bytes;
-                int length;
-                bytes = (int *)tables[tidx].sym[fidx].fopts[i].value.byteval;
-                if (!bytes) {
-                    csc2_error("%s: null byteval\n", __func__);
-                    return -1;
-                }
-                length = *bytes;
-                bytes++;
-                if (*value_type == CLIENT_BYTEARRAY && vbsz >= length) {
-                    memcpy(valuebuf, bytes, length);
-                    *value_sz = length;
-                    return 0;
-                }
-                return -1;
-            }
-            case CLIENT_CSTR: {
-                if ((*value_type == CLIENT_CSTR || *value_type == CLIENT_PSTR ||
-                     *value_type == CLIENT_VUTF8) &&
-                    vbsz > strlen(tables[tidx].sym[fidx].fopts[i].value.strval)) {
-                    bzero(valuebuf, strlen(tables[tidx].sym[fidx].fopts[i].value.strval) + 1);
-                    int len = strlen(tables[tidx].sym[fidx].fopts[i].value.strval);
-                    memcpy(valuebuf, tables[tidx].sym[fidx].fopts[i].value.strval, len);
-                    *value_sz = len;
-                    return 0;
-                } else if (*value_type == CLIENT_DATETIME || *value_type == CLIENT_DATETIMEUS) {
-                    int len = strlen(tables[tidx].sym[fidx].fopts[i].value.strval);
-                    memcpy(valuebuf, tables[tidx].sym[fidx].fopts[i].value.strval, len);
-                    *value_sz = strlen(tables[tidx].sym[fidx].fopts[i].value.strval);
-                    return 0;
-                } else if (*value_type == CLIENT_BYTEARRAY && vbsz >= tables[tidx].sym[fidx].szof) {
-                    /* There are several production databases that try to
-                     * specify a default load/store for a byte array using a
-                     * string.  Previously we didn't catch this, so people put
-                     * in all kinds of wacky interpretations of how this
-                     * could work.  We want to disallow all of them, but can't
-                     * without breaking them.  So we silently ignore strings. */
-                    *value_type = CLIENT_MINTYPE;
-                    *value_sz = 0;
-                    memset(valuebuf, 0, vbsz);
-                    return -1;
-                }
-                return -1;
-            }
-            case CLIENT_FUNCTION: {
-                int len = strlen(tables[tidx].sym[fidx].fopts[i].value.strval);
-                memcpy(valuebuf, tables[tidx].sym[fidx].fopts[i].value.strval, len);
-                *value_type = CLIENT_FUNCTION;
+
+            int len = strlen(f->value.strval);
+            if ((*value_type == CLIENT_CSTR || *value_type == CLIENT_PSTR || *value_type == CLIENT_VUTF8) &&
+                vbsz > len) {
+                bzero(valuebuf, len + 1);
+                memcpy(valuebuf, f->value.strval, len);
+                *value_sz = len;
+                return 0;
+            } else if (*value_type == CLIENT_DATETIME || *value_type == CLIENT_DATETIMEUS) {
+                memcpy(valuebuf, f->value.strval, len);
                 *value_sz = len;
                 return 0;
             }
-            default:
-                return -1;
-            }
+            return -1;
+        }
+        case CLIENT_FUNCTION: {
+            int len = strlen(tables[tidx].sym[fidx].fopts[i].value.strval);
+            memcpy(valuebuf, tables[tidx].sym[fidx].fopts[i].value.strval, len);
+            *value_type = CLIENT_FUNCTION;
+            *value_sz = len;
+            return 0;
+        } 
+        default:
+            return -1;
         }
     }
 
@@ -3231,8 +3232,7 @@ static int dyns_field_depth_comn(char *tag, int fidx, dpth_t *dpthinfo,
         if (i >= ndpthsinfo) {
             return 1;
         }
-        curdpth =
-            (char *)(&(macc_globals->tables[tidx].sym[fidx].dpth_tree[i]));
+        curdpth = (char *)(&(macc_globals->tables[tidx].sym[fidx].dpth_tree[i]));
         memset(&dpthinfo[*ndpthout], 0, sizeof(dpth_t));
         dpthinfo[*ndpthout].struct_type =
             ((curdpth[0] == 'u') ? FLDDPTH_UNION : FLDDPTH_STRUCT);

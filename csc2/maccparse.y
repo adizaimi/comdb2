@@ -49,7 +49,7 @@
 %token T_KEYS 
 %token T_CONSTANTS
 %token T_PUBLIC T_PRIVATE
-%token T_FLD_NULL T_FLD_STRDEFAULT T_FLD_LDDEFAULT T_FLD_PADDING
+%token T_FLD_NULL T_FLD_STRDEFAULT T_FLD_LDDEFAULT T_FLD_NEXTSEQUENCE T_FLD_PADDING
 %token T_TABLE_TAG T_DEFAULT T_ONDISK T_SCHEMA
 %token T_CONSTRAINTS T_CASCADE
 %token T_CON_ON  T_CON_UPDATE T_CON_DELETE T_RESTRICT
@@ -203,6 +203,7 @@ fieldterm: T_FLD_STRDEFAULT '=' number { add_fldopt(FLDOPT_DBSTORE,CLIENT_INT, $
            | T_FLD_NULL '=' yesno { int f=$3; add_fldopt(FLDOPT_NULL,CLIENT_INT,&f); }
            | T_FLD_PADDING '=' number { int f=$3.number; add_fldopt(FLDOPT_PADDING,CLIENT_INT,&f); }
            | T_FLD_STRDEFAULT '=' defaultfunction { add_fldopt(FLDOPT_DBSTORE,CLIENT_FUNCTION,$3); }
+           | T_FLD_STRDEFAULT '=' T_FLD_NEXTSEQUENCE { add_fldopt(FLDOPT_DBSTORE,CLIENT_SEQUENCE,NULL); }
            ;
 
 defaultfunction: '{' func_decl '}' {

@@ -380,6 +380,7 @@ struct sqlite3_value {
 #define MEM_Subtype   0x020000 /* Mem.eSubtype is valid */
 #define MEM_Xor       0x040000 /* Mem.z needs XOR; <DESCEND> keys */
 #define MEM_OpFunc    0x080000 /* Mem.u is a custom function */
+#define MEM_Master    0x100000 /* Value will be set on master */
 #else /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 #define MEM_Term      0x0200   /* String in Mem.z is zero terminated */
 #define MEM_Dyn       0x0400   /* Need to call Mem.xDel() on Mem.z */
@@ -658,6 +659,7 @@ int sqlite3VdbeMemNulTerminate(Mem*);
 int sqlite3VdbeMemSetStr(Mem*, const char*, int, u8, void(*)(void*));
 void sqlite3VdbeMemSetInt64(Mem*, i64);
 #if defined(SQLITE_BUILDING_FOR_COMDB2)
+int sqlite3VdbeMemSetMasterResolve(Mem*);
 int sqlite3VdbeMemSetDatetime(Mem*, dttz_t*, const char *tz);
 int sqlite3VdbeMemSetInterval(Mem *pMem, intv_t *tv);
 int sqlite3VdbeMemSetDecimal(Mem*, decQuad*);
@@ -796,6 +798,6 @@ int sqlite3LockStmtTables(sqlite3_stmt *);
 
 Mem* sqlite3GetCachedResultRow(sqlite3_stmt *pStmt, int *nColumns);
 
-#define sqlite3IsFixedLengthSerialType(t) ( (t)<12 || ((unsigned int)t)==SQLITE_MAX_U32 || ((unsigned int)t)==(SQLITE_MAX_U32-1) )
+#define sqlite3IsFixedLengthSerialType(t) ( (t)<12 || ((unsigned int)t)>=(SQLITE_MAX_U32-2) )
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 #endif /* !defined(SQLITE_VDBEINT_H) */

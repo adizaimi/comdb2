@@ -194,7 +194,8 @@ enum {
     BDBERR_DEADLOCK_ROWLOCK = 36,
     BDBERR_NEED_REPOSITION = 37,
     BDBERR_LOCK_DESIRED = 38,
-    BDBERR_NOT_DURABLE = 39
+    BDBERR_NOT_DURABLE = 39,
+    BDBERR_MAX_SEQUENCE = 40
 };
 
 /* values for BDB_ATTR_LOGDELETEAGE; +ve values indicate an absolute
@@ -551,6 +552,8 @@ uint64_t bdb_data_size(bdb_state_type *bdb_state, int dtanum);
 uint64_t bdb_queue_size(bdb_state_type *bdb_state, unsigned *num_extents);
 uint64_t bdb_queue_size_tran(bdb_state_type *bdb_state, tran_type *tran, unsigned *num_extents);
 uint64_t bdb_logs_size(bdb_state_type *bdb_state, unsigned *num_logs);
+uint64_t bdb_tmp_size(bdb_state_type *bdb_state, uint64_t *ptmptbls, uint64_t *psqlsorters, uint64_t *pblkseqs,
+                      uint64_t *pothers);
 
 /*
   bdb_close(): destroy a bdb_handle.
@@ -836,8 +839,11 @@ int bdb_prim_range_delete(bdb_state_type *bdb_handle, tran_type *tran,
 /* lite operations give you direct access to bdb tables with minimum overhead */
 int bdb_lite_add(bdb_state_type *bdb_handle, tran_type *tran, void *dtaptr,
                  int dtalen, void *key, int *bdberr);
+int bdb_lite_full_add(bdb_state_type *bdb_handle, tran_type *tran, void *dtaptr, int dtalen, void *key, int keylen,
+                      int *bdberr);
 int bdb_lite_exact_del(bdb_state_type *bdb_handle, tran_type *tran, void *key,
                        int *bdberr);
+int bdb_lite_delete(bdb_state_type *bdb_handle, tran_type *tran, void *key, int keylen, int *bdberr);
 int bdb_lite_exact_fetch(bdb_state_type *bdb_handle, void *key, void *fnddta,
                          int maxlen, int *fndlen, int *bdberr);
 int bdb_lite_exact_fetch_alloc(bdb_state_type *bdb_handle, void *key,
@@ -870,6 +876,8 @@ int bdb_lite_fetch_partial(bdb_state_type *bdb_state, void *key_in, int klen_in,
 int bdb_lite_fetch_partial_tran(bdb_state_type *bdb_state, tran_type *tran,
                                 void *key_in, int klen_in, void *key_out,
                                 int *fnd, int *bdberr);
+int bdb_lite_exact_fetch_full_tran(bdb_state_type *bdb_state, tran_type *tran, void *key_in, int klen_in, void *key_out,
+                                   int maxlen, int *fnd, int *bdberr);
 
 /* queue operations are for queue tables - fifos with multiple consumers */
 
@@ -1532,6 +1540,13 @@ int bdb_set_in_schema_change(tran_type *input_trans, const char *db_name,
 int bdb_get_in_schema_change(tran_type *input_trans, const char *db_name,
                              void **schema_change_data,
                              size_t *schema_change_data_len, int *bdberr);
+int bdb_get_sequence(tran_type *t, const char *tablename, const char *columnname, int64_t *sequence, int *bdberr);
+int bdb_del_sequence(tran_type *t, const char *tablename, const char *columnname, int *bdberr);
+int bdb_set_sequence(tran_type *t, const char *tablename, const char *columnname, int64_t sequence, int *bdberr);
+int bdb_increment_and_set_sequence(tran_type *t, const char *tablename, const char *columnname, int64_t *sequence,
+                                   int *bdberr);
+int bdb_check_and_set_sequence(tran_type *t, const char *tablename, const char *columnname, int64_t sequence,
+                               int *bdberr);
 
 enum {
     BDB_SC_RUNNING,

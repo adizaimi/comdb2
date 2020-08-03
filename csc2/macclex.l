@@ -86,6 +86,7 @@ sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
 
 %s RECTYPE
 %s DBSTORE
+%s DBSTORE_FUNC
 %s CONSTRAINTS
 
 %%
@@ -97,7 +98,7 @@ sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
                }
 
 <INITIAL,RECTYPE>^[\t ]*{comment}$	/* ignore full line comment */ ;
-<INITIAL,CONSTRAINTS,RECTYPE>{space}				/* ignore whitespace */ ;
+<INITIAL,CONSTRAINTS,RECTYPE,DBSTORE,DBSTORE_FUNC>{space}		/* ignore whitespace */ ;
 <INITIAL,CONSTRAINTS,RECTYPE>{comment}		; /*{ yylval.comment = yytext; return T_COMMENT; } ignore more comments */
 <INITIAL,RECTYPE>"/*"                   {
                                    register int c;
@@ -228,9 +229,13 @@ sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
 
 <RECTYPE>dbpad                  { return T_FLD_PADDING; }
 <RECTYPE>dbstore                { BEGIN DBSTORE; return T_FLD_STRDEFAULT;}
-<DBSTORE>[={()]                 { return yytext[0]; }
-<DBSTORE>"}"                    { BEGIN RECTYPE; return yytext[0]; }
-<DBSTORE>{varname}              { yylval.varname=yytext; return T_VARNAME; }
+<DBSTORE>[=]                    { return yytext[0]; }
+<DBSTORE>"{"                    { BEGIN DBSTORE_FUNC; return yytext[0]; }
+<DBSTORE>.                      { BEGIN RECTYPE; unput( yytext[0] );}
+<DBSTORE_FUNC>"}"               { BEGIN RECTYPE; return yytext[0]; }
+<DBSTORE_FUNC>{varname}         { yylval.varname=yytext; return T_VARNAME; }
+<DBSTORE_FUNC>[()]              { return yytext[0]; }
+<RECTYPE>nextsequence           { return T_FLD_NEXTSEQUENCE;}
 <RECTYPE>dbload                 { return T_FLD_LDDEFAULT;}
 <RECTYPE>null                   { return T_FLD_NULL;}
 
@@ -295,7 +300,7 @@ sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
 <CONSTRAINTS>on                 { return T_CON_ON; }
 <CONSTRAINTS>update             { return T_CON_UPDATE; }
 <CONSTRAINTS>delete             { return T_CON_DELETE; }
-<CONSTRAINTS>[\-:]              { return yytext[0];;  }
+<CONSTRAINTS>[\-:]              { return yytext[0];  }
 <CONSTRAINTS>{varname}          { yylval.varname=yytext; return T_VARNAME; }
 <CONSTRAINTS>=                  { return T_EQ; }
 <INITIAL,RECTYPE,CONSTRAINTS>[\{]                   { rectplvl++; return yytext[0]; }
