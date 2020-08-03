@@ -214,7 +214,6 @@ defaultfunction: '{' func_decl '}' {
 		  exit(-1);
 		}
 		sprintf(str,"(%s)", $2);
-printf("AZ: have defaultfunction %s\n", str);
 		$$=str;
 	}
 	;

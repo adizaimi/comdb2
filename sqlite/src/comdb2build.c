@@ -3136,7 +3136,6 @@ static char *format_csc2(struct comdb2_ddl_context *ctx)
               Check whether the default value needs to be quoted. Note: CSC2
               does not allow single quoted value.
             */
-            printf("AZ: column->def=%s\n", column->def);
             if (*column->def == '(') {
                 int len = strlen(column->def);
                 assert(column->def[len - 1] == ')');
