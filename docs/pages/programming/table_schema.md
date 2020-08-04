@@ -70,7 +70,7 @@ schema {
     int          userid
     longlong     sequence    dbstore=nextsequence
     double       balance     dbstore=100.00 null=yes
-    datetime     paydate     dbstore={NOW()}
+    datetime     paydate     dbstore={CURRENT_TIMESTAMP}
     byte         autoid[16]  dbstore={GUID()}
     byte         permissions[12]
 }
@@ -94,7 +94,7 @@ The field keywords are:
 The dbstore value must have the same datatype as the column they are attached to, with these exceptions:
 
 * Blob fields cannot have dbstore values.
-* For datetime fields you can specify a string such as "2017-03-08T235959.987 America/New_York" or dbstore={NOW()} to autofill with current database system timestamp.
+* For datetime fields you can specify a string such as "2017-03-08T235959.987 America/New_York" or dbstore={CURRENT_TIMESTAMP} to autofill with current database system timestamp.
 * For longlong integer fields may specify a dbstore of nextsequence.  This will populate the column with a value one greater than the largest value which has ever been seen for the column.
 * For byte arrays you can specify dbstore=0 to indicate that zero should be default if not specified.
 * If the type is byte[16], you can also specify `dbstore={GUID()}` and that will allow the field to be autofilled by the database at the time of record insertion.

@@ -220,6 +220,7 @@ defaultfunction: '{' func_decl '}' {
 	;
 
 func_args: number { $$=$1.numstr; }
+	|  verbatim_string { $$=$<varname>1; }
 	|  func_decl
 	| /*empty*/ { $$=NULL; }
 	;
@@ -387,6 +388,8 @@ varname:	T_VARNAME
             $$=yylval.varname;
             } 
 		;
+verbatim_string: T_STRING
+	;
 string:		T_STRING
 			{
 			char *str;

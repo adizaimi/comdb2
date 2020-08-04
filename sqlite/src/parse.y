@@ -1331,12 +1331,6 @@ term(A) ::= CTIME_KW(OP). {
   A = sqlite3ExprFunction(pParse, 0, &OP, 0);
 }
 
-%ifdef SQLITE_BUILDING_FOR_COMDB2
-term(A) ::= UUIDFUNCTION(OP). {
-  A = sqlite3ExprFunction(pParse, 0, &OP, 0);
-}
-%endif SQLITE_BUILDING_FOR_COMDB2
-
 expr(A) ::= LP nexprlist(X) COMMA expr(Y) RP. {
   ExprList *pList = sqlite3ExprListAppend(pParse, X, Y);
   A = sqlite3PExpr(pParse, TK_VECTOR, 0, 0);
