@@ -83,6 +83,7 @@ fltnumber -?([0-9])+"."([0-9])+
 hexbyte 0[xX][0-9a-fA-F]{1,2}
 hexstring 0[Xx]([0-9a-fA-F]{1,2})+
 sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
+nonclosingbrkt [^}]*
 
 %s RECTYPE
 %s DBSTORE
@@ -98,7 +99,7 @@ sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
                }
 
 <INITIAL,RECTYPE>^[\t ]*{comment}$	/* ignore full line comment */ ;
-<INITIAL,CONSTRAINTS,RECTYPE,DBSTORE,DBSTORE_FUNC>{space}		/* ignore whitespace */ ;
+<INITIAL,CONSTRAINTS,RECTYPE,DBSTORE>{space}		/* ignore whitespace */ ;
 <INITIAL,CONSTRAINTS,RECTYPE>{comment}		; /*{ yylval.comment = yytext; return T_COMMENT; } ignore more comments */
 <INITIAL,RECTYPE>"/*"                   {
                                    register int c;
@@ -194,8 +195,8 @@ sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
 
 <INITIAL,CONSTRAINTS,RECTYPE>\n			{ current_line++; }
 
-<INITIAL,RECTYPE,DBSTORE_FUNC>{number}	{ yylval.numstr.number=atoi(yytext); yylval.numstr.numstr = csc2_strdup(yytext); return T_NUM; }
-<INITIAL,RECTYPE,DBSTORE_FUNC>{fltnumber}            { yylval.fltpoint=(double)strtod(yytext,NULL); return T_FLOAT;}
+<INITIAL,RECTYPE>{number}	{ yylval.numstr.number=atoi(yytext); yylval.numstr.numstr = csc2_strdup(yytext); return T_NUM; }
+<INITIAL,RECTYPE>{fltnumber}            { yylval.fltpoint=(double)strtod(yytext,NULL); return T_FLOAT;}
 <INITIAL,RECTYPE>short		        { return T_INTEGER2; }
 <INITIAL,RECTYPE>u_short                { return T_UINTEGER2; }
 <INITIAL,RECTYPE>int		        { return T_INTEGER4; }
@@ -233,7 +234,7 @@ sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
 <DBSTORE>"{"                    { BEGIN DBSTORE_FUNC; return yytext[0]; }
 <DBSTORE>.                      { BEGIN RECTYPE; unput( yytext[0] );}
 <DBSTORE_FUNC>"}"               { BEGIN RECTYPE; return yytext[0]; }
-<DBSTORE_FUNC>[()]              { return yytext[0]; }
+<DBSTORE_FUNC>{nonclosingbrkt}	{ yylval.opttext=yytext; return T_STRING; }
 <RECTYPE>nextsequence           { return T_FLD_NEXTSEQUENCE;}
 <RECTYPE>dbload                 { return T_FLD_LDDEFAULT;}
 <RECTYPE>null                   { return T_FLD_NULL;}
@@ -284,10 +285,9 @@ sqlhexstr x{space}*"'"{space}*([a-fA-F0-9])*{space}*"'"
                                 end[0] = '\0';
                                 return T_WHERE;
                               }
-<INITIAL,RECTYPE,DBSTORE_FUNC>{varname}		{ yylval.varname=yytext; return T_VARNAME; }
+<INITIAL,RECTYPE>{varname}		{ yylval.varname=yytext; return T_VARNAME; }
 
-<INITIAL,CONSTRAINTS,RECTYPE,DBSTORE_FUNC>{dqstring}		{ yylval.opttext=yytext; return T_STRING; }
-<DBSTORE_FUNC>{sqstring}		{ yylval.opttext=yytext; return T_STRING; }
+<INITIAL,CONSTRAINTS,RECTYPE>{dqstring}		{ yylval.opttext=yytext; return T_STRING; }
 <INITIAL,CONSTRAINTS>"<"			{ return T_LT; }
 <INITIAL,CONSTRAINTS>">"			{ return T_GT; }
 

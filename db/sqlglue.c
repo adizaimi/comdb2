@@ -1596,7 +1596,7 @@ char *sql_field_default_trans(struct field *f, int is_out)
         break;
     }
     case SERVER_FUNCTION: {
-        dstr = sqlite3_mprintf("%q", this_default);
+        dstr = sqlite3_mprintf("%s", this_default);
         break;
     }
     case SERVER_SEQUENCE: {
@@ -1853,6 +1853,7 @@ static int create_sqlmaster_record(struct dbtable *tbl, void *tran)
         }
     }
 
+    logmsg(LOGMSG_DEBUG, "sql: %s\n", strbuf_buf(sql));
     strbuf_free(sql);
     return 0;
 }

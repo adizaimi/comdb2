@@ -3062,7 +3062,7 @@ static int dyns_get_field_info_comn(char *tag, int fidx, char *name,
 
 int dyns_get_table_field_option(char *tag, int fidx, int option,
                                 int *value_type, int *value_sz, void *valuebuf,
-                                int vbsz)
+                                int vbsz, char **func_str)
 {
     if (strcmp(tag, ONDISKTAG))
         return -1;
@@ -3077,7 +3077,7 @@ int dyns_get_table_field_option(char *tag, int fidx, int option,
     if (fidx < 0 || fidx >= tables[tidx].nsym)
         return -1;
 
-    assert((valuebuf != 0) && (vbsz > 0));
+    assert(valuebuf != 0 && vbsz > 0);
 
     struct symbol *sym = &tables[tidx].sym[fidx];
     *value_type = field_type(sym->type, 0);
@@ -3186,8 +3186,9 @@ int dyns_get_table_field_option(char *tag, int fidx, int option,
             return -1;
         }
         case CLIENT_FUNCTION: {
-            int len = strlen(tables[tidx].sym[fidx].fopts[i].value.strval);
-            memcpy(valuebuf, tables[tidx].sym[fidx].fopts[i].value.strval, len);
+            int len = strlen(f->value.strval);
+            if (func_str)
+                *func_str = f->value.strval;
             *value_type = CLIENT_FUNCTION;
             *value_sz = len;
             return 0;

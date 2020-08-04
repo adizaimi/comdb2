@@ -68,11 +68,11 @@
 %type <number> yesno
 %type <where> where 
 %type <varname> varname typename
-%type <opttext> string 
+%type <opttext> string verbatim_string
 %type <comment> comment
 %type <fltpoint> fltnumber
 %type <bytestr> sqlhexstr
-%type <varname> defaultfunction func_decl func_args
+%type <opttext> defaultfunction
 
 %{
 #include <stdio.h>
@@ -206,40 +206,21 @@ fieldterm: T_FLD_STRDEFAULT '=' number { add_fldopt(FLDOPT_DBSTORE,CLIENT_INT, $
            | T_FLD_STRDEFAULT '=' T_FLD_NEXTSEQUENCE { add_fldopt(FLDOPT_DBSTORE,CLIENT_SEQUENCE,NULL); }
            ;
 
-defaultfunction: '{' func_decl '}' {
-		char *str;
-		int origlen=strlen($2)+1;
-		str=(char*)csc2_malloc(origlen+2);
+defaultfunction: '{' verbatim_string '}' {
+		int origlen=strlen($2);
+		char *str=(char*)csc2_malloc(origlen+2+1); //2 paren + \n
 		if (str==0) {
-		  csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.opttext);
-		  exit(-1);
+		    csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.opttext);
+		    exit(-1);
 		}
-		sprintf(str,"(%s)", $2);
+		sprintf(str,"(%.*s)", origlen, $2);
 		$$=str;
 	}
 	;
 
-func_args: number { $$=$1.numstr; }
-	|  verbatim_string { $$=$<varname>1; }
-	|  func_decl
-	| /*empty*/ { $$=NULL; }
+verbatim_string: T_STRING { $$=csc2_strdup(yylval.varname); }
 	;
 
-func_decl: varname
-	| varname '(' func_args ')' {
-		char *str;
-		int origlen=strlen($1)+1;
-		if ($3) 
-			origlen+=strlen($3);
-       		str=(char*)csc2_malloc(origlen+2);
-		if (str==0) {
-		  csc2_error("ERROR: OUT OF MEMORY: %s\n",yylval.opttext);
-		  exit(-1);
-		}
-		sprintf(str,"%s(%s)", $1, $3 ? $3: "");
-		$$=str;
-        }
-	;
 /* recstruct: defines a record
 **		ie.
 **		record {
@@ -388,8 +369,7 @@ varname:	T_VARNAME
             $$=yylval.varname;
             } 
 		;
-verbatim_string: T_STRING
-	;
+
 string:		T_STRING
 			{
 			char *str;
