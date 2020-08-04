@@ -157,7 +157,7 @@ int gbl_master_changed_oldfiles = 0;
 int gbl_recovery_timestamp = 0;
 int gbl_recovery_lsn_file = 0;
 int gbl_recovery_lsn_offset = 0;
-int gbl_trace_prepare_errors = 1;
+int gbl_trace_prepare_errors = 0;
 int gbl_trigger_timepart = 0;
 int gbl_extended_sql_debug_trace = 0;
 extern int gbl_dump_fsql_response;
