@@ -264,20 +264,20 @@ test_guid_errors() {
         failexit "t3.err not as expected diff $PWD/{t3.err,t3.expected}"
     fi
 
-    echo "Note that there is no check at table creation time for size mismatch, only at insert time"
-    cdb2sql ${CDB2_OPTIONS} $dbnm default 'create table t4 { 
-    schema 
-    {
-        byte autoid[16] dbstore={hex(GUID())}
-        int  i
-    }
-    }'
-    cdb2sql ${CDB2_OPTIONS} $dbnm 'insert into t4(i) values(1),(2)' &> t4.err
-    echo "[insert into t4(i) values(1),(2)] failed with rc 113 incompatible values from SQL string of length 32 to bbytearray field 'autoid' for table 't4'" > t4.expected
-    if ! diff -w t4.err t4.expected ; then
-        failexit "t4.err not as expected diff $PWD/{t4.err,t4.expected}"
-    fi
-    cdb2sql ${CDB2_OPTIONS} $dbnm default 'drop table t4'
+#    echo "Note that there is no check at table creation time for size mismatch, only at insert time"
+#    cdb2sql ${CDB2_OPTIONS} $dbnm default 'create table t4 { 
+#    schema 
+#    {
+#        byte autoid[16] dbstore={hex(GUID())}
+#        int  i
+#    }
+#    }'
+#    cdb2sql ${CDB2_OPTIONS} $dbnm 'insert into t4(i) values(1),(2)' &> t4.err
+#    echo "[insert into t4(i) values(1),(2)] failed with rc 113 incompatible values from SQL string of length 32 to bbytearray field 'autoid' for table 't4'" > t4.expected
+#    if ! diff -w t4.err t4.expected ; then
+#        failexit "t4.err not as expected diff $PWD/{t4.err,t4.expected}"
+#    fi
+#    cdb2sql ${CDB2_OPTIONS} $dbnm default 'drop table t4'
 
     set -e
 
