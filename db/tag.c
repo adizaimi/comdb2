@@ -305,7 +305,7 @@ int client_type_to_server_type(int type)
     case CLIENT_FUNCTION:
         return SERVER_FUNCTION;
     default:
-        return type;
+        abort();
     }
 }
 
