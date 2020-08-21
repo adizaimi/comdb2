@@ -26,6 +26,7 @@
 #include "bdb_int.h"
 #include "md5.h"
 #include "tohex.h"
+#include <sys/time.h>
 
 pthread_mutex_t gbl_test_log_file_mtx = PTHREAD_MUTEX_INITIALIZER;
 char *gbl_test_log_file = NULL;
@@ -738,6 +739,19 @@ static void guidFromStrFunc(
       sqlite3_result_blob(context, (char*)guid, sizeof(uuid_t), SQLITE_TRANSIENT);
   }
 }
+
+static void isitfridayyet(
+  sqlite3_context *context,
+  int NotUsed,
+  sqlite3_value **NotUsed2
+){
+  UNUSED_PARAMETER2(NotUsed, NotUsed2);
+  
+  struct timeval now;
+  gettimeofday(&now, NULL); // 1970-01-01 was a thursday
+  sqlite3_result_text(context, ((now.tv_sec)/86400 + 4)%7 == 5 ? "yes" : "no", -1, SQLITE_STATIC);
+}
+
 
 static void guidFromByteFunc(
   sqlite3_context *context,
@@ -2709,6 +2723,7 @@ void sqlite3RegisterBuiltinFunctions(void){
     VFUNCTION(guid_str,          0, 0, 0, guidStrFunc      ),
     FUNCTION(guid,               1, 0, 0, guidFromStrFunc  ),
     FUNCTION(guid_str,           1, 0, 0, guidFromByteFunc ),
+    FUNCTION(isitfridayyet,      0, 0, 0, isitfridayyet),
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
     FUNCTION(nullif,             2, 0, 1, nullifFunc       ),
     DFUNCTION(sqlite_version,    0, 0, 0, versionFunc      ),
