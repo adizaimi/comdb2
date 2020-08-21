@@ -51,6 +51,7 @@ static void secondFunc(sqlite3_context *context, int argc, sqlite3_value **argv)
 static void nowFunc(sqlite3_context *context, int argc, sqlite3_value **argv);
 static void currentTS(sqlite3_context *context, int argc, sqlite3_value **argv);
 static void nextSequence(sqlite3_context *context, int argc, sqlite3_value **argv);
+static void isitfridayyet(sqlite3_context *context, int argc, sqlite3_value **argv);
 
 void register_date_functions(sqlite3 * db) {
     static const struct {
@@ -71,6 +72,7 @@ void register_date_functions(sqlite3 * db) {
         { "now",                     1, nowFunc          , NULL, NULL},
         { "months",                  1, monthsFunc       , NULL, NULL},
         { "current_timestamp",       0, currentTS        , NULL, NULL},
+        { "isitfridayyet",           0, isitfridayyet    , NULL, NULL},
 
         /* Piggy-back nextsequence */
         { "nextsequence",            0, nextSequence     , NULL, NULL}
@@ -343,6 +345,22 @@ static void currentTS(sqlite3_context *context, int argc, sqlite3_value **argv)
    }
    bzero(context->pOut, sizeof(Mem));
    sqlite3VdbeMemSetDatetime(context->pOut, &dt, NULL);
+}
+
+static void isitfridayyet(sqlite3_context *context, int argc, sqlite3_value **argv)
+{
+   assert(context->pVdbe);
+
+   dttz_t dt;
+   timespec_to_dttz(&context->pVdbe->tspec, &dt, DTTZ_PREC_MSEC);
+
+   cdb2_client_datetime_t   cdt;
+   if(dttz_to_client_datetime(&dt, context->pVdbe->tzname, &cdt) != SQLITE_OK) {
+	sqlite3_result_null(context);
+	return;
+   }
+   sqlite3_result_int(context, cdt.tm.tm_wday == 5);
+   //sqlite3_result_text(context, cdt.tm.tm_wday == 5 ? "yes" : "no", -1, SQLITE_STATIC);
 }
 
 extern pthread_key_t query_info_key;
