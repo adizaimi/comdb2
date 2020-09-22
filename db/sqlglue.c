@@ -492,7 +492,7 @@ int authenticate_cursor(BtCursor *pCur, int how)
 }
 
 /* returs 1 if sb is disconnected, 0 otherwise */
-inline int peer_dropped_connection_sb(SBUF2 *sb)
+inline int peer_dropped_connection_sbuf(SBUF2 *sb)
 {
     if (!sb)
         return 0;

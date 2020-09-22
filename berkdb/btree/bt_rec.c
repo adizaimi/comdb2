@@ -67,12 +67,6 @@ __bam_split_recover(dbenv, dbtp, lsnp, op, info)
 	db_pgno_t pgno, root_pgno;
 	u_int32_t ptype;
 	int cmp, l_update, p_update, r_update, rc, ret, ret_l, rootsplit = 0, t_ret;
-    /*
-    extern int gbl_diskless;
-    if (gbl_diskless) {
-        return 0;
-    }
-    */
 
 	DBT split_key;
 	PAGE *argp_lp = NULL;
@@ -436,6 +430,10 @@ out:	/* Free any pages that weren't dirtied. */
 	if (sp != NULL)
 		__os_free(dbenv, sp);
 
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        ret = 0;
+    }
 	REC_CLOSE;
 }
 
@@ -756,6 +754,10 @@ done:	*lsnp = argp->prev_lsn;
 
 out:	if (pagep != NULL)
 		(void)__memp_fput(mpf, pagep, 0);
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        ret = 0;
+    }
 	REC_CLOSE;
 }
 
@@ -781,13 +783,6 @@ __bam_cdel_recover(dbenv, dbtp, lsnp, op, info)
 	PAGE *pagep;
 	u_int32_t indx;
 	int cmp_n, cmp_p, modified, ret;
-
-    /*
-    extern int gbl_diskless;
-    if (gbl_diskless) {
-        return 0;
-    }
-    */
 
 	pagep = NULL;
 	COMPQUIET(info, NULL);
@@ -834,6 +829,10 @@ done:	*lsnp = argp->prev_lsn;
 
 out:	if (pagep != NULL)
 		(void)__memp_fput(mpf, pagep, 0);
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        ret = 0;
+    }
 	REC_CLOSE;
 }
 
@@ -1194,12 +1193,6 @@ __bam_prefix_recover(dbenv, dbtp, lsnp, op, info)
     int check_page = gbl_check_page_in_recovery;
 	int cmp_n, cmp_p, ret;
 	int modified;
-    /*
-    extern int gbl_diskless;
-    if (gbl_diskless) {
-        return 0;
-    }
-    */
 
 	REC_PRINT(__bam_prefix_print);
 	REC_INTRO(__bam_prefix_read, 1);
@@ -1252,6 +1245,11 @@ done:	*lsnp = argp->prev_lsn;
 out:	if (pagep != NULL)
 		__memp_fput(mpf, pagep, 0);
 	__os_free(dbenv, c);
+
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        ret = 0;
+    }
 	REC_CLOSE;
 }
 

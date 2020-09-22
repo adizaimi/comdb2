@@ -16,8 +16,6 @@ int matchable_log_type(int rectype);
 extern int gbl_verbose_physrep;
 int gbl_physrep_exit_on_invalid_logstream = 0;
 extern int gbl_diskless;
-static LOG_INFO diskless_log_info;
-
 
 LOG_INFO get_last_lsn(bdb_state_type *bdb_state)
 {

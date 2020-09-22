@@ -346,6 +346,8 @@ __dbreg_id_to_db(dbenv, txn, dbpp, ndx, inc, lsnp, in_recovery_verify)
 	rc = __dbreg_id_to_db_int(dbenv, txn, dbpp, ndx, inc, 1, lsnp,
 	    in_recovery_verify);
 
+    if (rc) printf("%lx: AZ: %s: __dbreg_id_to_db_int rc = %d\n", pthread_self(), __func__, rc);
+
 	if (rc == ENOENT) {
 		/*fprintf(stderr, "__dbreg_id_to_db %d ENOENT\n", ndx); */
       /*__db_panic(dbenv, rc);*/

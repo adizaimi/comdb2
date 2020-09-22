@@ -113,6 +113,7 @@ __db_addrem_verify_fileid(dbenv, dbp, lsnp, prevlsn, fileid)
 	// printf("%u:%u debug %s, log %s\n", prevlsn->file, prevlsn->offset, debug->key.data, dbp->fname);
 
 done:
+	printf("AZ: %s:%u:%u debug %s, log %s, ret=%d\n", __func__, prevlsn->file, prevlsn->offset, debug->key.data, dbp->fname, ret);
 	if (logc)
 		logc->close(logc, 0);
 	if (log.data)
@@ -147,6 +148,8 @@ __db_addrem_recover(dbenv, dbtp, lsnp, op, info)
 	int cmp_n, cmp_p, ret;
     int check_page = gbl_check_page_in_recovery;
 
+    printf("AZ: %s: entering\n", __func__);
+
 	pagep = NULL;
 	COMPQUIET(info, NULL);
 	REC_PRINT(__db_addrem_print);
@@ -156,6 +159,7 @@ __db_addrem_recover(dbenv, dbtp, lsnp, op, info)
 		ret =
 		    __db_addrem_verify_fileid(dbenv, file_dbp, lsnp,
 		    &argp->prev_lsn, argp->fileid);
+		if (ret) printf("AZ: %s: __db_addrem_verify_fileid failed ret = %d\n", __func__, ret);
 		if (ret)
 			goto out;
 	}
@@ -171,8 +175,10 @@ __db_addrem_recover(dbenv, dbtp, lsnp, op, info)
 			goto done;
 		} else
 			if ((ret = __memp_fget(mpf,
-			    &argp->pgno, DB_MPOOL_CREATE, &pagep)) != 0)
+			    &argp->pgno, DB_MPOOL_CREATE, &pagep)) != 0) {
+                if (ret) printf("AZ: %s: __db_addrem_verify_fileid failed ret = %d\n", __func__, ret);
 				goto out;
+            }
 	}
 
     if (check_page) {
@@ -210,15 +216,19 @@ __db_addrem_recover(dbenv, dbtp, lsnp, op, info)
 			__db_pitem_opcode(dbc, pagep, argp->indx, argp->nbytes,
 			    argp->hdr.size == 0 ? NULL : &argp->hdr,
 			    argp->dbt.size == 0 ? NULL : &argp->dbt,
-			    argp->opcode)) != 0)
+			    argp->opcode)) != 0) {
+		if (ret) printf("AZ: %s: __db_addrem_verify_fileid failed ret = %d\n", __func__, ret);
 			 goto out;
+        }
 		change = DB_MPOOL_DIRTY;
 	} else if ((cmp_n == 0 && DB_UNDO(op) && argp->opcode == DB_ADD_DUP) ||
 	    (cmp_p == 0 && DB_REDO(op) && IS_REM_OPCODE(argp->opcode))) {
 		/* Need to undo an add, or redo a delete. */
 		if ((ret = __db_ditem(dbc,
-			    pagep, argp->indx, argp->nbytes)) != 0)
+			    pagep, argp->indx, argp->nbytes)) != 0) {
+		if (ret) printf("AZ: %s: __db_addrem_verify_fileid failed ret = %d\n", __func__, ret);
 			goto out;
+    }
 		change = DB_MPOOL_DIRTY;
 	}
 
@@ -234,8 +244,10 @@ __db_addrem_recover(dbenv, dbtp, lsnp, op, info)
         __dir_pg( mpf, argp->pgno, (u_int8_t *)pagep, 1);
     }
 
-	if ((ret = __memp_fput(mpf, pagep, change)) != 0)
+	if ((ret = __memp_fput(mpf, pagep, change)) != 0) {
+		if (ret) printf("AZ: %s: __db_addrem_verify_fileid failed ret = %d\n", __func__, ret);
 		goto out;
+    }
 	pagep = NULL;
 
 done:	*lsnp = argp->prev_lsn;
@@ -243,6 +255,11 @@ done:	*lsnp = argp->prev_lsn;
 
 out:	if (pagep != NULL)
 		(void)__memp_fput(mpf, pagep, 0);
+
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        ret = 0;
+    }
 	REC_CLOSE;
 }
 
@@ -745,12 +762,10 @@ __db_pg_alloc_recover(dbenv, dbtp, lsnp, op, info)
 	PAGE *pagep;
 	db_pgno_t pgno;
 	int cmp_n, cmp_p, created, level, modified, ret;
-    /*
     extern int gbl_diskless;
     if (gbl_diskless) {
         return 0;
     }
-    */
 
 	meta = NULL;
 	pagep = NULL;

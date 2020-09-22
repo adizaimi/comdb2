@@ -433,6 +433,7 @@ __db_dispatch(dbenv, dtab, dtabsize, db, lsnp, redo, info)
 	LOGCOPY_32(&rectype, db->data);
 	LOGCOPY_32(&txnid, (u_int8_t *)db->data + sizeof(rectype));
 	make_call = ret = 0;
+    printf("%lx: AZ: __db_dispatch \n", pthread_self());
 
 	/* If we don't have a dispatch table, it's hard to dispatch. */
 	DB_ASSERT(dtab != NULL);
@@ -443,7 +444,7 @@ __db_dispatch(dbenv, dtab, dtabsize, db, lsnp, redo, info)
 	 * didn't specify a recovery routine, then we expect that they've
 	 * followed all our rules and registered new recovery functions.
 	 */
-    printf("AZ: redo %d\n", redo);
+    printf("AZ: redo %d, rectype=%d(%s)\n", redo, rectype, optostr(rectype));
 	switch (redo) {
 	case DB_TXN_LOGICAL_BACKWARD_ROLL:
 		switch (rectype) {
@@ -679,7 +680,7 @@ __db_dispatch(dbenv, dtab, dtabsize, db, lsnp, redo, info)
 			}
             extern int gbl_diskless;
             if (gbl_diskless)
-                printf("AZ: rectype = %d\n", rectype);
+                printf("%lx: AZ: rectype = %d(%s) calling %lx\n", pthread_self(), rectype, optostr(rectype), (long int) dtab[rectype]);
 			/* let's do this only on the replicants, for now */
 			return (dtab[rectype](dbenv, db, lsnp, redo, info));
 		}

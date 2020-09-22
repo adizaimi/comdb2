@@ -3904,6 +3904,7 @@ worker_thd(struct thdpool *pool, void *work, void *thddata, int op)
 
 		/* TODO: what do I do on an error? */
 		if (rc) {
+            printf("%lx: AZ: fail rc = %d, rectype = %d\n", pthread_self(), rc, rectype);
 			__db_err(dbenv, "transaction failed at %lu:%lu rc=%d",
 				(u_long)rr->lsn.file, (u_long)rr->lsn.offset, rc);
 			/* and now? */

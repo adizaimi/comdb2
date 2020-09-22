@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 bash -n "$0" | exit 1
 
-#set -e
+set -e
 set -x
 source ${TESTSROOTDIR}/tools/runit_common.sh
 
@@ -135,10 +135,11 @@ start_diskless_replicant() {
     fi
     echo >> $repdir/${repname}.lrl
     
-    export replog=$repdir/log.txt
-    echo "Starting replicant database, replog is $replog"
+    export LOGDIR=$TESTDIR/logs # from setup
+    export repdblog=$LOGDIR/${repname}.db
+    echo "Starting replicant database, repdblog is $repdblog"
     
-    $COMDB2_EXE $repname --diskless --lrl $repdir/${repname}.lrl -pidfile $repdir/${repname}.pid >$replog 2>&1 &
+    $COMDB2_EXE $repname --diskless --lrl $repdir/${repname}.lrl -pidfile $repdir/${repname}.pid >$repdblog 2>&1 &
     
     echo "$repname: waiting until ready"
     out=
@@ -147,7 +148,6 @@ start_diskless_replicant() {
         out=$($CDB2SQL_EXE  --tabs $repname local 'select 1' 2> /dev/null)
         $CDB2SQL_EXE -v --tabs $repname local 'select 1' &> $repdir/${repname}.conn
     done
-    
 }
 
 
