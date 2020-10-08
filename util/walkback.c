@@ -497,9 +497,9 @@ static int __linux_stack_walkback(ucontext_t *context, unsigned maxframes,
 
     if (context == 0) {
         context = &uc;
-        unw_getcontext(context);
+        unw_getcontext((unw_tdep_context_t *)context);
     }
-    unw_init_local(&cursor, context);
+    unw_init_local(&cursor, (unw_context_t *)context);
     for (i = 0; i < maxframes; ++i) {
         unw_get_reg(&cursor, UNW_REG_IP, &ip);
         (*handler)((void *)ip, handlerarg);

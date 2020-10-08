@@ -46,6 +46,7 @@
 #include <cdb2_constants.h>
 #include <logmsg.h>
 #include <mem.h>
+#include "str0.h"
 
 #ifndef PORTMUXUSR_TESTSUITE
 #include "mem_util.h"
@@ -545,7 +546,7 @@ static int portmux_get_unix_socket(const char *unix_bind_path)
                __func__, __LINE__);
         return -1;
     } else {
-        strncpy(addr.sun_path, gbl_portmux_unix_socket, uslen);
+        strncpy0(addr.sun_path, gbl_portmux_unix_socket, uslen);
     }
 
     len = offsetof(struct sockaddr_un, sun_path) + uslen;
@@ -1556,9 +1557,9 @@ portmux_fd_t *portmux_listen_options_setup(const char *app, const char *service,
     fds->listenfd = listenfd;
     fds->tcplistenfd = tcplistenfd;
     fds->port = port;
-    strncpy(fds->app, app, sizeof(fds->app));
-    strncpy(fds->service, service, sizeof(fds->service));
-    strncpy(fds->instance, instance, sizeof(fds->instance));
+    strncpy0(fds->app, app, sizeof(fds->app));
+    strncpy0(fds->service, service, sizeof(fds->service));
+    strncpy0(fds->instance, instance, sizeof(fds->instance));
     fds->options = options;
 
     /*check if we have connection on portmux unix socket*/

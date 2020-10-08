@@ -1039,8 +1039,8 @@ static void increase_file_descriptor_limit()
     max_fd_limit = rlp.rlim_cur;
 
     if (rlp.rlim_cur < rlp.rlim_max) {
-        syslog(LOG_INFO, "Increasing soft file descriptor limit from current "
-                         "value of %ld to the hard max (%ld).\n",
+        syslog(LOG_INFO,
+               "Increasing soft file descriptor limit from current value of %"PRIi64" to the hard max (%"PRIi64").\n",
                rlp.rlim_cur, rlp.rlim_max);
 
         rlp.rlim_cur = rlp.rlim_max;
@@ -1188,7 +1188,7 @@ int main(int argc, char *argv[])
 
     bzero(&serv_addr, sizeof(serv_addr));
     serv_addr.sun_family = AF_UNIX;
-    strncpy(serv_addr.sun_path, unix_bind_path, sizeof(serv_addr.sun_path));
+    strncpy0(serv_addr.sun_path, unix_bind_path, sizeof(serv_addr.sun_path));
 
     if (bind(listenfd, (const struct sockaddr *)&serv_addr,
              sizeof(serv_addr)) == -1) {
