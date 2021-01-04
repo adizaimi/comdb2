@@ -533,8 +533,10 @@ __db_dbenv_setup(dbp, txn, fname, id, flags)
 		dbp->peer = dbp;
 	}
 
+	int foundinhash = hash_find_readonly(dbenv->fileidhash, dbp->fileid) != NULL;
+
 	for (lldbp = LIST_FIRST(&dbenv->dblist);
-		lldbp != NULL; lldbp = LIST_NEXT(lldbp, dblistlinks)) {
+		foundinhash && lldbp != NULL; lldbp = LIST_NEXT(lldbp, dblistlinks)) {
 		if (memcmp(lldbp->fileid, dbp->fileid, DB_FILE_ID_LEN) == 0) {
 			if (F_ISSET(dbp, DB_AM_HASH)) {
 				lldbp->peer = dbp;
@@ -558,7 +560,7 @@ __db_dbenv_setup(dbp, txn, fname, id, flags)
 	int count=0;
 	for (maxid = 0, ldbp = LIST_FIRST(&dbenv->dblist);
 		ldbp != NULL; ldbp = LIST_NEXT(ldbp, dblistlinks)) {
-		if (fname != NULL &&
+		if (foundinhash && fname != NULL &&
 			memcmp(ldbp->fileid, dbp->fileid, DB_FILE_ID_LEN) == 0 &&
 			ldbp->meta_pgno == dbp->meta_pgno)
 			break;
@@ -592,6 +594,7 @@ __db_dbenv_setup(dbp, txn, fname, id, flags)
 
 		bef = get_dblist_count(dbenv, dbp, "before-insert-head", __func__, __LINE__);
 		LIST_INSERT_HEAD(&dbenv->dblist, dbp, dblistlinks);
+		hash_add(dbenv->fileidhash, dbp->fileid);
 		aft = get_dblist_count(dbenv, dbp, "after-insert-head", __func__, __LINE__);
 		if (gbl_instrument_dblist && aft != (bef+1))
 			abort();
