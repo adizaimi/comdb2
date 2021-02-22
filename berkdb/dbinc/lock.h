@@ -278,6 +278,7 @@ typedef struct __db_locker {
 	u_int32_t partition;
 	u_int32_t ntrackedlocks;
 	u_int32_t maxtrackedlocks;
+	u_int32_t num_aborted; /* number of times txn was aborted */
 #define	DB_LOCKER_DELETED		0x0001
 #define	DB_LOCKER_DIRTY			0x0002
 #define	DB_LOCKER_INABORT		0x0004

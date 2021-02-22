@@ -37,10 +37,16 @@ static const char revid[] = "$Id: lock_deadlock.c,v 11.66 2003/11/19 19:59:02 ub
 extern int verbose_deadlocks;
 extern int gbl_sparse_lockerid_map;
 extern int gbl_rowlocks;
+extern int gbl_print_deadlock_cycles;
+extern int gbl_deadlock_policy_override;
+extern int gbl_already_aborted_trace;
 
 extern void stack_me(char *location);
 extern void log_snap_info_key(snap_uid_t *);
 extern void eventlog_deadlock_cycle(locker_info *idmap, u_int32_t *deadmap, u_int32_t nlockers, u_int32_t victim);
+
+static unsigned long long already_aborted_count = 0;
+
 
 #define	CLEAR_MAP(M, N) {						\
 	u_int32_t __i;							\
@@ -70,7 +76,7 @@ static inline int copy_sparse_map __P((DB_ENV *, sparse_map_t *,
 	sparse_map_t **));
 static void (*berkdb_deadlock_callback) (struct berkdb_deadlock_info *) = NULL;
 
-static int __dd_abort __P((DB_ENV *, locker_info *));
+static int __dd_abort __P((DB_ENV *, locker_info *, u_int32_t *));
 static int __dd_build __P((DB_ENV *,
 	u_int32_t, u_int32_t **, sparse_map_t **, u_int32_t *, u_int32_t *,
 	locker_info **, int));
@@ -526,8 +532,6 @@ __lock_detect_int(dbenv, atype, abortp, can_retry)
 	    *tmpmap;
 	u_int32_t i, keeper, killid, limit = 0, nalloc = 0, nlockers = 0, dwhoix;
 	u_int32_t lock_max, txn_max;
-	extern int gbl_print_deadlock_cycles;
-	extern int gbl_deadlock_policy_override;
 	int policy_override = gbl_deadlock_policy_override;
 	int is_client;
 	int ret;
@@ -866,17 +870,10 @@ dokill:
 			__dd_print_tracked(idmap, *deadp, nlockers, killid);
 		}
 
-		if (gbl_print_deadlock_cycles) {
-			__dd_print_deadlock_cycle(idmap, *deadp, nlockers, killid);
 
-			eventlog_deadlock_cycle(idmap, *deadp, nlockers, killid);
-#ifdef DEBUG_LOCKS
-			__lock_dump_active_locks(dbenv, stderr);
-#endif
-		}
-
+		u_int32_t num_aborted = 0;
 		/* Kill the locker with lockid idmap[killid]. */
-		if ((ret = __dd_abort(dbenv, &idmap[killid]))!=0) {
+		if ((ret = __dd_abort(dbenv, &idmap[killid], &num_aborted))!=0) {
 			/*
 			 * It's possible that the lock was already aborted;
 			 * this isn't necessarily a problem, so do not treat
@@ -884,7 +881,6 @@ dokill:
 			 */
 			if (ret == DB_ALREADY_ABORTED)
 				ret = 0;
-
 			else
 				__db_err(dbenv,
 				    "warning: unable to abort locker %lx",
@@ -892,6 +888,19 @@ dokill:
 		} else if (FLD_ISSET(dbenv->verbose, DB_VERB_DEADLOCK))
 			 __db_err(dbenv, "Aborted locker %lx",
 			    (u_long)idmap[killid].id);
+
+
+		if (gbl_print_deadlock_cycles == 1 || (num_aborted && gbl_print_deadlock_cycles > 0 && (gbl_print_deadlock_cycles % num_aborted) == 0)) {
+			if(gbl_print_deadlock_cycles != 1)
+				show_locker_info(dbenv, lt, region, idmap, killid);
+
+			__dd_print_deadlock_cycle(idmap, *deadp, nlockers, killid);
+
+			eventlog_deadlock_cycle(idmap, *deadp, nlockers, killid);
+#ifdef DEBUG_LOCKS
+			__lock_dump_active_locks(dbenv, stderr);
+#endif
+		}
 	}
 out:__os_free (dbenv, tmpmap);
 
@@ -1168,12 +1177,9 @@ retry:	count = region->stat.st_nlockers;
 			ptr_idarr->tid = lip->tid;
 			ptr_idarr->killme = F_ISSET(lip, DB_LOCKER_KILLME);
 			ptr_idarr->readonly = F_ISSET(lip, DB_LOCKER_READONLY);
-			ptr_idarr->saveme =
-				F_ISSET(lip, (DB_LOCKER_LOGICAL | DB_LOCKER_IN_LOGICAL_ABORT));
-			ptr_idarr->in_abort =
-				(F_ISSET(lip, DB_LOCKER_INABORT) != 0);
-			ptr_idarr->tracked =
-				(F_ISSET(lip, DB_LOCKER_TRACK) != 0);
+			ptr_idarr->saveme = F_ISSET(lip, (DB_LOCKER_LOGICAL | DB_LOCKER_IN_LOGICAL_ABORT));
+			ptr_idarr->in_abort = (F_ISSET(lip, DB_LOCKER_INABORT) != 0);
+			ptr_idarr->tracked = (F_ISSET(lip, DB_LOCKER_TRACK) != 0);
 
 #if TEST_DEADLOCKS
 			__adjust_lockerid_priority_td(dbenv, atype, lip,
@@ -1735,9 +1741,6 @@ __dd_find(dbenv, bmp, sparse_map, idmap, nlockers, nalloc, deadp, deadwho,
 	return (0);
 }
 
-static unsigned long long already_aborted_count = 0;
-extern int gbl_already_aborted_trace;
-
 static void
 already_aborted_trace(int lineno)
 {
@@ -1754,9 +1757,10 @@ already_aborted_trace(int lineno)
 }
 
 static int
-__dd_abort(dbenv, info)
+__dd_abort(dbenv, info, num_aborted)
 	DB_ENV *dbenv;
 	locker_info *info;
+    u_int32_t *num_aborted;
 {
 	struct __db_lock *lockp;
 	DB_LOCKER *lockerp;
@@ -1844,6 +1848,10 @@ __dd_abort(dbenv, info)
 			lockerp->npagelocks, lockerp->nwrites,
 			lockerp->master_locker, lockerp->parent_locker);
 	lockerp->nretries = info->count;
+	lockerp->num_aborted++;
+	if (num_aborted) {
+		*num_aborted = lockerp->num_aborted;
+	}
 
 	sh_obj = lockp->lockobj;
 
@@ -2210,7 +2218,7 @@ __dd_abort_holders(dbenv, sh_obj)
 		unlock_locker_partition(region, lockerp->partition);
 
 		/* Abort the holder */
-		if ((ret = __dd_abort(dbenv, infop))!=0) {
+		if ((ret = __dd_abort(dbenv, infop, NULL))!=0) {
 			if (ret == DB_ALREADY_ABORTED) {
 				ret = 0;
 			} else {
@@ -2386,7 +2394,7 @@ __dd_abort_waiters(dbenv, sh_obj)
 
 
 		/* Abort waiter */
-		if ((ret = __dd_abort(dbenv, infop))!=0) {
+		if ((ret = __dd_abort(dbenv, infop, NULL))!=0) {
 			if (ret == DB_ALREADY_ABORTED) {
 				ret = 0;
 			} else {

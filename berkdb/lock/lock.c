@@ -4092,10 +4092,11 @@ __lock_getlocker_int(lt, locker, indx, partition, create, retries, retp,
 	if (sh_locker && create) {
 		sh_locker->tid = pthread_self();
 
+		sh_locker->snap_info = NULL;
 		if (gbl_print_deadlock_cycles) {
 			extern __thread snap_uid_t *osql_snap_info; /* contains cnonce */
-			if(osql_snap_info) sh_locker->snap_info = osql_snap_info;
-			else sh_locker->snap_info = NULL;
+			if(osql_snap_info)
+				sh_locker->snap_info = osql_snap_info;
 		}
 	}
 
