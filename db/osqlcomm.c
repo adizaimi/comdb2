@@ -3189,7 +3189,7 @@ void log_snap_info_key(snap_uid_t *snap_info)
     if (snap_info)
         logmsg(LOGMSG_USER, "%*s", snap_info->keylen - 3, snap_info->key);
     else
-        logmsg(LOGMSG_USER, "NO_CNONCE"); // ex. SC
+        abort(); //logmsg(LOGMSG_USER, "NO_CNONCE"); // ex. SC
 }
 
 static void net_snap_uid_rpl(void *hndl, void *uptr, char *fromhost,

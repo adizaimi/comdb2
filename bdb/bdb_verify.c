@@ -15,6 +15,7 @@
  */
 
 #include "bdb_api.h"
+#include "comdb2.h"
 #include "bdb_verify.h"
 #include "bdb_int.h"
 #include "locks.h"
@@ -27,15 +28,15 @@
 #include "string_ref.h"
 
 /* NOTE: This is from "comdb2.h". */
-extern int gbl_exit;
+//extern int gbl_exit;
 extern int gbl_expressions_indexes;
 extern int get_numblobs(const struct dbtable *tbl);
-extern int ix_isnullk(const struct dbtable *db_table, void *key, int ixnum);
+//extern int ix_isnullk(const struct dbtable *db_table, void *key, int ixnum);
 extern int is_comdb2_index_expression(const char *dbname);
 extern void set_null_func(void *p, int len);
 extern void set_data_func(void *to, const void *from, int sz);
-extern void fsnapf(FILE *, void *, int);
 extern int __bam_defcmp(DB *dbp, const DBT *a, const DBT *b);
+extern __thread snap_uid_t *osql_snap_info; /* contains cnonce */
 
 static int locprint(verify_common_t *par, char *fmt, ...)
 {
@@ -1193,6 +1194,11 @@ void bdb_verify_handler(td_processing_info_t *info)
         par->verify_status = 1;
         goto done;
     }
+
+    snap_uid_t loc_snap_info = {{0}};
+    loc_snap_info.keylen = snprintf(loc_snap_info.key, sizeof(loc_snap_info.key),
+                                    "internal-verify-%p", (void *)pthread_self());
+    osql_snap_info = &loc_snap_info;
 
     switch (info->type) {
     case PROCESS_SEQUENTIAL:

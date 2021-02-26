@@ -181,6 +181,7 @@ extern int gbl_max_sqlcache;
 extern int gbl_track_sqlengine_states;
 extern int gbl_disable_sql_dlmalloc;
 extern struct ruleset *gbl_ruleset;
+extern __thread snap_uid_t *osql_snap_info; /* contains cnonce */
 
 extern int active_appsock_conns;
 /* gets incremented each time a user's password is changed. */
@@ -4552,6 +4553,13 @@ static int can_execute_sql_query_now(
   return 1;
 }
 
+#define SQL_SET_SNAP_INFO(clnt) \
+    do {  \
+        snap_uid_t snap = {{0}}; \
+        if (get_cnonce(clnt, &snap) == 0) \
+            osql_snap_info = &snap; \
+    } while(0); \
+
 void sqlengine_work_appsock(void *thddata, void *work)
 {
     struct sqlthdstate *thd = thddata;
@@ -4606,6 +4614,8 @@ void sqlengine_work_appsock(void *thddata, void *work)
     /* assign this query a unique id */
     sql_get_query_id(sqlthd);
 
+    SQL_SET_SNAP_INFO(clnt);
+
     /* actually execute the query */
     thrman_setfd(thd->thr_self, clnt->plugin.get_fileno(clnt));
 
@@ -4626,6 +4636,7 @@ void sqlengine_work_appsock(void *thddata, void *work)
     osql_shadtbl_done_query(thedb->bdb_env, clnt);
     thrman_setfd(thd->thr_self, -1);
     sql_reset_sqlthread(sqlthd);
+    osql_snap_info = NULL;
 
     /* this is a compromise; we release the curtran here, even though
        we might have a begin/commit transaction pending

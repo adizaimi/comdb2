@@ -1203,10 +1203,10 @@ void *convert_records_thd(struct convert_record_data *data)
         /* Disable page compaction only if page compaction is enabled. */
         Pthread_setspecific(no_pgcompact, (void *)1);
     }
-    snap_uid_t loc_snap_info;
-    osql_snap_info = &loc_snap_info; /* valid for the duration of the rebuild */
+    snap_uid_t loc_snap_info = {{0}};
     loc_snap_info.keylen = snprintf(loc_snap_info.key, sizeof(loc_snap_info.key),
                                     "internal-schemachange-%p", (void *)pthread_self());
+    osql_snap_info = &loc_snap_info;
 
     if (data->iq.debug) {
         reqlog_new_request(&data->iq);

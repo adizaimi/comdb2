@@ -3861,7 +3861,7 @@ clipper_usage:
         } else if (tokcmp(tok, ltok, "off") == 0) {
             state = 0;
             /* NB: turning off IPU will result in corrupt indices and blobs
-             * as reported by verif() (because the masked genid will not be
+             * as reported by verify() (because the masked genid will not be
              * handled correctly, look at bdb_normalise_genid() and its use)
              * and it is necessary to run a rebuild after turning off IPU.
              */

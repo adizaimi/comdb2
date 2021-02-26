@@ -70,6 +70,7 @@ extern int gbl_page_latches;
 extern int gbl_replicant_latches;
 extern int gbl_print_deadlock_cycles;
 extern int gbl_lock_conflict_trace;
+extern __thread snap_uid_t *osql_snap_info; /* contains cnonce */
 
 int gbl_berkdb_track_locks = 0;
 unsigned gbl_ddlk = 0;
@@ -4091,14 +4092,10 @@ __lock_getlocker_int(lt, locker, indx, partition, create, retries, retp,
 	/* heuristic: use create as hint that I will OWN this */
 	if (sh_locker && create) {
 		sh_locker->tid = pthread_self();
-
-		sh_locker->snap_info = NULL;
-		if (gbl_print_deadlock_cycles) {
-			extern __thread snap_uid_t *osql_snap_info; /* contains cnonce */
-			if(osql_snap_info)
-				sh_locker->snap_info = osql_snap_info;
-		}
 	}
+
+    if (sh_locker)
+		sh_locker->snap_info = osql_snap_info;
 
 	*retp = sh_locker;
 	return 0;
@@ -4135,7 +4132,6 @@ __lock_getlocker(lt, locker, indx, retries, flags, retp)
 
 	int ret = __lock_getlocker_int(lt, locker, indx, partition, lk_create,
                                    retries, retp, &created, is_logical);
-    
 	if (ret || *retp == NULL || keep_part_lock == 0) 
 		unlock_locker_partition(region, partition);
 
