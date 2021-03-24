@@ -169,17 +169,22 @@ int portmux_cmd(const char *cmd, const char *app, const char *service,
     SBUF2 *ss;
     int rc, fd, port;
     rc = snprintf(name, sizeof(name), "%s/%s/%s", app, service, instance);
-    if (rc < 1 || rc >= sizeof(name))
+    if (rc < 1 || rc >= sizeof(name)) {
+        logmsg(LOGMSG_ERROR, "%s: snprintf rc %d\n", __func__, rc);
         return -1;
+    }
     if (PORTMUX_VALIDATE_NAMES())
         portmux_validate_name(name, __func__);
     fd = tcpconnecth("localhost", get_portmux_port(), 0);
-    if (fd < 0)
+    if (fd < 0) {
+        logmsg(LOGMSG_ERROR, "%s: tcpconnecth fd -1\n", __func__);
         return -1;
+    }
 
     ss = sbuf2open(fd, SBUF2_WRITE_LINE);
     if (ss == 0) {
         close(fd);
+        logmsg(LOGMSG_ERROR, "%s: sbuf2open error\n", __func__);
         return -1;
     }
     sbuf2printf(ss, "%s %s%s\n", cmd, name, post);
@@ -187,11 +192,19 @@ int portmux_cmd(const char *cmd, const char *app, const char *service,
     sbuf2gets(res, sizeof(res), ss);
     sbuf2close(ss);
 
-    if (res[0] == 0)
+    if (res[0] == 0) {
+        logmsg(LOGMSG_ERROR, "%s: sbuf2gets read 0\n", __func__);
         return -1;
+    }
+    if (strcmp(res, "-1 service already active") == 0) {
+        logmsg(LOGMSG_ERROR, "%s: Service with this name (%s) is already active with portmux (running)\n", __func__, name);
+        return -1;
+    }
     port = atoi(res);
-    if (port <= 0)
+    if (port <= 0) {
+        logmsg(LOGMSG_ERROR, "%s: atoi error (res='%s' name=%s)\n", __func__, res, name);
         port = -1;
+    }
     return port;
 }
 
