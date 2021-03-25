@@ -434,7 +434,8 @@ __os_io(dbenv, op, fhp, pgno, pagesize, buf, niop)
 	if (op == DB_IO_WRITE)
 		__checkpoint_verify(dbenv);
 
-    if (!fhp->fd)
+    extern int gbl_diskless;
+    if (gbl_diskless && !fhp->fd)
         return 0;
 
 #if defined(HAVE_PREAD) && defined(HAVE_PWRITE)

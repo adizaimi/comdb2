@@ -174,9 +174,27 @@ static int bdb_scdone_int(bdb_state_type *bdb_state_in, DB_TXN *txnid,
 int handle_scdone(DB_ENV *dbenv, u_int32_t rectype, llog_scdone_args *scdoneop,
                   DB_LSN *lsn, db_recops op)
 {
+    int rc = 0;
+    const char *table = (const char *)scdoneop->table.data;
+    const char *newtable = NULL;
+
+    uint32_t type;
+    assert(sizeof(type) == scdoneop->fastinit.size);
+    memcpy(&type, scdoneop->fastinit.data, sizeof(type));
+    scdone_t sctype = ntohl(type);
+
+    if (gbl_debug_systable_locks) {
+        assert(bdb_has_tablename_locked(dbenv->app_private, "_comdb2_systables", gbl_rep_lockid,
+                                        TABLENAME_LOCKED_WRITE));
+    }
+
+    if (sctype == rename_table || sctype == rename_table_alias) {
+        assert(strlen(table) + 1 < scdoneop->table.size);
+        newtable = &table[strlen(table) + 1];
+    }
+
     extern int gbl_diskless;
     if (gbl_diskless) {
-        exit(0);
         /*
         pid_t p = getpid();
         char cmd[256];
@@ -205,29 +223,12 @@ int handle_scdone(DB_ENV *dbenv, u_int32_t rectype, llog_scdone_args *scdoneop,
         execv(args[0], args);
         printf("errror = %d %s\n", errno, strerror(errno));
         */
-        printf(" releasing all pages in bufferpool ... \n");
+        printf("AZ: %s: table %s op %d releasing all pages in bufferpool ... \n", __func__, newtable, op);
         extern void release_all_pages();
         release_all_pages();
+        return 0;
     }
 
-    int rc = 0;
-    const char *table = (const char *)scdoneop->table.data;
-    const char *newtable = NULL;
-
-    uint32_t type;
-    assert(sizeof(type) == scdoneop->fastinit.size);
-    memcpy(&type, scdoneop->fastinit.data, sizeof(type));
-    scdone_t sctype = ntohl(type);
-
-    if (gbl_debug_systable_locks) {
-        assert(bdb_has_tablename_locked(dbenv->app_private, "_comdb2_systables", gbl_rep_lockid,
-                                        TABLENAME_LOCKED_WRITE));
-    }
-
-    if (sctype == rename_table || sctype == rename_table_alias) {
-        assert(strlen(table) + 1 < scdoneop->table.size);
-        newtable = &table[strlen(table) + 1];
-    }
 
     switch (op) {
     /* for an UNDO record, berkeley expects us to set prev_lsn */

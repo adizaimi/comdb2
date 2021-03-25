@@ -243,6 +243,13 @@ __fop_file_setup(dbp, txn, name, mode, flags, retidp)
 	char *real_name, *real_tmpname, *tmpname;
 	char *recp_name, *recp_ext;
 
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        printf("%lx: AZ:%s entering name %s\n", pthread_self(), __func__, name);
+        //return 0;
+    }
+
+
 	DB_ASSERT(name != NULL);
 
 	*retidp = TXN_INVALID;
@@ -297,6 +304,12 @@ __fop_file_setup(dbp, txn, name, mode, flags, retidp)
 	int fetched_for_diskless = 0;
 	if (gbl_diskless && real_name) {
 		fetched_for_diskless = 1;
+        /* have to find out who created the file, but for now just delete it */
+		if ((ret = __os_exists(real_name, NULL)) == 0) {
+            __fop_remove(dbenv,
+                NULL, dbp->fileid, real_name, DB_APP_DATA, dflags);
+        }
+
 		if ((ret = __os_exists(real_name, NULL)) == 0) {
 			logmsg(LOGMSG_ERROR, "For diskless mode we should not have data file %s in the db directory \n", real_name);
 			abort();
@@ -655,6 +668,13 @@ done:	/*
 		__os_free(dbenv, recp_name);
     if (!fetched_for_diskless)
         CLOSE_HANDLE(dbp, fhp, recp);
+
+
+    if (gbl_diskless && __os_exists(real_name, NULL) == 0) {
+        logmsg(LOGMSG_ERROR, "something wrong, we should not write the file\n");
+        abort();
+    }
+
 	return (ret);
 }
 

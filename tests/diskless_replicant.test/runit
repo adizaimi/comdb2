@@ -168,14 +168,14 @@ wait_for_catchup() {
 }
 
 assert_content_equal() {
-    local tbl=$1
+    local query=$1
     wait_for_catchup
 
-    $CDB2SQL_EXE -tabs ${CDB2_OPTIONS} $DBNAME default "select * from ${tbl}" > sel_${tbl}.txt
-    $CDB2SQL_EXE -tabs $repname local "select * from ${tbl}" > sel_${tbl}_rep.txt
+    $CDB2SQL_EXE -tabs ${CDB2_OPTIONS} $DBNAME default $query | sort > sel_${tbl}_orig.txt
+    $CDB2SQL_EXE -tabs $repname local $query | sort > sel_${tbl}_rep.txt
 
     if ! diff sel_${tbl}_orig.txt sel_${tbl}_rep.txt ; then
-        failexit 'outputs sel_${tbl}_rep and sel_${tbl}_orig not the same'
+        failexit "outputs sel_${tbl}_rep and sel_${tbl}_orig not the same"
     fi
 }
 
@@ -190,17 +190,17 @@ test_t1() {
 	insert_records 1 $NEWNUMREC
 	assertcnt t1 $NEWNUMREC
     do_verify t1
-    assert_content_equal t1
+    assert_content_equal "select * from t1"
 
 	update_records 1 $NEWNUMREC
 	assertcnt t1 $NEWNUMREC
     do_verify t1
-    assert_content_equal t1
+    assert_content_equal "select * from t1"
 
 	delete_records $((INITNUMREC+1)) $NEWNUMREC
 	assertcnt t1 $INITNUMREC
     do_verify t1
-    assert_content_equal t1
+    assert_content_equal "select * from t1"
 
 
 	echo "Now call task that uses cdb2api to ins/upd/del"
@@ -210,7 +210,7 @@ test_t1() {
     fi
     $CDB2API_CALLER $dbnm > cdb2api_caller.out
     do_verify t1
-    assert_content_equal t1
+    assert_content_equal "select * from t1"
 
 	$CDB2SQL_EXE --tabs ${CDB2_OPTIONS} $dbnm default "select * from t1" &> select_all.out
 }
@@ -220,18 +220,19 @@ $CDB2SQL_EXE --tabs ${CDB2_OPTIONS} $dbnm default "create table t2 (i int)"
 $CDB2SQL_EXE --tabs ${CDB2_OPTIONS} $dbnm default "insert into t2(i) select * from generate_series(1,10)"
 
 start_diskless_replicant
+# Trap to call stop_diskless_replicant if the test exits
+trap " stop_diskless_replicant \"0\"" INT EXIT
 
-assert_content_equal t2
+assert_content_equal "select * from t2"
 
+$CDB2SQL_EXE --tabs ${CDB2_OPTIONS} $dbnm default "insert into t2(i) select * from generate_series(11,20)"
+assert_content_equal "select * from t2"
 
-$CDB2SQL_EXE -tabs $repname local "select * from t2" > sel_t2.txt
+assert_content_equal "select * from t2 order by i"
 
 $CDB2SQL_EXE -tabs $repname local "select * from t1" > sel_t1.txt
 cnt=`wc -l sel_t1.txt | cut -f1 -d' '`
 assertres $cnt 0
-
-# Trap to call stop_diskless_replicant if the test exits
-trap " stop_diskless_replicant \"0\"" INT EXIT
 
 test_t1
 

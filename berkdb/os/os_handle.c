@@ -86,6 +86,8 @@ ___os_openhandle(dbenv, name, flags, mode, fhpp)
 	int newflags;
 #endif
 
+    printf("AZ: %s %s\n", __func__, name);
+    
 	if ((ret = __os_calloc(dbenv, 1, sizeof(DB_FH), fhpp)) != 0)
 		return (ret);
 	fhp = *fhpp;
@@ -134,6 +136,9 @@ ___os_openhandle(dbenv, name, flags, mode, fhpp)
 		if (LF_ISSET(O_CREAT)) {
 			DB_BEGIN_SINGLE_THREAD;
 			newflags = flags & ~(O_CREAT | O_EXCL);
+            extern int gbl_diskless;
+            if (gbl_diskless && strncmp(name, "XXX.", 4) == 0)
+                abort();
 			if ((fhp->fd = open(name, newflags, mode)) != -1) {
 				if (LF_ISSET(O_EXCL)) {
 					/*

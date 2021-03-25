@@ -843,7 +843,6 @@ alloc:		/*
 
 	if (gbl_bb_berkdb_enable_memp_timing)
 		bb_memp_hit(start_time_us);
-
 	return (0);
 
 err:	/*
@@ -873,7 +872,6 @@ err:	/*
 		bb_memp_hit(start_time_us);
 	return (ret);
 }
-
 
 /*
  * __memp_read_recovery_pages --
@@ -1141,7 +1139,7 @@ __memp_init_pgcompact_routines(void)
 int __slow_memp_fget_ns = 0;
 
 /*
- * __memp_buf_fget --
+ * __memp_fget --
  *	Get a page from the file.
  *
  * PUBLIC: int __memp_fget

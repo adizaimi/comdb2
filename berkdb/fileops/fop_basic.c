@@ -56,6 +56,8 @@ __fop_create(dbenv, txn, fhpp, name, appname, mode, flags)
 	int ret;
 	char *real_name;
 
+    printf("AZ: %s name %s\n", __func__, name);
+
 	real_name = NULL;
 
 	if ((ret =
@@ -246,6 +248,10 @@ __fop_rename(dbenv, txn, oldname, newname, fid, appname, flags)
 	int ret;
 	char *n = NULL, *o = NULL;
 
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        printf("AZ:%s oldname %s newname %s\n", __func__, oldname, newname);
+    }
 	if ((ret = __db_appname(dbenv, appname, oldname, 0, NULL, &o)) != 0)
 		goto err;
 	if ((ret = __db_appname(dbenv, appname, newname, 0, NULL, &n)) != 0)

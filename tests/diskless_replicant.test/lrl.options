@@ -1,2 +1,3 @@
 table t1 alltypes.csc2
 verbose_physrep on
+dtastripe 1

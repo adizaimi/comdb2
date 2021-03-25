@@ -176,6 +176,7 @@ static int ix_find_check_blob_race(struct ireq *iq, char *inbuf, int numblobs,
                                    int *blobnums, void **blobptrs);
 
 static int syncmode_callback(bdb_state_type *bdb_state);
+
 /* How many times we became, or ceased to be, master node. */
 int gbl_master_changes = 0;
 
@@ -3731,8 +3732,6 @@ int open_bdb_env(struct dbenv *dbenv)
         if (net_register_handler(dbenv->handle_sibling, NET_TRIGGER_START,
                                  "trigger_start", net_trigger_start))
             return -1;
-
-
         /* Authentication Check */
         if (net_register_handler(
                 dbenv->handle_sibling, NET_AUTHENTICATION_CHECK,

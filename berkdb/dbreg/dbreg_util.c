@@ -772,6 +772,13 @@ __dbreg_do_open(dbenv,
 	int ret;
 	u_int32_t cstat;
 
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        printf("%lx: AZ:%s entering name %s\n", pthread_self(), __func__, name);
+        //return 0;
+    }
+
+
 	if ((ret = db_create(&dbp, lp->dbenv, 0)) != 0)
 		return (ret);
 

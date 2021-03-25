@@ -664,9 +664,12 @@ __db_dispatch(dbenv, dtab, dtabsize, db, lsnp, redo, info)
 				return (0);
 			}
 		}
-		if (rectype >= DB_user_BEGIN && dbenv->app_dispatch != NULL)
+		if (rectype >= DB_user_BEGIN && dbenv->app_dispatch != NULL) {
+            extern int gbl_diskless;
+            if (gbl_diskless)
+                printf("%lx: AZ: rectype = %d(%s) calling dbenv->app_dispatch\n", pthread_self(), rectype, optostr(rectype));
 			return (dbenv->app_dispatch(dbenv, db, lsnp, redo));
-		else {
+        } else {
 			/*
 			 * The size of the dtab table argument is the same as
 			 * the standard table, use the standard table's size

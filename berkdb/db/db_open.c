@@ -84,6 +84,13 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 	int ret;
 	u_int32_t id;
 
+    extern int gbl_diskless;
+    if (gbl_diskless) {
+        printf("%lx: AZ:%s entering fname %s\n", pthread_self(), __func__, fname);
+        //return 0;
+    }
+
+
 	dbenv = dbp->dbenv;
 	id = TXN_INVALID;
 
@@ -125,7 +132,6 @@ __db_open(dbp, txn, fname, dname, type, flags, mode, meta_pgno)
 	 * recovery and limbo system, so we need to safeguard this
 	 * interface as well.
 	 */
-
     if (fname == NULL) {
 		F_SET(dbp, DB_AM_INMEM);
 

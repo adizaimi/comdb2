@@ -65,6 +65,7 @@ ___os_open(dbenv, name, flags, mode, fhpp)
 	int mode;
 	DB_FH **fhpp;
 {
+    printf("AZ: %s %s\n", __func__, name);
 	return (__os_open_extend(dbenv, name, 0, 0, flags, mode, fhpp));
 }
 
@@ -86,6 +87,7 @@ ___os_open_extend(dbenv, name, log_size, page_size, flags, mode, fhpp)
 	DB_FH *fhp;
 	int oflags, ret;
 
+    printf("AZ: %s %s\n", __func__, name);
 	COMPQUIET(log_size, 0);
 	COMPQUIET(page_size, 0);
 

@@ -149,6 +149,7 @@ int __os_open_extend(DB_ENV *dbenv, const char *name, u_int32_t log_size,
 {
     char buf[PATH_MAX];
     const char *pbuf = bdb_trans(name, buf);
+    printf("AZ: %s %s\n", __func__, name);
     int rc =
         ___os_open_extend(dbenv, pbuf, log_size, page_size, flags, 0664, fhpp);
     clogf("___os_open_extend(%s:%s) = %d\n", name, pbuf, rc);

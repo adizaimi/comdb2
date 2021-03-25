@@ -352,8 +352,6 @@ __pgdump(DB_ENV *dbenv, int32_t fileid, db_pgno_t pgno)
 	}
 }
 
-
-
 struct pginfo {
 	int32_t fileid;
 	db_pgno_t pgno;
