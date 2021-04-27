@@ -1365,6 +1365,11 @@ static comdb2_tunable_err update_tunable(comdb2_tunable *t, const char *value)
                            t->name);
                     return TUNABLE_ERR_INVALID_VALUE;
                 }
+                if (num < 0) { // we have the uint value > LONG_MAX
+                    logmsg(LOGMSG_ERROR, "Value out of range for '%s'.\n", t->name);
+                    return TUNABLE_ERR_INVALID_VALUE;
+                }
+
             }
         } else {
             num = 1;
