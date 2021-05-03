@@ -29,6 +29,10 @@ int largest_idx(int tidx, int unionnum);
 int iscstr(int tidx, int idx);
 int ispstr(int tidx, int idx);
 int isblob(int tidx, int idx);
+
+
+extern unsigned gbl_broken_max_rec_sz;
+
 /*____________OUTPUT WITH VARIABLES____________*/
 
 int strncmp_ci(char *a, int alen, char *b)
@@ -225,7 +229,6 @@ int compute_all_data(int tidx)
         logmsg(LOGMSG_ERROR, " **** ERROR: RECORD LEN IS %d BYTES; "
                         "MAXIMUM FOR COMDB2 IS %d BYTES (%d WORDS).\n",
                 off, maxrecsz, maxrecsz / 4);
-        extern int gbl_broken_max_rec_sz;
         if (off > (maxrecsz + gbl_broken_max_rec_sz)) {
             return -1;
         }

@@ -2865,7 +2865,7 @@ void net_set_enque_reorder_lookahead(netinfo_type *netinfo_ptr, int x)
     netinfo_ptr->enque_reorder_lookahead = x;
 }
 
-void net_set_enque_flush_interval(netinfo_type *netinfo_ptr, int x)
+void net_set_enque_flush_interval(netinfo_type *netinfo_ptr, unsigned x)
 {
     netinfo_ptr->enque_flush_interval = x;
 }

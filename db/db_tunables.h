@@ -90,9 +90,11 @@ REGISTER_TUNABLE("broken_max_rec_sz", NULL, TUNABLE_INTEGER,
 REGISTER_TUNABLE("broken_num_parser", NULL, TUNABLE_BOOLEAN,
                  &gbl_broken_num_parser, READONLY | NOARG | READEARLY, NULL,
                  NULL, NULL, NULL);
+/* TODO:
 REGISTER_TUNABLE("buffers_per_context", NULL, TUNABLE_INTEGER,
                  &gbl_buffers_per_context, READONLY | NOZERO, NULL, NULL, NULL,
                  NULL);
+                 */
 /*
 REGISTER_TUNABLE("cache",
                  "Database cache size (in kb) . (Default: 64mb)",
@@ -304,7 +306,7 @@ REGISTER_TUNABLE("dont_sort_nulls_with_header",
                  &gbl_sort_nulls_correctly, INVERSE_VALUE | READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("dtastripe", NULL, TUNABLE_INTEGER, &gbl_dtastripe,
-                 READONLY | NOZERO, NULL, dtastripe_verify, NULL, NULL);
+                 READONLY | NOZERO | SIGNED, NULL, dtastripe_verify, NULL, NULL);
 REGISTER_TUNABLE("early",
                  "When set, replicants will ack a transaction as soon as they "
                  "acquire locks - note that replication must succeed at that "
@@ -404,7 +406,7 @@ REGISTER_TUNABLE("enable_sparse_lockerid_map",
                  "resolution. (Default: on)",
                  TUNABLE_BOOLEAN, &gbl_sparse_lockerid_map, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE("enable_sp_strict_assignments", NULL, TUNABLE_INTEGER,
+REGISTER_TUNABLE("enable_sp_strict_assignments", NULL, TUNABLE_BOOLEAN,
                  &gbl_spstrictassignments, READONLY | NOARG, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE(

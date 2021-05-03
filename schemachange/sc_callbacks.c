@@ -33,6 +33,12 @@
 
 extern void free_cached_idx(uint8_t **cached_idx);
 
+extern unsigned gbl_broken_max_rec_sz;
+extern uint32_t gbl_rep_lockid;
+extern int gbl_partial_indexes;
+extern int gbl_expressions_indexes;
+extern int gbl_assert_systable_locks;
+
 static int reload_rename_table(bdb_state_type *bdb_state, const char *name,
                                const char *newtable)
 {
@@ -40,7 +46,6 @@ static int reload_rename_table(bdb_state_type *bdb_state, const char *name,
     int rc;
     int bdberr = 0;
     uint32_t lid = 0;
-    extern uint32_t gbl_rep_lockid;
     struct dbtable *db = get_dbtable_by_name(name);
 
     if (!db) {
@@ -87,7 +92,6 @@ static int reload_rename_table(bdb_state_type *bdb_state, const char *name,
 static int reload_rename_table_alias(bdb_state_type *bdb_state,
                                      const char *name, const char *newname)
 {
-    extern uint32_t gbl_rep_lockid;
     uint32_t lid = 0;
     void *tran = NULL;
     struct dbtable *db = get_dbtable_by_name(name);
@@ -130,7 +134,6 @@ static int reload_stripe_info(bdb_state_type *bdb_state)
     int bdberr = 0;
     int stripes, blobstripe;
     uint32_t lid = 0;
-    extern uint32_t gbl_rep_lockid;
 
     if (close_all_dbs() != 0)
         exit(1);
@@ -282,8 +285,6 @@ unsigned long long revalidate_new_indexes(struct ireq *iq, struct dbtable *db,
                                           unsigned long long ins_keys,
                                           blob_buffer_t *blobs, size_t maxblobs)
 {
-    extern int gbl_partial_indexes;
-    extern int gbl_expressions_indexes;
     int rebuild_keys = 0;
     if ((gbl_partial_indexes && db->ix_partial) ||
         (gbl_expressions_indexes && db->ix_expr)) {
@@ -310,7 +311,6 @@ unsigned long long revalidate_new_indexes(struct ireq *iq, struct dbtable *db,
         }
     }
 
-    extern int gbl_partial_indexes;
     if (gbl_partial_indexes && db->ix_partial && rebuild_keys)
         ins_keys = verify_indexes(db, new_dta, blobs, maxblobs, 0);
 
@@ -709,7 +709,6 @@ static int bthash_callback(const char *table)
     }
 }
 
-extern int gbl_assert_systable_locks;
 static int replicant_reload_views(const char *name)
 {
     int rc;
@@ -719,7 +718,6 @@ static int replicant_reload_views(const char *name)
     return rc;
 }
 
-extern int gbl_assert_systable_locks;
 
 /* TODO fail gracefully now that inline? */
 /* called by bdb layer through a callback as a detached thread,
@@ -731,7 +729,6 @@ extern int gbl_assert_systable_locks;
 int scdone_callback(bdb_state_type *bdb_state, const char table[], void *arg,
                     scdone_t type)
 {
-    extern uint32_t gbl_rep_lockid;
     if (gbl_assert_systable_locks) {
         switch (type) {
         case llmeta_queue_add:
@@ -871,8 +868,7 @@ int scdone_callback(bdb_state_type *bdb_state, const char table[], void *arg,
 
         logmsg(LOGMSG_INFO, "Replicant %s table:%s\n",
                type == alter ? "altering" : "fastinit-ing", table);
-        extern int gbl_broken_max_rec_sz;
-        int saved_broken_max_rec_sz = gbl_broken_max_rec_sz;
+        unsigned saved_broken_max_rec_sz = gbl_broken_max_rec_sz;
         if (db->lrl > COMDB2_MAX_RECORD_SIZE)
             gbl_broken_max_rec_sz = db->lrl - COMDB2_MAX_RECORD_SIZE;
         if (reload_schema(table_copy, csc2text, tran)) {

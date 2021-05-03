@@ -373,7 +373,7 @@ struct netinfo_struct {
     void *connpool;
     pthread_mutex_t connlk;
 
-    int enque_flush_interval;
+    unsigned enque_flush_interval;
 
     int throttle_percent;
     NETCMPFP *netcmp_rtn;

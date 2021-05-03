@@ -31,6 +31,8 @@
 #include "sc_alter_table.h"
 #include "sc_util.h"
 
+extern unsigned gbl_broken_max_rec_sz;
+
 int do_fastinit(struct ireq *iq, struct schema_change_type *s, tran_type *tran)
 {
     struct dbtable *db;
@@ -58,8 +60,7 @@ int do_fastinit(struct ireq *iq, struct schema_change_type *s, tran_type *tran)
 
     set_schemachange_options_tran(s, db, &scinfo, tran);
 
-    extern int gbl_broken_max_rec_sz;
-    int saved_broken_max_rec_sz = gbl_broken_max_rec_sz;
+    unsigned saved_broken_max_rec_sz = gbl_broken_max_rec_sz;
 
     if (s->db->lrl > COMDB2_MAX_RECORD_SIZE) {
         // we want to allow fastiniting this tbl

@@ -825,9 +825,9 @@ struct dbenv {
     char *master; /*current master node, from callback*/
     int gen;      /*election generation for current master node*/
 
-    int cacheszkb;
-    int cacheszkbmin;
-    int cacheszkbmax;
+    unsigned cacheszkb;
+    unsigned cacheszkbmin;
+    unsigned cacheszkbmax;
     int override_cacheszkb;
 
     /*sibling info*/
@@ -1548,7 +1548,7 @@ extern int gbl_osql_blockproc_timeout_sec;
 extern int gbl_osql_max_throttle_sec;
 extern int gbl_throttle_sql_overload_dump_sec;
 extern int gbl_toblock_net_throttle;
-extern int gbl_heartbeat_check;
+extern unsigned gbl_heartbeat_check;
 extern int gbl_osql_heartbeat_send;
 extern int gbl_osql_heartbeat_alert;
 extern int gbl_osql_bkoff_netsend_lmt;
@@ -1733,7 +1733,7 @@ extern int gbl_rrenablecountchanges;
 extern int gbl_debug_log_twophase;
 extern int gbl_debug_log_twophase_transactions;
 
-extern int gbl_chkpoint_alarm_time;
+extern unsigned gbl_chkpoint_alarm_time;
 
 extern int gbl_incoherent_msg_freq;
 extern int gbl_incoherent_alarm_time;
@@ -1752,7 +1752,7 @@ extern int gbl_max_columns_soft_limit;
 extern int gbl_use_plan;
 
 extern int gbl_num_record_converts;
-extern int gbl_num_record_upgrades;
+extern unsigned gbl_num_record_upgrades;
 
 extern int gbl_enable_sql_stmt_caching;
 
@@ -1771,7 +1771,7 @@ extern int gbl_extended_sql_debug_trace;
 extern int gbl_use_sockpool_for_debug_logs;
 extern int gbl_optimize_truncate_repdb;
 extern int gbl_rep_process_txn_time;
-extern int gbl_deadlock_policy_override;
+extern unsigned gbl_deadlock_policy_override;
 
 extern int gbl_temptable_pool_capacity;
 extern int gbl_memstat_freq;
@@ -3160,7 +3160,7 @@ client_intv_ym_little_get(cdb2_client_intv_ym_t *p_client_intv_ym,
 struct dbtable *systable_get_db(int systableid);
 
 extern int gbl_num_contexts;
-extern int gbl_buffers_per_context;
+/* TODO: extern unsigned gbl_buffers_per_context; */
 
 char *osql_sorese_type_to_str(int stype);
 extern int gbl_malloc_regions;
@@ -3439,7 +3439,6 @@ extern int gbl_use_blkseq;
 extern int gbl_sc_inco_chk;
 extern int gbl_track_queue_time;
 extern int gbl_broadcast_check_rmtpol;
-extern int gbl_deadlock_policy_override;
 extern int gbl_accept_on_child_nets;
 extern int gbl_disable_etc_services_lookup;
 extern int gbl_sql_random_release_interval;

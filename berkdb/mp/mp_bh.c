@@ -40,7 +40,7 @@ static const char revid[] = "$Id: mp_bh.c,v 11.86 2003/07/02 20:02:37 mjc Exp $"
 #include "comdb2_atomic.h"
 
 char *bdb_trans(const char infile[], char outfile[]);
-extern int gbl_test_badwrite_intvl;
+extern unsigned gbl_test_badwrite_intvl;
 
 static int __memp_pgwrite
 __P((DB_ENV *, DB_MPOOLFILE *, DB_MPOOL_HASH *, BH *));

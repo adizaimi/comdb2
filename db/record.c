@@ -83,8 +83,8 @@ void free_cached_idx(uint8_t * *cached_idx);
         goto err;                                                              \
     } while (0);
 
-int gbl_max_wr_rows_per_txn = 0;
-int gbl_max_cascaded_rows_per_txn = 0;
+unsigned gbl_max_wr_rows_per_txn = 0;
+unsigned gbl_max_cascaded_rows_per_txn = 0;
 
 static inline bool is_event_from_sc(int flags)
 {

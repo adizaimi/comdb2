@@ -78,7 +78,7 @@ extern int gbl_dump_fsql_response;
 extern int gbl_time_osql;
 extern int gbl_time_fdb;
 extern int gbl_enable_cache_internal_nodes;
-extern int gbl_test_badwrite_intvl;
+extern unsigned gbl_test_badwrite_intvl;
 extern int gbl_skip_ratio_trace;
 extern int gbl_test_blob_race;
 extern int gbl_early;
@@ -2222,8 +2222,7 @@ clipper_usage:
             }
             return morestripe(thedb, gbl_dtastripe, 1);
         } else {
-            int newdtastripe;
-            newdtastripe = toknum(tok, ltok);
+            unsigned newdtastripe = tokunum(tok, ltok);
             if (newdtastripe <= gbl_dtastripe || newdtastripe > 16) {
                 logmsg(LOGMSG_ERROR, "bad stripe factor %d, current factor is %d\n",
                        newdtastripe, gbl_dtastripe);
@@ -2901,12 +2900,12 @@ clipper_usage:
         if (ltok <= 0)
             gbl_num_record_upgrades = 32;
         else
-            gbl_num_record_upgrades = toknum(tok, ltok);
+            gbl_num_record_upgrades = tokunum(tok, ltok);
        logmsg(LOGMSG_USER, "Upgrade ahead enabled with size %d.\n",
                gbl_num_record_upgrades);
     } else if (tokcmp(tok, ltok, "disable_upgrade_ahead") == 0) {
-        gbl_num_record_upgrades = toknum(tok, ltok);
-       logmsg(LOGMSG_USER, "Upgrade ahead disabled.\n");
+        gbl_num_record_upgrades = tokunum(tok, ltok); /* AZ: why does this take a param? */
+        logmsg(LOGMSG_USER, "Upgrade ahead disabled.\n");
     } else if (tokcmp(tok, ltok, "checkctags") == 0) {
         tok = segtok(line, lline, &st, &ltok);
         if (ltok == 0) {
@@ -3178,7 +3177,7 @@ clipper_usage:
     } else if (tokcmp(tok, ltok, "chkpoint_alarm_time") == 0) {
         tok = segtok(line, lline, &st, &ltok);
         if (ltok > 0) {
-            gbl_chkpoint_alarm_time = toknum(tok, ltok);
+            gbl_chkpoint_alarm_time = tokunum(tok, ltok);
         }
         logmsg(LOGMSG_USER, "Checkpoint thread hang alarm time is %d seconds\n",
                gbl_chkpoint_alarm_time);
@@ -3419,7 +3418,7 @@ clipper_usage:
             logmsg(LOGMSG_ERROR, "Expected time value for enque_flush_interval\n");
             return 0;
         }
-        gbl_enque_flush_interval = toknum(tok, ltok);
+        gbl_enque_flush_interval = tokunum(tok, ltok);
 
         logmsg(LOGMSG_USER, "net_set_enque_flush_interval %d\n",
                 gbl_enque_flush_interval);
@@ -3709,13 +3708,13 @@ clipper_usage:
         gbl_enable_cache_internal_nodes = 1;
         logmsg(LOGMSG_USER, "Will increase cache-priority for btree internal nodes.\n");
     } else if (tokcmp(tok, ltok, "badwrite_intvl") == 0) {
-        int tmp;
+        unsigned tmp;
         tok = segtok(line, lline, &st, &ltok);
         if (ltok <= 0) {
             logmsg(LOGMSG_ERROR, "Expected value for badwrite_intvl\n");
             return 0;
         }
-        tmp = toknum(tok, ltok);
+        tmp = tokunum(tok, ltok);
         if (tmp >= 0) {
             logmsg(LOGMSG_ERROR, "Will force a bad-write and abort randomly every %d "
                    "pgwrites.\n",
@@ -4563,7 +4562,7 @@ clipper_usage:
     } else if (tokcmp(tok, ltok, "deadlock_policy_override") == 0) {
         tok = segtok(line, lline, &st, &ltok);
         if (ltok > 0) {
-            gbl_deadlock_policy_override = toknum(tok, ltok);
+            gbl_deadlock_policy_override = tokunum(tok, ltok);
             logmsg(LOGMSG_USER, "Set deadlock policy to %s\n",
                    deadlock_policy_str(gbl_deadlock_policy_override));
         } else {

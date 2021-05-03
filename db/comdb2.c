@@ -199,8 +199,8 @@ const char gbl_db_semver[] = QUOTE(COMDB2_SEMVER);
 const char gbl_db_codename[] = QUOTE(COMDB2_CODENAME);
 const char gbl_db_buildtype[] = QUOTE(COMDB2_BUILD_TYPE);
 
-int gbl_enque_flush_interval;
-int gbl_enque_reorder_lookahead = 20;
+unsigned gbl_enque_flush_interval;
+unsigned gbl_enque_reorder_lookahead = 20;
 int gbl_morecolumns = 0;
 int gbl_return_long_column_names = 1;
 int gbl_maxreclen;
@@ -319,7 +319,8 @@ int gbl_maxretries = 500;              /* thats a lotta retries */
 int gbl_maxblobretries =
     0; /* everyone assures me this can't happen unless the data is corrupt */
 int gbl_maxcontextskips = 10000; /* that's a whole whale of a lotta retries */
-int gbl_heartbeat_check = 0, gbl_heartbeat_send = 0, gbl_decom = 0;
+unsigned gbl_heartbeat_check = 0;
+int gbl_heartbeat_send = 0, gbl_decom = 0;
 int gbl_netbufsz = 1 * 1024 * 1024;
 int gbl_loghist = 0;
 int gbl_loghist_verbose = 0;
@@ -392,7 +393,7 @@ int gbl_check_wrong_cmd = 1;
 int gbl_updategenids = 0;
 int gbl_osql_heartbeat_send = 5;
 int gbl_osql_heartbeat_alert = 7;
-int gbl_chkpoint_alarm_time = 60;
+unsigned gbl_chkpoint_alarm_time = 60;
 int gbl_incoherent_msg_freq = 60 * 60;  /* one hour between messages */
 int gbl_incoherent_alarm_time = 2 * 60; /* alarm if we are incoherent for
                                            more than two minutes */
@@ -404,7 +405,7 @@ int gbl_bad_lrl_fatal = 0;
 
 int gbl_force_highslot = 0;
 int gbl_num_contexts = 16;
-int gbl_buffers_per_context = 255;
+/* TODO: unsigned gbl_buffers_per_context = 255; */
 
 int gbl_max_columns_soft_limit = 255; /* this is the old hard limit */
 
@@ -420,7 +421,7 @@ int gbl_disable_rowlocks = 0;
 int gbl_disable_rowlocks_sleepns = 0;
 int gbl_random_rowlocks = 0;
 int gbl_already_aborted_trace = 0;
-int gbl_deadlock_policy_override = -1;
+unsigned gbl_deadlock_policy_override = 0;
 int gbl_dump_sql_dispatched = 0; /* dump all sql strings dispatched */
 int gbl_time_osql = 0;           /* dump timestamps for osql steps */
 int gbl_time_fdb = 0;            /* dump timestamps for remote sql */
@@ -450,7 +451,7 @@ int gbl_osql_verify_retries_max = 499;
 /* extended verify-checking after this many failures */
 int gbl_osql_verify_ext_chk = 1;
 
-int gbl_test_badwrite_intvl = 0;
+unsigned gbl_test_badwrite_intvl = 0;
 int gbl_test_blob_race = 0;
 int gbl_skip_ratio_trace = 0;
 
@@ -657,7 +658,7 @@ int gbl_crc32c = 1;
 int gbl_repscore = 0;
 int gbl_surprise = 1; // TODO: change name to something else
 int gbl_check_wrong_db = 1;
-int gbl_broken_max_rec_sz = 0;
+unsigned gbl_broken_max_rec_sz = 0;
 int gbl_private_blkseq = 1;
 int gbl_use_blkseq = 1;
 int gbl_reorder_socksql_no_deadlock = 1;

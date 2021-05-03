@@ -20,7 +20,7 @@
 #define OSQL_BP_MAXLEN (32 * 1024)
 
 /* { REPLICANT SIDE UPGRADE RECORD LOGIC */
-int gbl_num_record_upgrades = 0; /* default off */
+unsigned gbl_num_record_upgrades = 0; /* default off */
 // Dorin's cron scheduler
 cron_sched_t *uprec_sched;
 

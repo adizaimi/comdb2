@@ -38,7 +38,7 @@ extern int verbose_deadlocks;
 extern int gbl_sparse_lockerid_map;
 extern int gbl_rowlocks;
 extern int gbl_print_deadlock_cycles;
-extern int gbl_deadlock_policy_override;
+extern unsigned gbl_deadlock_policy_override;
 extern int gbl_already_aborted_trace;
 
 extern void stack_me(char *location);
@@ -401,7 +401,7 @@ show_locker_info(DB_ENV *dbenv, DB_LOCKTAB *lt, DB_LOCKREGION *region,
 }
 
 static inline int
-is_valid_policy(int policy)
+is_valid_policy(u_int32_t policy)
 {
 	if (policy > DB_LOCK_NORUN && policy <= DB_LOCK_MINWRITE_EVER)
 		return 1;
@@ -532,7 +532,7 @@ __lock_detect_int(dbenv, atype, abortp, can_retry)
 	    *tmpmap;
 	u_int32_t i, keeper, killid, limit = 0, nalloc = 0, nlockers = 0, dwhoix;
 	u_int32_t lock_max, txn_max;
-	int policy_override = gbl_deadlock_policy_override;
+	u_int32_t policy_override = gbl_deadlock_policy_override;
 	int is_client;
 	int ret;
 
