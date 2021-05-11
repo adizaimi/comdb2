@@ -574,6 +574,9 @@ int bdb_isopen(bdb_state_type *bdb_handle);
 /* you need to call this if you created the parent with bdb_open_env */
 int bdb_close_env(bdb_state_type *bdb_handle);
 
+/* final cleanup of bdb_handle */
+void bdb_state_cleanup(bdb_state_type *bdb_handle);
+
 /* get a context that can be used in fetches to ensure that we don't fetch
  * records added after the context of the original find. */
 unsigned long long bdb_get_cmp_context(bdb_state_type *bdb_state);

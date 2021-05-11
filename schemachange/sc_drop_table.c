@@ -38,6 +38,7 @@ static int delete_table(struct dbtable *db, tran_type *tran)
     delete_db(table);
     MEMORY_SYNC;
     delete_schema(table);
+    db->schema = NULL;
     bdb_del_table_csonparameters(tran, table);
     return 0;
 }
@@ -142,10 +143,13 @@ int finalize_drop_table(struct ireq *iq, struct schema_change_type *s,
     if (gbl_replicate_local)
         local_replicant_write_clear(iq, tran, db);
 
+    /* handle cleanup of db and unused files in osql_scdone_commit_callback and
+     * osql_scdone_abort_callback (masternode) and scdone_callback (replicant) */
 #if 0
-    /* handle in osql_scdone_commit_callback and osql_scdone_abort_callback */
     /* delete files we don't need now */
     sc_del_unused_files_tran(db, tran);
+    bdb_state_cleanup(db->handle);
+    cleanup_newdb(db);
 #endif
 
     return 0;

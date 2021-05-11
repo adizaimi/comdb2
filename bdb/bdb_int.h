@@ -803,9 +803,9 @@ struct bdb_state_tag {
     seqnum_info_type *seqnum_info;
     bdb_attr_type *attr;         /* attributes that have defaults */
     bdb_callback_type *callback; /* callback functions */
-    DB_ENV *dbenv;               /* transactional environment */
+    DB_ENV *dbenv;               /* transactional environment -- common for all dbtables */
     int read_write;              /* if we opened the db with R/W access */
-    repinfo_type *repinfo;       /* replication info */
+    repinfo_type *repinfo;       /* replication info -- common for all dbtables */
     signed char numdtafiles;
 
     /* the berkeley db btrees underlying this "table" */

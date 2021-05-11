@@ -3332,6 +3332,7 @@ int pause_pagelock_cursors(void *arg);
 int count_pagelock_cursors(void *arg);
 int compare_indexes(const char *table, FILE *out);
 void freeschema(struct schema *schema);
+void complete_freeschema(struct schema *schema);
 void freedb(dbtable *db);
 
 extern int gbl_parallel_recovery_threads;

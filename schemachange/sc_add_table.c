@@ -102,6 +102,7 @@ int add_table_to_environment(char *table, const char *csc2,
                              struct schema_change_type *s, struct ireq *iq,
                              tran_type *trans, const char *timepartition_name)
 {
+    printf("AZ: add_table_to_environment name = %s\n", table);
     int rc;
     struct dbtable *newdb;
 

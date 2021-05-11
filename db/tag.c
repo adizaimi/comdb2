@@ -6645,6 +6645,32 @@ void rename_schema(const char *oldname, char *newname)
     unlock_taglock();
 }
 
+void complete_freeschema(struct schema *schema)
+{
+    if (!schema)
+        return;
+    int i;
+    free(schema->tag);
+    for (i = 0; i < schema->nmembers; i++) {
+        if (schema->member[i].in_default) {
+            free(schema->member[i].in_default);
+        }
+        if (schema->member[i].out_default) {
+            free(schema->member[i].out_default);
+        }
+        free(schema->member[i].name);
+    }
+    free(schema->member);
+    for (i = 0; i < schema->nix; i++) {
+        complete_freeschema(schema->ix[i]);
+    }
+    free(schema->ix);
+    free(schema->datacopy);
+    free(schema->csctag);
+    free(schema->sqlitetag);
+    schema->sqlitetag = NULL;
+}
+
 void freeschema_internals(struct schema *schema)
 {
     int i;
@@ -6679,6 +6705,7 @@ void freeschema(struct schema *schema)
     free(schema);
 }
 
+/* TODO: freedb_int() does very similar steps as cleanup_newdb() in comdb2.c */
 void freedb_int(dbtable *db, dbtable *replace)
 {
     int i;

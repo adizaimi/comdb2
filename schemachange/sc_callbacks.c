@@ -672,8 +672,7 @@ static int delete_table_rep(char *table, void *tran)
     }
 
     /* update the delayed deleted files */
-    rc =
-        bdb_list_unused_files_tran(db->handle, tran, &bdberr, (char *)__func__);
+    rc = bdb_list_unused_files_tran(db->handle, tran, &bdberr, (char *)__func__);
     if (rc) {
         logmsg(LOGMSG_ERROR, "bdb_list_unused_files rc %d bdberr %d\n", rc,
                bdberr);
@@ -681,7 +680,10 @@ static int delete_table_rep(char *table, void *tran)
 
     delete_db(table);
     MEMORY_SYNC;
+    bdb_state_cleanup(db->handle);
+    db->handle = NULL;
     delete_schema(table);
+    db->schema = NULL;
     return 0;
 }
 

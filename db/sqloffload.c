@@ -677,8 +677,7 @@ extern int gbl_readonly_sc;
 static void osql_scdone_commit_callback(struct ireq *iq)
 {
     int bdberr = 0;
-    int write_scdone =
-        bdb_attr_get(thedb->bdb_attr, BDB_ATTR_SC_DONE_SAME_TRAN) ? 0 : 1;
+    int write_scdone = bdb_attr_get(thedb->bdb_attr, BDB_ATTR_SC_DONE_SAME_TRAN) ? 0 : 1;
     gbl_readonly_sc = 0;
     if (iq->osql_flags & OSQL_FLAGS_SCDONE) {
         struct schema_change_type *sc_next;
@@ -748,6 +747,18 @@ static void osql_scdone_commit_callback(struct ireq *iq)
                     logmsg(LOGMSG_ERROR,
                            "%s failed to start lock_trans, rc=%d\n", __func__,
                            rc);
+                }
+                if (iq->sc->drop_table) { /* on replicant bdbstate_cleanup happens in scdone_callback */
+                    bdb_state_cleanup(iq->sc->db->handle);
+                    iq->sc->db->handle = NULL;
+                    assert(NULL == iq->sc->db->schema);
+                    cleanup_newdb(iq->sc->db);
+                    iq->sc->db = 0;
+                } else if(0) {
+                    printf("AZ: tricky area ------%s\n", iq->sc->db->tablename);
+                    complete_freeschema(iq->sc->db->schema);
+                    free(iq->sc->db->schema);
+                    iq->sc->db->schema = NULL;
                 }
             }
             if (iq->sc->fastinit && !iq->sc->drop_table)

@@ -835,6 +835,7 @@ __dbenv_close(dbenv, rep_check)
 	DB_ENV *dbenv;
 	int rep_check;
 {
+    printf("AZ: dbenv_close called\n");
 	int ret, t_ret;
 	char **p;
 

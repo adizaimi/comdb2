@@ -175,27 +175,41 @@ for node in $cluster ; do
     fi
 done
 
-if [ $OSTYPE -eq "linux-gnu" ] ; then
+if [ "$OSTYPE" == "linux-gnu" ] ; then
     echo "core location:" 
     cat  /proc/sys/kernel/core_pattern
 fi
 
-cdb2sql ${CDB2_OPTIONS} $dbnm default 'exec procedure sys.cmd.send("debg 2")'
-cdb2sql ${CDB2_OPTIONS} $dbnm default 'exec procedure sys.cmd.send("ndebg 2")'
+$CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default 'exec procedure sys.cmd.send("debg 2")'
+$CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default 'exec procedure sys.cmd.send("ndebg 2")'
 
-echo "create, alter, drop table t2"
-cdb2sql ${CDB2_OPTIONS} $dbnm default "create table t2  { `cat alltypes.csc2 ` }"
-cdb2sql ${CDB2_OPTIONS} $dbnm default "alter table t2  { `cat alltypes.csc2 ` }"
-cdb2sql ${CDB2_OPTIONS} $dbnm default "drop table t2 "
+echo "create, alter, rebuild, drop table t2"
+
+for ii in {1..10} ; do
+    $CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "create table t2  { `cat alltypes.csc2 ` }"
+    $CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "drop table t2 "
+done
+
+$CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "create table t2  { `cat alltypes.csc2 ` }"
+
+for ii in {1..11} ; do
+    $CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "alter table t2  { `cat alltypes.csc2 ` }"
+done
+
+for ii in {1..12} ; do
+    $CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "rebuild t2"
+done
+
+$CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "drop table t2 "
 
 set +e
-cdb2sql ${CDB2_OPTIONS} $dbnm default "drop table t2 " &> baddrop.out
+$CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "drop table t2 " &> baddrop.out
 echo "[drop table t2] failed with rc -3 no such table: t2" > baddrop.exp
 if ! diff baddrop.out baddrop.exp ; then
     failexit "unexpected $nosuchtbl"
 fi
 
-cdb2sql ${CDB2_OPTIONS} $dbnm default "select * from t2 " &> badsel.out
+$CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "select * from t2 " &> badsel.out
 echo "[select * from t2] failed with rc -3 no such table: t2" > badsel.exp
 if ! diff badsel.out badsel.exp ; then
     failexit "Expected failure when selecting nonexistent table"
@@ -206,16 +220,16 @@ $CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "insert into t2 values(1)"
 do_verify t2
 
 echo insert 1 will fail because dup
-cdb2sql ${CDB2_OPTIONS} $dbnm default "insert into t2 values(1)" &> dupins1.out
+$CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "insert into t2 values(1)" &> dupins1.out
 echo "[insert into t2 values(1)] failed with rc 299 add key constraint duplicate key 'COMDB2_PK' on table 't2' index 0" > dupins1.exp
 if ! diff  dupins1.out dupins1.exp; then
     failexit "Expected failure when inserting duplicate record"
 
 fi
-cdb2sql ${CDB2_OPTIONS} $dbnm default "insert into t2 values(2)" &> dupins2.out
+$CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "insert into t2 values(2)" &> dupins2.out
 
 echo update 2 to 1 will fail
-cdb2sql ${CDB2_OPTIONS} $dbnm default "update t2 set i=1 where i=2" &> dupupd2.out
+$CDB2SQL_EXE ${CDB2_OPTIONS} $dbnm default "update t2 set i=1 where i=2" &> dupupd2.out
 echo "[update t2 set i=1 where i=2] failed with rc 299 add key constraint duplicate key 'COMDB2_PK' on table 't2' index 0" > dupupd2.exp
 if ! diff  dupupd2.out dupupd2.exp; then
     failexit "Expected failure when updating with duplicate record"

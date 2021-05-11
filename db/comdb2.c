@@ -1492,6 +1492,7 @@ static void free_sqlite_table(struct dbenv *dbenv)
         dbtable *tbl = dbenv->dbs[i];
         delete_schema(tbl->tablename); // tags hash
         delete_db(tbl->tablename);     // will free db
+        tbl->schema = NULL;
         bdb_cleanup_fld_hints(tbl->handle);
         freedb(tbl);
     }
@@ -1518,15 +1519,20 @@ static void free_view_hash(hash_t *view_hash)
  */
 static void finish_clean()
 {
-    int rc = backend_close(thedb);
-    if (rc != 0) {
-        logmsg(LOGMSG_ERROR, "error backend_close() rc %d\n", rc);
-    }
+
     bdb_cleanup_private_blkseq(thedb->bdb_env);
 
     /* gbl_trickle_thdpool is needed up to here */
     stop_trickle_threads();
-    close_all_dbs_tran(NULL);
+
+    free_sqlite_table(thedb);
+    thedb->dbs = NULL;
+    thedb->num_dbs = 0;
+
+    int rc = backend_close(thedb);
+    if (rc != 0) {
+        logmsg(LOGMSG_ERROR, "error backend_close() rc %d\n", rc);
+    }
 
     eventlog_stop();
 
@@ -1536,8 +1542,6 @@ static void finish_clean()
     backend_cleanup(thedb);
     net_cleanup();
     cleanup_sqlite_master();
-
-    free_sqlite_table(thedb);
 
     if (thedb->sqlalias_hash) {
         hash_clear(thedb->sqlalias_hash);
@@ -1793,36 +1797,29 @@ dbtable *newqdb(struct dbenv *env, const char *name, int avgsz, int pagesize,
     return tbl;
 }
 
+
+#define free_and_setnull(var) \
+    do {                      \
+        free(var);            \
+        var = NULL;           \
+    } while (0);
+
+
+
+/* Cleanup dbtable structure properly
+ * make sure the tbl->schema is freed already before getting here */
 void cleanup_newdb(dbtable *tbl)
 {
     if (!tbl)
         return;
 
-    free(tbl->sqlaliasname);
-
-    if (tbl->tablename) {
-        free(tbl->tablename);
-        tbl->tablename = NULL;
-    }
-
-    if (tbl->lrlfname) {
-        free(tbl->lrlfname);
-        tbl->lrlfname = NULL;
-    }
-
-    if (tbl->ixuse) {
-        free(tbl->ixuse);
-        tbl->ixuse = NULL;
-    }
-    if (tbl->sqlixuse) {
-        free(tbl->sqlixuse);
-        tbl->sqlixuse = NULL;
-    }
-
-    if (tbl->rev_constraints) {
-        free(tbl->rev_constraints);
-        tbl->rev_constraints = NULL;
-    }
+    assert(!tbl->schema);
+    free_and_setnull(tbl->sqlaliasname);
+    free_and_setnull(tbl->tablename);
+    free_and_setnull(tbl->lrlfname);
+    free_and_setnull(tbl->ixuse);
+    free_and_setnull(tbl->sqlixuse);
+    free_and_setnull(tbl->rev_constraints);
 
     for (int i = 0; i < tbl->n_constraints; ++i) {
         if (tbl->constraints == NULL)
@@ -1835,27 +1832,17 @@ void cleanup_newdb(dbtable *tbl)
         free(tbl->constraints[i].keynm);
     }
 
-    if (tbl->constraints) {
-        free(tbl->constraints);
-        tbl->constraints = NULL;
-    }
-
-    if (tbl->check_constraints) {
-        free(tbl->check_constraints);
-        tbl->check_constraints = NULL;
-    }
+    free_and_setnull(tbl->constraints);
+    free_and_setnull(tbl->check_constraints);
 
     for (int i = 0; i < tbl->n_check_constraints; i++) {
         if ((tbl->check_constraint_query == NULL) || (tbl->check_constraint_query[i] == NULL))
             break;
-        free(tbl->check_constraint_query[i]);
+        free_and_setnull(tbl->check_constraint_query[i]);
         tbl->check_constraint_query[i] = NULL;
     }
 
-    if (tbl->check_constraint_query) {
-        free(tbl->check_constraint_query);
-        tbl->check_constraint_query = NULL;
-    }
+    free_and_setnull(tbl->check_constraint_query);
 
     Pthread_mutex_destroy(&tbl->rev_constraints_lk);
 
@@ -5626,10 +5613,11 @@ static void goodbye()
 #ifndef NDEBUG //TODO:wrap the follwing lines before checking in
     if (gbl_perform_full_clean_exit) {
         char cmd[400];
+        char *td = getenv("TESTDIR");
         sprintf(cmd,
                 "bash -c 'gdb --batch --eval-command=\"thr app all ba\" "
-                "/proc/%d/exe %d 2>&1 > %s/logs/%s.atexit'",
-                gbl_mypid, gbl_mypid, getenv("TESTDIR"), gbl_dbname);
+                "/proc/%d/exe %d 2>&1 > %s%s/%s.atexit'",
+                gbl_mypid, gbl_mypid, td?td:".",td?"/logs":"", gbl_dbname);
 
         logmsg(LOGMSG_ERROR, "goodbye: running %s\n", cmd);
         int rc = system(cmd);
@@ -5890,10 +5878,7 @@ int main(int argc, char **argv)
     thrman_wait_type_exit(THRTYPE_CLEANEXIT);
     finish_clean();
 
-    for (int ii = 0; ii < thedb->num_dbs; ii++) {
-        struct dbtable *db = thedb->dbs[ii];
-        free(db->handle);
-    }
+    assert(0 == thedb->num_dbs);
     free(thedb);
     thedb = NULL;
 
@@ -5935,6 +5920,7 @@ void delete_db(char *db_name)
     /* Remove the table from hash. */
     _db_hash_del(thedb->dbs[idx]);
 
+    /* shift down all dbtables from idx to num_dbs - 1 */
     for (int i = idx; i < (thedb->num_dbs - 1); i++) {
         thedb->dbs[i] = thedb->dbs[i + 1];
         thedb->dbs[i]->dbs_idx = i;

@@ -141,9 +141,7 @@ static int bdb_free_int(bdb_state_type *bdb_state, bdb_state_type *replace,
 static int bdb_close_only_int(bdb_state_type *bdb_state, DB_TXN *tid,
                               int *bdberr);
 
-enum {
-    BDB_CLOSE_FLAGS_FLUSH = 1,
-};
+enum { BDB_CLOSE_FLAGS_FLUSH = 1, };
 static int bdb_close_only_flags(bdb_state_type *, DB_TXN *, int *bdberr, int flags);
 
 int bdb_rename_file(bdb_state_type *bdb_state, DB_TXN *tid, char *oldfile,
@@ -1346,6 +1344,61 @@ static void net_stopthread_rtn(void *arg)
     bdb_thread_event((bdb_state_type *)arg, 0);
 }
 
+/* final cleanup of bdb_handle -- free all needed member variables */
+void bdb_state_cleanup(bdb_state_type *bdb_state)
+{
+    if (!bdb_state)
+        return;
+    assert(!bdb_state->isopen);
+    printf("AZ: final bdb_state_cleanup for %s\n", bdb_state->name);
+    free(bdb_state->name);
+    free(bdb_state->dir);
+    free(bdb_state->origname);
+    Pthread_mutex_destroy(&(bdb_state->numthreads_lock));
+    Pthread_mutex_destroy(&(bdb_state->id_lock));
+    Pthread_mutex_destroy(&(bdb_state->gblcontext_lock));
+    Pthread_mutex_destroy(&(bdb_state->master_lease_lk));
+    Pthread_mutex_destroy(&(bdb_state->coherent_state_lock));
+    Pthread_mutex_destroy(&(bdb_state->durable_lsn_lk));
+    Pthread_mutex_destroy(&(bdb_state->exit_lock));
+    Pthread_mutex_destroy(&(bdb_state->seed_lock));
+    Pthread_mutex_destroy(&(bdb_state->pending_broadcast_lock));
+
+    Pthread_attr_destroy(&(bdb_state->pthread_attr_detach));
+    free(bdb_state->last_downgrade_time);
+    free(bdb_state->master_lease);
+    free(bdb_state->coherent_state);
+    if(!bdb_state->parent) {
+        Pthread_mutex_destroy(&(bdb_state->seqnum_info->lock));
+        Pthread_cond_destroy(&(bdb_state->seqnum_info->cond));
+        //Pthread_key_delete(&(bdb_state->seqnum_info->key));
+        free(bdb_state->seqnum_info->waitlist);
+        //pool clean: (bdb_state->seqnum_info->trackpool);
+        free(bdb_state->seqnum_info->time_10seconds);
+        free(bdb_state->seqnum_info->time_minute);
+        free(bdb_state->seqnum_info->expected_udp_count);
+        free(bdb_state->seqnum_info->incomming_udp_count);
+        free(bdb_state->seqnum_info->udp_average_counter);
+        free(bdb_state->seqnum_info->seqnums);
+        free(bdb_state->seqnum_info->filenum);
+        free(bdb_state->seqnum_info);
+
+        Pthread_mutex_destroy(&(bdb_state->children_lock));
+        Pthread_rwlock_destroy(bdb_state->bdb_lock);
+        free(bdb_state->bdb_lock);
+        free(bdb_state->bdb_lock);
+    }
+    free(bdb_state->txndir);
+    free(bdb_state->tmpdir);
+    Pthread_mutex_destroy(&(bdb_state->repinfo->elect_mutex));
+    Pthread_mutex_destroy(&(bdb_state->repinfo->upgrade_lock));
+    Pthread_mutex_destroy(&(bdb_state->repinfo->send_lock));
+    Pthread_mutex_destroy(&(bdb_state->repinfo->receive_lock));
+    Pthread_mutex_destroy(&(bdb_state->repinfo->appseqnum_lock));
+    free(bdb_state);
+}
+
+
 /* According to the berkdb docs, after the DB/DBENV close() functions have
  * been called the handle can no longer be used regardless of the outcome.
  * Hence this function will now never fail - although it may spit out errors.
@@ -1359,6 +1412,7 @@ static int close_dbs_int(bdb_state_type *bdb_state, DB_TXN *tid, int flags)
     u_int8_t fileid[21] = {0};
     char fid_str[41] = {0};
 
+    printf("AZ: close_dbs_int %s\n", bdb_state->name);
     print(bdb_state, "in %s(name=%s)\n", __func__, bdb_state->name);
 
     if (!bdb_state->isopen) {
@@ -1392,8 +1446,7 @@ static int close_dbs_int(bdb_state_type *bdb_state, DB_TXN *tid, int flags)
                 }
             } else if (notclosingdta_trace) {
                 logmsg(LOGMSG_DEBUG,
-                       "%s:%d not closing dtafile %d stripe %d "
-                       "(NULL ptr)\n",
+                       "%s:%d not closing dtafile %d stripe %d (NULL ptr)\n",
                        __func__, __LINE__, dtanum, strnum);
             }
         }
@@ -1621,11 +1674,16 @@ void bdb_prepare_close(bdb_state_type *bdb_state)
     osql_cleanup_netinfo();
 }
 
+#define free_and_setnull(bdb_state) \
+    do {  \
+        free(bdb_state); \
+        bdb_state = NULL; \
+    } while (0); 
+
 /* this routine is only used to CLOSE THE WHOLE DB (env) */
-static int bdb_close_int(bdb_state_type *bdb_state, int envonly)
+int bdb_close_env(bdb_state_type *bdb_state)
 {
     int rc;
-    bdb_state_type *child;
     int i;
     int bdberr;
     int last;
@@ -1636,13 +1694,14 @@ static int bdb_close_int(bdb_state_type *bdb_state, int envonly)
     /* force a checkpoint */
     rc = ll_checkpoint(bdb_state, 1);
 
+    printf("AZ: bdb_close_env %s\n", bdb_state->name);
     /* if we were passed a child, find his parent */
     if (bdb_state->parent)
         bdb_state = bdb_state->parent;
 
     bdb_lock_children_lock(bdb_state);
     for (i = 0; i < bdb_state->numchildren; i++) {
-        child = bdb_state->children[i];
+        bdb_state_type *child = bdb_state->children[i];
         if (child) {
             child->exiting = 1;
         }
@@ -1664,20 +1723,17 @@ static int bdb_close_int(bdb_state_type *bdb_state, int envonly)
 
     bdb_state->dbenv->txn_begin(bdb_state->dbenv, NULL, &tid, 0);
 
-    /* close all database files.   doesn't fail. */
-    if (!envonly) {
-        rc = close_dbs(bdb_state);
-    }
-
     /* now do it for all of our children */
     bdb_lock_children_lock(bdb_state);
     for (i = 0; i < bdb_state->numchildren; i++) {
-        child = bdb_state->children[i];
+        bdb_state_type *child  = bdb_state->children[i];
 
-        /* close all of our databases.  doesn't fail. */
+        /* close all of our databases. doesn't fail. */
         if (child) {
             rc = close_dbs(child);
             bdb_access_destroy(child);
+            bdb_state_cleanup(child);
+            bdb_state->children[i] = NULL;
         }
     }
     bdb_unlock_children_lock(bdb_state);
@@ -1711,32 +1767,31 @@ static int bdb_close_int(bdb_state_type *bdb_state, int envonly)
         else {
             last = 0;
             while (!rc && last == 0) {
-                rc =
-                    bdb_temp_table_destroy_lru(NULL, bdb_state, &last, &bdberr);
+                rc = bdb_temp_table_destroy_lru(NULL, bdb_state, &last, &bdberr);
             }
         }
     }
 
-    free(bdb_state->origname);
-    free(bdb_state->name);
-    free(bdb_state->dir);
-    free(bdb_state->txndir);
-    free(bdb_state->tmpdir);
+    free_and_setnull(bdb_state->origname);
+    free_and_setnull(bdb_state->name);
+    free_and_setnull(bdb_state->dir);
+    free_and_setnull(bdb_state->txndir);
+    free_and_setnull(bdb_state->tmpdir);
 
-    free(bdb_state->seqnum_info->seqnums);
-    free(bdb_state->last_downgrade_time);
-    free(bdb_state->master_lease);
-    free(bdb_state->coherent_state);
-    free(bdb_state->seqnum_info->waitlist);
-    free(bdb_state->seqnum_info->trackpool);
-    free(bdb_state->seqnum_info->time_10seconds);
-    free(bdb_state->seqnum_info->time_minute);
-    free(bdb_state->seqnum_info->expected_udp_count);
-    free(bdb_state->seqnum_info->incomming_udp_count);
-    free(bdb_state->seqnum_info->udp_average_counter);
-    free(bdb_state->seqnum_info->filenum);
+    free_and_setnull(bdb_state->seqnum_info->seqnums);
+    free_and_setnull(bdb_state->last_downgrade_time);
+    free_and_setnull(bdb_state->master_lease);
+    free_and_setnull(bdb_state->coherent_state);
+    free_and_setnull(bdb_state->seqnum_info->waitlist);
+    free_and_setnull(bdb_state->seqnum_info->trackpool);
+    free_and_setnull(bdb_state->seqnum_info->time_10seconds);
+    free_and_setnull(bdb_state->seqnum_info->time_minute);
+    free_and_setnull(bdb_state->seqnum_info->expected_udp_count);
+    free_and_setnull(bdb_state->seqnum_info->incomming_udp_count);
+    free_and_setnull(bdb_state->seqnum_info->udp_average_counter);
+    free_and_setnull(bdb_state->seqnum_info->filenum);
 
-    free(bdb_state->repinfo->appseqnum);
+    free_and_setnull(bdb_state->repinfo->appseqnum);
 
     /* We can not free bdb_state because other threads get READLOCK
      * and it does not work well doing so on freed memory, so don't:
@@ -1876,11 +1931,6 @@ void bdb_stop_recover_threads(bdb_state_type *bdb_state)
         thdpool_stop(bdb_state->dbenv->recovery_processors);
     if (bdb_state->dbenv->recovery_workers)
         thdpool_stop(bdb_state->dbenv->recovery_workers);
-}
-
-int bdb_close_env(bdb_state_type *bdb_state)
-{
-    return bdb_close_int(bdb_state, 1);
 }
 
 int berkdb_send_rtn(DB_ENV *dbenv, const DBT *control, const DBT *rec,
@@ -5728,18 +5778,12 @@ static bdb_state_type *bdb_open_int(
         Pthread_cond_init(&(bdb_state->seqnum_info->cond), NULL);
         bdb_state->seqnum_info->waitlist =
             calloc(MAXNODES, sizeof(wait_for_lsn_list *));
-        bdb_state->seqnum_info->trackpool = pool_setalloc_init(
-            sizeof(struct waiting_for_lsn), 100, malloc, free);
-        bdb_state->seqnum_info->time_10seconds =
-            calloc(MAXNODES, sizeof(struct averager *));
-        bdb_state->seqnum_info->time_minute =
-            calloc(MAXNODES, sizeof(struct averager *));
-        bdb_state->seqnum_info->expected_udp_count =
-            calloc(MAXNODES, sizeof(short));
-        bdb_state->seqnum_info->incomming_udp_count =
-            calloc(MAXNODES, sizeof(short));
-        bdb_state->seqnum_info->udp_average_counter =
-            calloc(MAXNODES, sizeof(short));
+        bdb_state->seqnum_info->trackpool = pool_setalloc_init( sizeof(struct waiting_for_lsn), 100, malloc, free);
+        bdb_state->seqnum_info->time_10seconds = calloc(MAXNODES, sizeof(struct averager *));
+        bdb_state->seqnum_info->time_minute = calloc(MAXNODES, sizeof(struct averager *));
+        bdb_state->seqnum_info->expected_udp_count = calloc(MAXNODES, sizeof(short));
+        bdb_state->seqnum_info->incomming_udp_count = calloc(MAXNODES, sizeof(short));
+        bdb_state->seqnum_info->udp_average_counter = calloc(MAXNODES, sizeof(short));
 
         for (i = 0; i < 16; i++)
             bdb_state->stripe_pool[i] = 255;
@@ -7006,7 +7050,7 @@ static int bdb_close_only_flags(bdb_state_type *bdb_state, DB_TXN *tid, int *bdb
 
     *bdberr = BDBERR_NOERROR;
 
-    logmsg(LOGMSG_DEBUG, "bdb_close_only_int called on %s\n", bdb_state->name);
+    logmsg(LOGMSG_DEBUG, "bdb_close_only_flags called on %s\n", bdb_state->name);
 
     /* lets only free children/tables, not the parent/environment for now */
     if (bdb_state->parent)
@@ -7028,7 +7072,7 @@ static int bdb_close_only_flags(bdb_state_type *bdb_state, DB_TXN *tid, int *bdb
     /* find ourselves and swap null it. */
     for (i = 0; i < parent->numchildren; i++)
         if (parent->children[i] == bdb_state) {
-            logmsg(LOGMSG_DEBUG, "bdb_close_only_int freeing slot %d\n", i);
+            logmsg(LOGMSG_DEBUG, "bdb_close_only_flags freeing slot %d\n", i);
             parent->children[i] = NULL;
             break;
         }

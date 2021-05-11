@@ -831,7 +831,7 @@ int finalize_alter_table(struct ireq *iq, struct schema_change_type *s,
     /* replace the old db definition with a new one */
 
     newdb->plan = NULL;
-    db->schema = clone_schema(newdb->schema);
+    // was leaking: db->schema = clone_schema(newdb->schema);
 
     free_db_and_replace(db, newdb);
     fix_constraint_pointers(db, newdb);
@@ -867,8 +867,8 @@ int finalize_alter_table(struct ireq *iq, struct schema_change_type *s,
     }
 
     if (!gbl_create_mode) {
-        logmsg(LOGMSG_INFO, "Table %s is at version: %d\n", newdb->tablename,
-               newdb->schema_version);
+        logmsg(LOGMSG_INFO, "Table %s is at version: %d\n", db->tablename,
+               db->schema_version);
     }
 
     llmeta_dump_mapping_table_tran(transac, thedb, db->tablename, 1);
@@ -930,7 +930,7 @@ int finalize_alter_table(struct ireq *iq, struct schema_change_type *s,
     /* deletion of btree files we don't need is handled in
      * osql_scdone_commit_callback and osql_scdone_abort_callback */
     memset(newdb, 0xff, sizeof(struct dbtable));
-    free(newdb);
+    free(newdb); // we cant cleanup inside newdb since db inherited all pointers
     free(new_bdb_handle);
 
     sc_printf(s, "Schema change finished, seed %0#16llx\n",
