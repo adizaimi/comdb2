@@ -1,0 +1,4 @@
+This test attempts to replicate issue with updates not being propagated to
+other nodes and client can't find such update which they thought it was
+successful. Note that this is not while performing downgrades or killing
+leader node, like lostwrite.test does.
